@@ -1,0 +1,4 @@
+dataset/*
+downloads/*
+build/*
+.env
