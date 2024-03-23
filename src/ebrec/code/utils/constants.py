@@ -1,1 +1,1 @@
-ciao = "ciao"
+PATH = "/kaggle/input/recommender-systems-challenge-2024/ebnerd_"
