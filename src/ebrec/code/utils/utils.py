@@ -1,3 +1,8 @@
+import polars as pl
+import Pathlib as Path
+
+from src.ebrec.code.utils.constants import PATH
+
 def load_history_behaviors(bundle = "large", split = "train", filename = "behaviors"):
     print("I'm loading {} from {}, bundle: {}".format(filename,split, bundle))
     return pl.read_parquet(Path(str(PATH) + bundle).joinpath(split,filename+".parquet"))
