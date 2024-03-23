@@ -1,5 +1,5 @@
 import polars as pl
-import Pathlib as Path
+import pathlib as Path
 
 from src.ebrec.code.utils.constants import PATH
 
