@@ -6,9 +6,7 @@ except ImportError:
 """
 Utils for catboost.
 """ 
-
-
-def add_features_JS_history_topics(train_ds : pl.DataFrame , articles : pl.DataFrame, history : pl.DataFrame) -> pl.DataFrame :
+def add_features_JS_history_topics(train_ds, articles, history):
     """
     Returns train_ds enriched with features computed using the user's history.
     For each impression (user_id, article_id) considers the user's history (composed of "n" articles) and computes "n" Jaccard Similarity values, between the set of
@@ -28,7 +26,7 @@ def add_features_JS_history_topics(train_ds : pl.DataFrame , articles : pl.DataF
     
     df = pl.concat(
     (
-    rows.select(["user_id","article"]) #Select only useful columns
+    rows.select(["impression_id","user_id","article"]) #Select only useful columns
         .join(article_ds,on="article",how="left") #Add topics of the inview_article
         .join(other = history_ds, on = "user_id",how="left") #Add history of the user
         .explode("article_id_fixed") #explode the user's history
@@ -39,7 +37,7 @@ def add_features_JS_history_topics(train_ds : pl.DataFrame , articles : pl.DataF
         (pl.col("topics").list.set_intersection(pl.col("topics_history")).list.len().truediv(
             pl.col("topics").list.set_union(pl.col("topics_history")).list.len()
         )).alias("JS")
-        ).group_by(["user_id","article"]).agg([ #grouping on all the "n" articles in the user's history, compute aggregations of the "n" JS values
+        ).group_by(["impression_id","article"]).agg([ #grouping on all the "n" articles in the user's history, compute aggregations of the "n" JS values
             pl.col("JS").mean().alias("mean_JS"),
             pl.col("JS").min().alias("min_JS"),
             pl.col("JS").max().alias("max_JS"),
@@ -49,4 +47,5 @@ def add_features_JS_history_topics(train_ds : pl.DataFrame , articles : pl.DataF
     )
 
     )
-    return train_ds.join(other = df, on=["user_id","article"], how="left")
+    return train_ds.join(other = df, on=["impression_id","article"], how="left")
+
