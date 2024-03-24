@@ -8,12 +8,20 @@ Utils for catboost.
 """ 
 
 
-def add_features_JS_history_topics(train_ds, articles, history):
+def add_features_JS_history_topics(train_ds : pl.DataFrame , articles : pl.DataFrame, history : pl.DataFrame) -> pl.DataFrame :
     """
     Returns train_ds enriched with features computed using the user's history.
-    For each impression, adds features computed aggregating the Jaccard Similarity values of the topics of the article_inview and the topics of each article
-    in the user's history.
-    In particular adds: mean, min, max, std.dev.
+    For each impression (user_id, article_id) considers the user's history (composed of "n" articles) and computes "n" Jaccard Similarity values, between the set of
+    topics of the article of the impression and the "n" sets of topics of the articles in the user's history.
+    Then, these "n" values get aggregated using mean, min, max, std.dev.
+
+     Args:
+        train_ds: The training dataset (Can contain any feature, but it MUST contain user_id and article)
+        articles: The articles dataset (MUST contain article_id and topics)
+        history: The history dataset (MUST contain user_id and article_id_fixed)
+
+    Returns:
+        pl.DataFrame: The training dataset with added features
     """
     article_ds= articles.select(["article_id","topics"]).rename({"article_id":"article"})
     history_ds = history.select(["user_id","article_id_fixed"])
