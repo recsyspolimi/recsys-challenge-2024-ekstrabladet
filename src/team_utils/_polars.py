@@ -20,14 +20,14 @@ def list_pct_matches_with_col(a: str, b: str) -> pl.Expr:
     >>> x = pl.DataFrame({'col1': [[1, 2, 2], [3]], 'col2': [2, 4]})
     >>> x.with_columns(list_pct_matches_with_col('col1', 'col2').alias('pct_matches'))
     shape: (2, 3)
-    ┌───────────┬──────┬──────────────┐
-    │ col1      ┆ col2 ┆ pct_matches  ┆
-    │ ---       ┆ ---  ┆ ---          │
-    │ list[i64] ┆ i64  ┆ f64          │
-    ╞═══════════╪══════╪══════════════╡
-    │ [1, 2, 2] ┆ 2    ┆ 0.33         │
-    │ [3]       ┆ 4    ┆ 0.0          │
-    └───────────┴──────┴──────────────┘
+    ┌───────────┬──────┬─────────────┐
+    │ col1      ┆ col2 ┆ pct_matches │
+    │ ---       ┆ ---  ┆ ---         │
+    │ list[i64] ┆ i64  ┆ f64         │
+    ╞═══════════╪══════╪═════════════╡
+    │ [1, 2, 2] ┆ 2    ┆ 0.666667    │
+    │ [3]       ┆ 4    ┆ 0.0         │
+    └───────────┴──────┴─────────────┘
     '''
     return pl.when(pl.col(a).list.len() == 0).then(0.0) \
         .otherwise((pl.col(a).list.len() - (pl.col(a).list.set_difference(pl.col(b))).list.len()) / pl.col(a).list.len())
@@ -65,17 +65,17 @@ def get_single_feature_function(df: pl.DataFrame, index_feature: str, f_name: st
     └───────────┴──────┘
     >>> y = pl.DataFrame({'x': [2, 4]})
     >>> bar = Progress()
-    >>> task = progress.add_task("Fetching col1", total=y.shape[0])
-    >>> y.with_columns(pl.col('x').map_elements(get_single_feature_function(x, 'col2', 'col1', bar, task), return_dtype=pl.List(pl.Int64)).alias('col1_values'))
-    shape: (2, 3)
-    ┌─────┬───────────┐
-    │ x   ┆ col1      │
-    │ --- ┆ ---       │
-    │ i64 ┆ list[i64] │
-    ╞═════╪═══════════╡
-    │ 2   ┆ [1, 2, 2] │
-    │ 4   ┆ [3, 4]    │
-    └─────┴───────────┘
+    >>> task = bar.add_task("Fetching col1", total=y.shape[0])
+    >>> y.with_columns(pl.col('x').map_elements(get_single_feature_function(x, 'col2', 'col1', bar, task), return_dtype=pl.List(pl.List(pl.Int64))).alias('col1_values'))
+    shape: (2, 2)
+    ┌─────┬─────────────────┐
+    │ x   ┆ col1_values     │
+    │ --- ┆ ---             │
+    │ i64 ┆ list[list[i64]] │
+    ╞═════╪═════════════════╡
+    │ 2   ┆ [[1, 2, 2]]     │
+    │ 4   ┆ [[3], [4]]      │
+    └─────┴─────────────────┘
     '''
     def get_feature(article_ids):
         progress_bar.update(progress_task, advance=1)
@@ -120,17 +120,17 @@ def get_unique_list_feature_function(df: pl.DataFrame, index_feature: str, f_nam
     └───────────┴──────┘
     >>> y = pl.DataFrame({'x': [2, 4]})
     >>> bar = Progress()
-    >>> task = progress.add_task("Fetching col1", total=y.shape[0])
-    >>> y.with_columns(pl.col('x').map_elements(get_unique_list_feature_function(x, 'col2', 'col1', bar, task), return_dtype=pl.List(pl.Int64)).alias('col1_values'))
-    shape: (2, 3)
-    ┌─────┬───────────┐
-    │ x   ┆ col1      │
-    │ --- ┆ ---       │
-    │ i64 ┆ list[i64] │
-    ╞═════╪═══════════╡
-    │ 2   ┆ [1, 2]    │
-    │ 4   ┆ [3, 4]    │
-    └─────┴───────────┘
+    >>> task = bar.add_task("Fetching col1", total=y.shape[0])
+    >>> y.with_columns(pl.col('x').map_elements(get_unique_list_feature_function(x, 'col2', 'col1', bar, task), return_dtype=pl.List(pl.List(pl.Int64))).alias('col1_values'))
+    shape: (2, 2)
+    ┌─────┬─────────────────┐
+    │ x   ┆ col1_values     │
+    │ --- ┆ ---             │
+    │ i64 ┆ list[list[i64]] │
+    ╞═════╪═════════════════╡
+    │ 2   ┆ [[1, 2]]        │
+    │ 4   ┆ [[3], [4]]      │
+    └─────┴─────────────────┘
     '''
     def get_feature(article_ids):
         progress_bar.update(progress_task, advance=1)
@@ -175,17 +175,17 @@ def get_unique_list_exploded_feature_function(df: pl.DataFrame, index_feature: s
     └───────────┴──────┘
     >>> y = pl.DataFrame({'x': [2, 4]})
     >>> bar = Progress()
-    >>> task = progress.add_task("Fetching col1", total=y.shape[0])
-    >>> y.with_columns(pl.col('x').map_elements(get_unique_list_feature_function(x, 'col2', 'col1', bar, task), return_dtype=pl.List(pl.Int64)).alias('col1_values'))
+    >>> task = bar.add_task("Fetching col1", total=y.shape[0])
+    >>> y.with_columns(pl.col('x').map_elements(get_unique_list_exploded_feature_function(x, 'col2', 'col1', bar, task), return_dtype=pl.List(pl.Int64)).alias('col1_values'))
     shape: (2, 3)
-    ┌─────┬─────────────────┐
-    │ x   ┆ col1            │
-    │ --- ┆ ---             │
-    │ i64 ┆ list[list[i64]] │
-    ╞═════╪═════════════════╡
-    │ 2   ┆ [[1, 2]]        │
-    │ 4   ┆ [[3], [4]]      │
-    └─────┴─────────────────┘
+    ┌─────┬─────────────┐
+    │ x   ┆ col1_values │
+    │ --- ┆ ---         │
+    │ i64 ┆ list[i64]   │
+    ╞═════╪═════════════╡
+    │ 2   ┆ [1, 2]      │
+    │ 4   ┆ [3, 4]      │
+    └─────┴─────────────┘
     '''
     def get_feature(article_ids):
         progress_bar.update(progress_task, advance=1)
