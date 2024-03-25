@@ -144,7 +144,7 @@ def add_features_JS_history_topics(train_ds, articles, history):
     return train_ds.join(other = df, on=["impression_id","article"], how="left")
         
         
-def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, unique_entities: List[str]):
+def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, unique_entities: List[str]) -> pl.DataFrame:
     '''
     Builds all the features of the users history. These features are:
     - number of articles seen
@@ -198,7 +198,7 @@ def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, uniqu
     return history
     
     
-def _preprocess_history_df(history: pl.DataFrame, articles: pl.DataFrame):
+def _preprocess_history_df(history: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
     '''
     Retrieves the categories, the article types, the sentiment labels and scores from the seen articles by each user
     in the history dataframe, i.e. of the articles whose ids are in the article_id_fixed column.
