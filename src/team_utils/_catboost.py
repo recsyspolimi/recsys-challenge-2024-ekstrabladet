@@ -1,6 +1,9 @@
 from tqdm import tqdm
 from rich.progress import Progress
 from scipy import stats
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from typing_extensions import Tuple, List
 
 try:
     import polars as pl
@@ -8,6 +11,7 @@ except ImportError:
     print("polars not available")
 
 from team_utils._polars import *
+from team_utils._utils import *
 from ebrec.utils._behaviors import (
     create_binary_labels_column,
     sampling_strategy_wu2019,
@@ -18,7 +22,8 @@ Utils for catboost.
 
 
 def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, 
-                   test: bool = False, sample: bool = True, npratio: int = 2) -> pl.DataFrame:
+                   test: bool = False, sample: bool = True, npratio: int = 2, 
+                   tf_idf_vectorizer: TfidfVectorizer = None) -> pl.DataFrame:
     '''
     Builds the training/evaluation features dataframe. Each row of the resulting dataframe will be an article
     in the article_ids_inview list (that will be exploded), if sampling is performed only some negative articles
@@ -35,9 +40,11 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     - statistics of the user read time (median, max, sum), scroll percentage (median, max) in the history
     - mode of the user impression hours and impression days in the history
     - percentage of seen articles (in the history) with sentiment label Positive, Negative and Neutral
+    - percentage of seen articles (in the history) that are strongly Positive, Negative and Neutral (i.e. with score > 0.8)
     - most frequent category in the user history of seen articles
     - percentage of seen articles with type different from article_default by the user
     - percentage of articles by the user in the history that contains each given entity
+    - the cosine similarity between the article topics and the topics in the history of the user
     
     Args:
         behaviors: the dataframe containing the impressions
@@ -47,9 +54,10 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         sample: if true, behaviors will be sampled using wu strategy, done only if test=False 
             (otherwise there is no information about negative articles in the inview list)
         npratio: the number of negative samples for wu sampling (useful only if sample=True)
+        tf_idf_vectorizer: an optional already fitted tf_idf_vectorizer, if None it will be fitted on the provided articles topics
         
     Returns:
-        pl.DataFrame: the dataframe with all the features.
+        (pl.DataFrame, TfidfVectorizer): the dataframe with all the features and the fitted tf-idf vectorizer
     '''
     if not test and sample:
         behaviors = behaviors.pipe(
@@ -89,7 +97,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         .with_columns(
             pl.col('entity_groups').list.contains(entity).alias(f'Entity_{entity}_Present')
             for entity in unique_entities
-        ).join(history.drop(['entity_groups_detailed']), on='user_id', how='left').with_columns(
+        ).join(history.drop(['entity_groups_detailed', 'article_id_fixed']), on='user_id', how='left').with_columns(
             (pl.col('category') == pl.col('MostFrequentCategory')).alias('IsFavouriteCategory'),
             pl.col('category_right').list.n_unique().alias('NumberDifferentCategories'),
             list_pct_matches_with_col('category_right', 'category').alias('PctCategoryMatches'),
@@ -97,7 +105,8 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     
     df_features = add_features_JS_history_topics(df_features, history)
     df_features = _add_entity_features(df_features, history) 
-    return df_features
+    df_features, tf_idf_vectorizer = _add_tf_idf_topics_feature(df_features, articles, history, tf_idf_vectorizer)
+    return df_features, tf_idf_vectorizer
 
 
 def add_features_JS_history_topics(train_ds, articles, history):
@@ -142,6 +151,63 @@ def add_features_JS_history_topics(train_ds, articles, history):
 
     )
     return train_ds.join(other = df, on=["impression_id","article"], how="left")
+
+
+def _add_tf_idf_topics_feature(df_features: pl.DataFrame, articles: pl.DataFrame, history: pl.DataFrame,
+                               tf_idf_vectorizer: TfidfVectorizer = None) -> Tuple[pl.DataFrame, TfidfVectorizer]:
+    '''
+    Adds the cosine similarity between the topics of the target article in the df_features dataframe
+    with the topics of the user history dataframe (already preprocessed with the 'topics_flattented' column).
+    
+    Args:
+        df_features: the training/validation/testing dataset with partial features
+        history: the users history, with already the 'topics_flattented' column
+        articles: the articles dataframe
+        tf_idf_vectorizer: an optional tf_idf_vectorizer already fitted, if None it will be fitted on the provided articles topics
+    
+    Returns:
+        (pl.DataFrame, TfidfVectorizer): df_features without 'topics_cosine' column and the fitted tf_idf_vectorizer
+    '''
+    if tf_idf_vectorizer is None:
+        tf_idf_vectorizer = TfidfVectorizer()
+        articles = articles.with_columns(
+            pl.Series(
+                tf_idf_vectorizer.fit_transform(
+                    articles.with_columns(pl.col('topics').list.join(separator=' '))['topics'].to_list()
+                ).toarray()
+            ).alias('topics_idf')
+        )
+    else:
+        articles = articles.with_columns(
+            pl.Series(
+                tf_idf_vectorizer.transform(
+                    articles.with_columns(pl.col('topics').list.join(separator=' '))['topics'].to_list()
+                ).toarray()
+            ).alias('topics_idf')
+        )
+        
+    history = history.with_columns(
+        pl.Series(
+            tf_idf_vectorizer.transform(
+                history.with_columns(pl.col('topics_flatten').list.join(separator=' '))['topics_flatten'].to_list()
+            ).toarray()
+        ).alias('topics_flatten_idf')
+    )
+    topics_similarity_df = pl.concat(
+        (
+            rows.select(["impression_id", "user_id", "article"])
+                .join(articles.select('article_id', 'topics_idf'), left_on='article', right_on='article_id', how='left')
+                .join(history.select(['user_id', 'topics_flatten_idf']), on="user_id",how="left")
+                .with_columns(
+                    pl.struct(['topics_idf', 'topics_flatten_idf']).map_elements(
+                        lambda x: cosine_similarity(x['topics_idf'], x['topics_flatten_idf']), return_dtype=pl.Float64
+                    ).cast(pl.Float32).alias('topics_cosine'),
+                ).select(['impression_id', 'article', 'topics_cosine'])
+            for rows in tqdm.tqdm(df_features.iter_slices(100), total = df_features.shape[0] // 100)
+        )
+    )
+    df_features = df_features.join(topics_similarity_df, on=['impression_id', 'article'], how='left')
+    return df_features, tf_idf_vectorizer
         
         
 def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, unique_entities: List[str]) -> pl.DataFrame:
@@ -165,7 +231,22 @@ def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, uniqu
     '''
     history = _preprocess_history_df(history, articles)
     
+    def sentiment_score_strong_pct(labels, scores, label_name, threshold=0.8):
+        scores_filter = np.array(labels) == label_name
+        label_scores = np.array(scores)[scores_filter]
+        return np.sum(label_scores > threshold) / len(labels) if len(label_scores) > 0 else 0
+    
     history = history.with_columns(
+        pl.struct(['sentiment_label', 'sentiment_score']).map_elements(
+            lambda x: sentiment_score_strong_pct(x['sentiment_label'], x['sentiment_score'], 'Negative')
+        ).alias('PctStrongNegative'),
+        pl.struct(['sentiment_label', 'sentiment_score']).map_elements(
+            lambda x: sentiment_score_strong_pct(x['sentiment_label'], x['sentiment_score'], 'Neutral')
+        ).alias('PctStrongNeutral'),
+        pl.struct(['sentiment_label', 'sentiment_score']).map_elements(
+            lambda x: sentiment_score_strong_pct(x['sentiment_label'], x['sentiment_score'], 'Positive')
+        ).alias('PctStrongPositive')
+    ).with_columns(
         pl.col('read_time_fixed').list.len().alias('NumArticlesHistory'),
         pl.col('read_time_fixed').list.median().alias('MedianReadTime'),
         pl.col('read_time_fixed').list.max().alias('MaxReadTime'),
@@ -182,11 +263,6 @@ def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, uniqu
         (pl.col('sentiment_label').list.count_matches('Negative') / pl.col('NumArticlesHistory')).alias('NegativePct'),
         (pl.col('sentiment_label').list.count_matches('Positive') / pl.col('NumArticlesHistory')).alias('PositivePct'),
         (pl.col('sentiment_label').list.count_matches('Neutral') / pl.col('NumArticlesHistory')).alias('NeutralPct'),
-        # TODO: not sure about how sentiment scores are since there are 3 classes
-        # probably the score is related to the class so this should be done differently for each class
-        # pl.col('sentiment_score').list.mean().alias('MeanSentimentScore'),
-        # pl.col('sentiment_score').list.max().alias('MaxSentimentScore'),
-        # pl.col('sentiment_score').list.min().alias('MinSentimentScore'),
     ).drop(
         ['read_time_fixed', 'scroll_percentage_fixed', 'impression_time_fixed', 
         'weekdays', 'hours', 'sentiment_label', 'sentiment_score', 'article_type']
@@ -232,10 +308,13 @@ def _preprocess_history_df(history: pl.DataFrame, articles: pl.DataFrame) -> pl.
             [pl.col('article_id_fixed').map_elements(get_unique_list_exploded_feature_function(articles, 'article_id', 'entity_groups', 
                                                                                                progress, tasks['entity_groups']), 
                                                     return_dtype=pl.List(pl.String)).alias('entity_groups'),
-            pl.col('article_id_fixed').map_elements(get_unique_list_feature_function(articles, 'article_id', 'entity_groups', 
-                                                                                     progress, tasks['entity_groups_detailed']), 
+             pl.col('article_id_fixed').map_elements(get_unique_list_exploded_feature_function(articles, 'article_id', 'topics', 
+                                                                                               progress, tasks['topics']), 
+                                                    return_dtype=pl.List(pl.String)).alias('topics_flatten'),
+             pl.col('article_id_fixed').map_elements(get_unique_list_feature_function(articles, 'article_id', 'entity_groups', 
+                                                                                      progress, tasks['entity_groups_detailed']), 
                                                     return_dtype=pl.List(pl.List(pl.String))).alias('entity_groups_detailed')]
-        ).drop('article_id_fixed')
+        )
     return history
 
 
