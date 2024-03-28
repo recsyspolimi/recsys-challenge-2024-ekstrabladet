@@ -348,3 +348,60 @@ def _add_entity_features(df_features: pl.DataFrame, history: pl.DataFrame) -> pl
         )
     )
     return df_features.join(entities_df, on=['impression_id', 'article'], how='left').drop(['entity_groups'])
+
+def add_trendiness_feature(behaviors:pl.DataFrame, articles:pl.DataFrame,days:int=3)->pl.DataFrame:
+    """
+    Adds a list to each impression, containing 1 trendiness_score for every article in the inview_list.
+    The trendiness score for an article is computed as the sum, for each topic of the article, of the times that topic has happeared in an article
+    published in the previous <days> before the impression.
+
+    Args:
+        - behaviors: The behaviors dataframe to be enriched with the feature
+        - articles: The articles dataframe
+        - days: The number of days to consider in the computation
+    Returns:
+        - pl.DataFrame: The behaviors dataframe, enriched with the trendiness_score feature.
+    """
+    def _getTrendinessScore(impression_date,article_ids)->pl.List(pl.Int64):
+        topics_popularity=articles_df.filter(pl.col("published_date") < impression_date ) \
+        .filter(pl.col("published_date")+ pl.duration(days=days) > impression_date) \
+        .select(pl.col("topics")) \
+        .explode("topics") \
+        .filter(pl.col("topics").is_not_null()) \
+        .group_by("topics") \
+        .len()
+        
+        return articles.filter(pl.col("article_id").is_in(article_ids)).select(["article_id","topics"]) \
+        .explode("topics") \
+        .join(other = topics_popularity, on="topics", how="left") \
+        .group_by("article_id") \
+        .agg(
+            pl.col("len").sum()
+        ).sort("article_id",descending=False)["len"].to_list()
+    
+    
+    max_date_behaviors = behaviors.select(pl.col("impression_time").max())
+    min_date_behaviors = behaviors.select(pl.col("impression_time").min())
+    
+    articles_df =articles.select(["published_time","topics"]).filter(pl.col("published_time")+pl.duration(days=days) > min_date_behaviors.item()) \
+    .filter(pl.col("published_time") < max_date_behaviors.item()) \
+    .with_columns(
+        pl.col("published_time").dt.date().alias("published_date")
+    ).drop("published_time") 
+    
+    result = behaviors.select(["impression_id","user_id","impression_time","article_ids_inview"]) \
+    .with_columns(
+        pl.col("impression_time").dt.date().alias("impression_date")
+    ) \
+    .with_columns(
+        article_ids_inview=pl.col("article_ids_inview").list.sort(descending=False)
+    ) \
+    .with_columns(
+        pl.struct(["impression_id","impression_date","article_ids_inview"]).map_elements(lambda x: _getTrendinessScore(x["impression_date"],x["article_ids_inview"]), 
+                                                                     return_dtype=pl.List(pl.Int64)).alias("trendiness_scores")
+    )
+    
+    
+    return behaviors.with_columns(
+        article_ids_inview=pl.col("article_ids_inview").list.sort(descending=False)
+    ).join(other=result.select(["impression_id","user_id","impression_time","trendiness_scores"]) , on=["impression_id","user_id","impression_time"], how="left")
