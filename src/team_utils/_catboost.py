@@ -371,19 +371,20 @@ def add_trendiness_feature(behaviors:pl.DataFrame, articles:pl.DataFrame,days:in
         .group_by("topics") \
         .len()
         
-        return articles.filter(pl.col("article_id").is_in(article_ids)).select(["article_id","topics"]) \
+        return articles_sorted.filter(pl.col("article_id").is_in(article_ids)).select(["article_id","topics"]) \
         .explode("topics") \
         .join(other = topics_popularity, on="topics", how="left") \
         .group_by("article_id") \
         .agg(
             pl.col("len").sum()
-        ).sort("article_id",descending=False)["len"].to_list()
+        )["len"].to_list()
     
     
     max_date_behaviors = behaviors.select(pl.col("impression_time").max())
     min_date_behaviors = behaviors.select(pl.col("impression_time").min())
+    articles_sorted=articles.sort("article_id")
     
-    articles_df =articles.select(["published_time","topics"]).filter(pl.col("published_time")+pl.duration(days=days) > min_date_behaviors.item()) \
+    articles_df =articles_sorted.select(["published_time","topics"]).filter(pl.col("published_time")+pl.duration(days=days) > min_date_behaviors.item()) \
     .filter(pl.col("published_time") < max_date_behaviors.item()) \
     .with_columns(
         pl.col("published_time").dt.date().alias("published_date")
