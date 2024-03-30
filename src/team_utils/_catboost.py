@@ -64,6 +64,8 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
             sampling_strategy_wu2019, npratio=npratio, shuffle=False, with_replacement=True, seed=123
         )
         
+    behaviors = behaviors.pipe(add_trendiness_feature, articles=articles, days=3)
+        
     if not test:
         behaviors = behaviors.pipe(create_binary_labels_column, shuffle=True, seed=123) 
         columns_to_explode = ['article_ids_inview', 'labels', 'trendiness_scores']
@@ -78,8 +80,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         
     df_features = behaviors.select(['impression_id', 'article_ids_inview', 'article_id', 'impression_time', 'labels', 
                                     'device_type', 'read_time', 'scroll_percentage', 'user_id', 'is_sso_user', 'gender',
-                                    'age', 'is_subscriber']) \
-        .pipe(add_trendiness_feature, articles=articles, days=3) \
+                                    'age', 'is_subscriber', 'session_id', 'trendiness_scores']) \
         .explode(columns_to_explode) \
         .rename(renaming_columns) \
         .unique(['impression_id', 'article']) \
