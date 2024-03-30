@@ -1,0 +1,22 @@
+Metadata-Version: 2.1
+Name: ebrec
+Version: 0.0.1
+Summary: Ekstra Bladet Benchmark
+Author-email: Johannes Kruse <johannes.kruse@eb.dk>
+Requires-Python: <3.12,>=3.10
+Requires-Dist: transformers<4.37.3,>=4.30.0
+Requires-Dist: tensorflow<2.16.0,>=2.12.0
+Requires-Dist: torch<2.3.0,>=2.0.0
+Requires-Dist: scikit-learn==1.4.0
+Requires-Dist: numpy<1.26.1,>=1.24.0
+Requires-Dist: polars==0.20.8
+Requires-Dist: pyyaml==6.0.1
+Requires-Dist: tqdm
+Provides-Extra: notebooks
+Requires-Dist: transformers; extra == "notebooks"
+Requires-Dist: jupyter; extra == "notebooks"
+Provides-Extra: tests
+Requires-Dist: pytest; extra == "tests"
+Requires-Dist: transformers<4.37.3,>=4.30.0; extra == "tests"
+Requires-Dist: tensorflow<2.16.0,>=2.12.0; extra == "tests"
+Requires-Dist: torch<2.3.0,>=2.0.0; extra == "tests"
