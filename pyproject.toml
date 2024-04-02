@@ -3,7 +3,7 @@ name = "polimi-recsys-2024"
 description = "RecSys Challenge 2024"
 version = "0.0.1"
 authors = [
-    { name = "Lorenzo Campana", email = "lorecampa99@gmailcom" }
+    { name = "Lorenzo Campana", email = "lorecampa99@gmail.com" }
 ]
 requires-python = ">=3.10, <3.12"
 dependencies = [

@@ -43,8 +43,4 @@ DEFAULT_HISTORY_READ_TIME_COL = f"{DEFAULT_READ_TIME_COL}_fixed"
 
 # CREATE
 DEFAULT_KNOWN_USER_COL = "is_known_user"
-<<<<<<< HEAD
 DEFAULT_LABELS_COL = "labels"
-=======
-DEFAULT_LABELS_COL = "labels"
->>>>>>> lollo_dev
