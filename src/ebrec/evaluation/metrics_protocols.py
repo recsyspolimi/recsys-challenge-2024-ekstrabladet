@@ -3,17 +3,10 @@ from typing import Iterable
 import numpy as np
 import json
 
-<<<<<<< HEAD
 from ebrec.evaluation.utils import convert_to_binary
 from ebrec.evaluation.protocols import Metric
 
 from ebrec.evaluation.metrics import (
-=======
-from polimi.evaluation.utils import convert_to_binary
-from polimi.evaluation.protocols import Metric
-
-from polimi.evaluation.metrics import (
->>>>>>> lollo_dev
     mean_squared_error,
     accuracy_score,
     roc_auc_score,
