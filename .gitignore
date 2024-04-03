@@ -23,3 +23,11 @@ var/
 venv/
 build
 venv
+dataset/*
+.env
+downloads/*
+dataset/*
+downloads/*
+build/*
+.env
+notebooks/catboost_info/*

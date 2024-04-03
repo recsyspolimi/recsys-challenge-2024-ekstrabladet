@@ -64,22 +64,23 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
             sampling_strategy_wu2019, npratio=npratio, shuffle=False, with_replacement=True, seed=123
         )
         
+    behaviors = behaviors.pipe(add_trendiness_feature, articles=articles, days=3)
+        
     if not test:
         behaviors = behaviors.pipe(create_binary_labels_column, shuffle=True, seed=123) 
-        columns_to_explode = ['article_ids_inview', 'labels']
+        columns_to_explode = ['article_ids_inview', 'labels', 'trendiness_scores']
         renaming_columns = {'article_ids_inview': 'article', 'labels': 'target'}
     else:
-        columns_to_explode = 'article_ids_inview'
+        columns_to_explode = ['article_ids_inview', 'trendiness_scores']
         renaming_columns = {'article_ids_inview': 'article'}
         
-    unique_entities = articles.select('entity_groups').explode('entity_groups')['entity_groups'].unique().to_list()
-    unique_entities = [e for e in unique_entities if e is not None]
+    articles, unique_entities = _preprocess_articles(articles)
     
     history = _build_history_features(history, articles, unique_entities)
         
     df_features = behaviors.select(['impression_id', 'article_ids_inview', 'article_id', 'impression_time', 'labels', 
                                     'device_type', 'read_time', 'scroll_percentage', 'user_id', 'is_sso_user', 'gender',
-                                    'age', 'is_subscriber']) \
+                                    'age', 'is_subscriber', 'session_id', 'trendiness_scores']) \
         .explode(columns_to_explode) \
         .rename(renaming_columns) \
         .unique(['impression_id', 'article']) \
@@ -97,7 +98,10 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         .with_columns(
             pl.col('entity_groups').list.contains(entity).alias(f'Entity_{entity}_Present')
             for entity in unique_entities
-        ).join(history.drop(['entity_groups_detailed', 'article_id_fixed']), on='user_id', how='left').with_columns(
+        ).pipe(add_session_features, history=history, behaviors=behaviors, articles=articles) \
+        .pipe(add_category_popularity, articles=articles) \
+        .join(history.drop(['entity_groups_detailed', 'article_id_fixed', 'impression_time_fixed']), on='user_id', how='left') \
+        .with_columns(
             (pl.col('category') == pl.col('MostFrequentCategory')).alias('IsFavouriteCategory'),
             pl.col('category_right').list.n_unique().alias('NumberDifferentCategories'),
             list_pct_matches_with_col('category_right', 'category').alias('PctCategoryMatches'),
@@ -208,6 +212,29 @@ def _add_tf_idf_topics_feature(df_features: pl.DataFrame, articles: pl.DataFrame
     )
     df_features = df_features.join(topics_similarity_df, on=['impression_id', 'article'], how='left')
     return df_features, tf_idf_vectorizer
+
+
+def _preprocess_articles(articles: pl.DataFrame) -> Tuple[pl.DataFrame, List[str]]:
+    '''
+    Preprocess the articles dataframe, extracting the number of images and the length of title, subtitle and body
+    
+    Args:
+        articles: the articles dataframe
+    
+    Returns:
+        pl.DataFrame: the preprocessed articles
+        List[str]: the unique entities contained in the dataframe
+    '''
+    unique_entities = articles.select('entity_groups').explode('entity_groups')['entity_groups'].unique().to_list()
+    unique_entities = [e for e in unique_entities if e is not None]
+    
+    articles = articles.with_columns(
+        pl.col('image_ids').list.len().alias('num_images'),
+        pl.col('title').str.split(by=' ').list.len().alias('title_len'),
+        pl.col('subtitle').str.split(by=' ').list.len().alias('subtitle_len'),
+        pl.col('body').str.split(by=' ').list.len().alias('body_len'),
+    )
+    return articles, unique_entities
         
         
 def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, unique_entities: List[str]) -> pl.DataFrame:
@@ -264,8 +291,8 @@ def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, uniqu
         (pl.col('sentiment_label').list.count_matches('Positive') / pl.col('NumArticlesHistory')).alias('PositivePct'),
         (pl.col('sentiment_label').list.count_matches('Neutral') / pl.col('NumArticlesHistory')).alias('NeutralPct'),
     ).drop(
-        ['read_time_fixed', 'scroll_percentage_fixed', 'impression_time_fixed', 
-        'weekdays', 'hours', 'sentiment_label', 'sentiment_score', 'article_type']
+        ['read_time_fixed', 'scroll_percentage_fixed',  'weekdays', 'hours', 
+         'sentiment_label', 'sentiment_score', 'article_type']
     ).with_columns(
         (pl.col('entity_groups').list.count_matches(entity) / pl.col('NumArticlesHistory')).alias(f'{entity}Pct')
         for entity in unique_entities
@@ -406,3 +433,98 @@ def add_trendiness_feature(behaviors:pl.DataFrame, articles:pl.DataFrame,days:in
     return behaviors.with_columns(
         article_ids_inview=pl.col("article_ids_inview").list.sort(descending=False)
     ).join(other=result.select(["impression_id","user_id","impression_time","trendiness_scores"]) , on=["impression_id","user_id","impression_time"], how="left")
+
+
+def add_category_popularity(df_features: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
+    '''
+    Add a feature to the dataframe df_features, named yesterday_category_daily_pct, that contains the percentage of articles
+    published in the previous day with the same category.
+    
+    Args:
+        df_features: the dataframe where the feature will be added
+        articles: the articles dataframe
+        
+    Returns:
+        pl.DataFrame: the dataframe with the added feature
+    '''
+    articles_date_popularity = articles.select(['published_time', 'article_id']) \
+    .group_by(pl.col('published_time').dt.date().alias('published_date')) \
+    .agg(pl.col('article_id').count().alias('daily_articles')) \
+
+    published_category_popularity = articles.select(['published_time', 'article_id', 'category']) \
+        .group_by([pl.col('published_time').dt.date().alias('published_date'), 'category']) \
+        .agg(pl.col('article_id').count().alias('category_daily_articles')) \
+        .join(articles_date_popularity, on='published_date', how='left') \
+        .with_columns((pl.col('category_daily_articles') / pl.col('daily_articles')).alias('category_daily_pct')) \
+        .drop(['category_daily_articles', 'daily_articles'])
+
+    df_features = df_features.join(published_category_popularity, how='left', right_on=['published_date', 'category'],
+                                   left_on=[pl.col('impression_time').dt.date() - pl.duration(days=1), 'category']) \
+        .rename({'category_daily_pct': 'yesterday_category_daily_pct'}).drop(['impression_time']) \
+        .with_columns(pl.col('yesterday_category_daily_pct').fill_null(0))
+    return df_features
+
+
+def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame):
+    '''
+    Add the following session features to df_features:
+    - last_session_nclicks: number of clicks in the last session
+    - last_session_duration: duration in minutes of the last session
+    - mean_prev_sessions_duration: mean duration of the previous sessions
+    - last_session_time_hour_diff: hours since the last session appeared
+    - is_new_article: True if the article was published after the last session
+    - is_already_seen_article: True if the article appeared on the inview list in the last session
+    - is_last_session_most_seen_category: True if the article has the same category of the most viewed 
+      one by the user in the last session
+    
+    Args:
+        df_features: the dataframe where the features will be added
+        history: the history dataframe
+        behaviors: the behaviors dataframe
+        articles: the articles dataframe
+        
+    Returns:
+        pl.DataFrame: the dataframe containing the new features
+    '''
+    last_history_df = history.with_columns(
+        pl.col('impression_time_fixed').list.max().alias('last_history_impression_time'),
+    ).select(['user_id', 'last_history_impression_time', 'article_id_fixed'])
+
+    last_session_time_df = behaviors.select(['session_id', 'user_id', 'impression_time', 'article_ids_inview', 'article_ids_clicked']) \
+        .explode('article_ids_clicked') \
+        .join(articles.select(['article_id', 'category']), left_on='article_ids_clicked', right_on='article_id', how='left') \
+        .with_columns(
+            # this is needed for the .flatten() that is done after
+            pl.col('category').cast(pl.List(pl.Int64))
+        ).group_by('session_id').agg(
+            pl.col('user_id').first(), 
+            pl.col('impression_time').max(), 
+            pl.col('article_ids_inview').flatten().alias('all_seen_articles'),
+            (pl.col('impression_time').max() - pl.col('impression_time').min()).dt.total_minutes().alias('session_duration'),
+            pl.col('article_ids_clicked').count().alias('nclicks'),
+            pl.col('category').flatten().alias('all_categories'),
+        ).with_columns(
+            pl.col('all_categories').map_elements(lambda x: stats.mode(x)[0], return_dtype=pl.Int64).alias('most_freq_category')
+        ).group_by('user_id').map_groups(
+            lambda user_impressions: user_impressions.sort('impression_time').with_columns(
+                pl.col('impression_time').shift(1).alias('last_session_time'),
+                pl.col('nclicks').shift(1).fill_null(0).alias('last_session_nclicks'),
+                pl.col('session_duration').shift(1).fill_null(0).alias('last_session_duration'),
+                pl.col('session_duration').rolling_mean(100, min_periods=1).alias('mean_prev_sessions_duration'),
+                pl.col('most_freq_category').shift(1).alias('last_session_most_seen_category'),
+                pl.col('all_seen_articles').list.unique().shift(1),
+            )
+        ).join(last_history_df, on='user_id', how='left') \
+        .with_columns(
+            pl.col('last_session_time').fill_null(pl.col('last_history_impression_time')),
+            pl.col('all_seen_articles').fill_null(pl.col('article_id_fixed')),
+        ).select(['session_id', 'last_session_time', 'last_session_nclicks', 'last_session_most_seen_category',
+                  'last_session_duration', 'all_seen_articles', 'mean_prev_sessions_duration'])
+        
+    df_features = df_features.join(last_session_time_df, on='session_id', how='left').with_columns(
+        (pl.col('impression_time') - pl.col('last_session_time')).dt.total_hours().alias('last_session_time_hour_diff'),
+        ((pl.col('last_session_time') - pl.col('published_time')).dt.total_hours() > 0).alias('is_new_article'),
+        pl.col('all_seen_articles').list.contains(pl.col('article')).alias('is_already_seen_article'),
+        (pl.col('category') == pl.col('last_session_most_seen_category')).fill_null(False).alias('is_last_session_most_seen_category'),
+    ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time', 'last_session_most_seen_category'])
+    return df_features
