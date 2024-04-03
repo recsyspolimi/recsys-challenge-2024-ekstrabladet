@@ -7,8 +7,6 @@ import logging
 import torch.nn as nn
 import torch
 
-from models.fastformer.fastformer_wu import StandardFastformerEncoder
-
 
 class AttentionPooling(nn.Module):
     """
