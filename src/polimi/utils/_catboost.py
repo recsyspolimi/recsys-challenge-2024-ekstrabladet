@@ -299,7 +299,7 @@ def join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.
     return reduce_polars_df_memory_size(df_features)
 
 
-def add_trendiness_features(train_ds: pl.DataFrame ,articles: pl.DataFrame ,period:str="3d"):
+def add_trendiness_feature(train_ds: pl.DataFrame ,articles: pl.DataFrame ,period:str="3d"):
     """
     Adds a new feature "trendiness_publications_score" to each impression.
     The trendiness score for an article is computed as the sum, for each topic of the article, of the times that topic has happeared in an article
@@ -307,10 +307,12 @@ def add_trendiness_features(train_ds: pl.DataFrame ,articles: pl.DataFrame ,peri
 
     Args:
         train_ds: The train dataset to be enriched with the new feature. It MUST contain the "impression_time"
-        articles. The articles dataset with the topics of the articles and their publication time.
+        articles: The articles dataset with the topics of the articles and their publication time.
+        period: The window size for the computation of the scores, in string encoding 
+            (ex. 1ns, 1us, 1s, 1m, 1h, 1d, 1w,.. or combinations like "3d12h4m25s". See doc for polars.DataFrame.rolling for more details)
 
     Returns:
-        pl.DataFrame: The training dataset enriched with a new column, containing the trendiness_score
+        pl.DataFrame: The training dataset enriched with a new column, containing the trendiness_score. Can be 
     """
     
     topics=articles.select("topics").explode("topics").unique()
