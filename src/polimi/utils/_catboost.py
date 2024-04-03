@@ -299,64 +299,50 @@ def join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.
     return reduce_polars_df_memory_size(df_features)
 
 
-def add_trendiness_feature(behaviors:pl.DataFrame, articles:pl.DataFrame,days:int=3)->pl.DataFrame:
+def add_trendiness_features(train_ds: pl.DataFrame ,articles: pl.DataFrame ,period:str="3d"):
     """
-    Adds a list to each impression, containing 1 trendiness_score for every article in the inview_list.
+    Adds a new feature "trendiness_publications_score" to each impression.
     The trendiness score for an article is computed as the sum, for each topic of the article, of the times that topic has happeared in an article
-    published in the previous <days> before the impression.
+    published in the previous <period> before the impression.
 
     Args:
-        - behaviors: The behaviors dataframe to be enriched with the feature
-        - articles: The articles dataframe
-        - days: The number of days to consider in the computation
+        train_ds: The train dataset to be enriched with the new feature. It MUST contain the "impression_time"
+        articles. The articles dataset with the topics of the articles and their publication time.
+
     Returns:
-        - pl.DataFrame: The behaviors dataframe, enriched with the trendiness_score feature.
+        pl.DataFrame: The training dataset enriched with a new column, containing the trendiness_score
     """
-    def _getTrendinessScore(impression_date,article_ids)->pl.List(pl.Int64):
-        topics_popularity=articles_df.filter(pl.col("published_date") < impression_date ) \
-        .filter(pl.col("published_date")+ pl.duration(days=days) > impression_date) \
-        .select(pl.col("topics")) \
-        .explode("topics") \
-        .filter(pl.col("topics").is_not_null()) \
-        .group_by("topics") \
-        .len()
-        
-        return articles_sorted.filter(pl.col("article_id").is_in(article_ids)).select(["article_id","topics"]) \
-        .explode("topics") \
-        .join(other = topics_popularity, on="topics", how="left") \
-        .group_by("article_id") \
-        .agg(
-            pl.col("len").sum()
-        )["len"].to_list()
     
+    topics=articles.select("topics").explode("topics").unique()
+    topics=[topic for topic in topics["topics"] if topic is not None]
     
-    max_date_behaviors = behaviors.select(pl.col("impression_time").max())
-    min_date_behaviors = behaviors.select(pl.col("impression_time").min())
-    articles_sorted=articles.sort("article_id")
-    
-    articles_df =articles_sorted.select(["published_time","topics"]).filter(pl.col("published_time")+pl.duration(days=days) > min_date_behaviors.item()) \
-    .filter(pl.col("published_time") < max_date_behaviors.item()) \
-    .with_columns(
+    topics_popularity_published = articles.select(["published_time","topics"]).with_columns(
         pl.col("published_time").dt.date().alias("published_date")
-    ).drop("published_time") 
-    
-    result = behaviors.select(["impression_id","user_id","impression_time","article_ids_inview"]) \
-    .with_columns(
-        pl.col("impression_time").dt.date().alias("impression_date")
-    ) \
-    .with_columns(
-        article_ids_inview=pl.col("article_ids_inview").list.sort(descending=False)
-    ) \
-    .with_columns(
-        pl.struct(["impression_id","impression_date","article_ids_inview"]).map_elements(lambda x: _getTrendinessScore(x["impression_date"],x["article_ids_inview"]), 
-                                                                     return_dtype=pl.List(pl.Int64)).alias("trendiness_scores")
+    ).drop("published_time").group_by("published_date").agg(
+        pl.col("topics").flatten()
+    ).sort("published_date").rolling(index_column="published_date",period=period).agg(
+        [pl.col("topics").list.count_matches(topic).sum().alias(f"{topic}_publications_matches") for topic in topics]
     )
     
     
-    return behaviors.with_columns(
-        article_ids_inview=pl.col("article_ids_inview").list.sort(descending=False)
-    ).join(other=result.select(["impression_id","user_id","impression_time","trendiness_scores"]) , on=["impression_id","user_id","impression_time"], how="left")
-
+    return train_ds.with_columns(
+        pl.col("impression_time").dt.date().alias("impression_date")
+    ).join(other= articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left" ) \
+    .with_columns(
+        [pl.col("topics").list.contains(topic).cast(pl.Int8).alias(f"{topic}_present") for topic in topics]
+    ).join(other=topics_popularity_published,left_on="impression_date",right_on="published_date",how="left") \
+    .with_columns(
+        [pl.col(f"{topic}_present").mul(pl.col(f"{topic}_publications_matches")).alias(f"trendiness_publications_score_{topic}") for topic in topics]
+    ).with_columns(
+        pl.sum_horizontal( [pl.col(f"trendiness_publications_score_{topic}") for topic in topics] ).alias("trendiness_publications_score")
+    ).drop(
+        [f"trendiness_publications_score_{topic}" for topic in topics]
+    ).drop(
+        [f"{topic}_publications_matches" for topic in topics]
+    ).drop(
+        [f"{topic}_present" for topic in topics]
+    ).drop(["topics","impression_date"])
+    
 
 def add_category_popularity(df_features: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
     '''
