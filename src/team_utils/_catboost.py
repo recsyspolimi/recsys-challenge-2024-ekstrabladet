@@ -4,6 +4,7 @@ from scipy import stats
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from typing_extensions import Tuple, List
+import logging
 
 try:
     import polars as pl
@@ -23,7 +24,7 @@ Utils for catboost.
 
 def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, 
                    test: bool = False, sample: bool = True, npratio: int = 2, 
-                   tf_idf_vectorizer: TfidfVectorizer = None) -> pl.DataFrame:
+                   tf_idf_vectorizer: TfidfVectorizer = None, verbose: bool = False) -> pl.DataFrame:
     '''
     Builds the training/evaluation features dataframe. Each row of the resulting dataframe will be an article
     in the article_ids_inview list (that will be exploded), if sampling is performed only some negative articles
@@ -57,7 +58,8 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         tf_idf_vectorizer: an optional already fitted tf_idf_vectorizer, if None it will be fitted on the provided articles topics
         
     Returns:
-        (pl.DataFrame, TfidfVectorizer): the dataframe with all the features and the fitted tf-idf vectorizer
+        (pl.DataFrame, TfidfVectorizer, List[str]): the dataframe with all the features, the fitted tf-idf vectorizer and the
+            unique entities (useful to cast the categorical columns when eventually transforming the dataframe to polars)
     '''
     if not test and sample:
         behaviors = behaviors.pipe(
@@ -65,6 +67,9 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         )
         
     behaviors = behaviors.pipe(add_trendiness_feature, articles=articles, days=3)
+    
+    if verbose:
+        logging.info('Built trendiness feature')
         
     if not test:
         behaviors = behaviors.pipe(create_binary_labels_column, shuffle=True, seed=123) 
@@ -74,13 +79,17 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         columns_to_explode = ['article_ids_inview', 'trendiness_scores']
         renaming_columns = {'article_ids_inview': 'article'}
         
-    articles, unique_entities = _preprocess_articles(articles)
+    articles, unique_entities, tf_idf_vectorizer = _preprocess_articles(articles)
     
     history = _build_history_features(history, articles, unique_entities)
+    
+    if verbose:
+        logging.info('Preprocessed history')
         
     df_features = behaviors.select(['impression_id', 'article_ids_inview', 'article_id', 'impression_time', 'labels', 
                                     'device_type', 'read_time', 'scroll_percentage', 'user_id', 'is_sso_user', 'gender',
                                     'age', 'is_subscriber', 'session_id', 'trendiness_scores']) \
+        .with_columns(pl.col('gender').fill_null(2)) \
         .explode(columns_to_explode) \
         .rename(renaming_columns) \
         .unique(['impression_id', 'article']) \
@@ -88,9 +97,10 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
             pl.col('impression_time').dt.weekday().alias('weekday'),
             pl.col('impression_time').dt.hour().alias('hour'),
             pl.col('article').cast(pl.Int32),
-        ).join(articles.select(['article_id', 'premium', 'published_time', 'category', 
-                                'sentiment_score', 'sentiment_label', 'entity_groups']),
-            left_on='article', right_on='article_id', how='left') \
+        ).join(articles.select(['article_id', 'premium', 'published_time', 'category',
+                                'sentiment_score', 'sentiment_label', 'entity_groups',
+                                'num_images', 'title_len', 'subtitle_len', 'body_len']),
+               left_on='article', right_on='article_id', how='left') \
         .with_columns(
             (pl.col('impression_time') - pl.col('published_time')).dt.total_days().alias('article_delay_days'),
             (pl.col('impression_time') - pl.col('published_time')).dt.total_hours().alias('article_delay_hours')
@@ -98,146 +108,71 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         .with_columns(
             pl.col('entity_groups').list.contains(entity).alias(f'Entity_{entity}_Present')
             for entity in unique_entities
-        ).pipe(add_session_features, history=history, behaviors=behaviors, articles=articles) \
-        .pipe(add_category_popularity, articles=articles) \
-        .join(history.drop(['entity_groups_detailed', 'article_id_fixed', 'impression_time_fixed']), on='user_id', how='left') \
-        .with_columns(
-            (pl.col('category') == pl.col('MostFrequentCategory')).alias('IsFavouriteCategory'),
-            pl.col('category_right').list.n_unique().alias('NumberDifferentCategories'),
-            list_pct_matches_with_col('category_right', 'category').alias('PctCategoryMatches'),
-        ).drop('category_right')
+        ).drop('entity_groups') \
+        .pipe(add_session_features, history=history, behaviors=behaviors, articles=articles) \
+        .pipe(add_category_popularity, articles=articles)
+            
+    history = history.drop(['impression_time_fixed'])
     
-    df_features = add_features_JS_history_topics(df_features, history)
-    df_features = _add_entity_features(df_features, history) 
-    df_features, tf_idf_vectorizer = _add_tf_idf_topics_feature(df_features, articles, history, tf_idf_vectorizer)
-    return df_features, tf_idf_vectorizer
-
-
-def add_features_JS_history_topics(train_ds, articles, history):
-    """
-    Returns train_ds enriched with features computed using the user's history.
-    For each impression (user_id, article_id) considers the user's history (composed of "n" articles) and computes "n" Jaccard Similarity values, between the set of
-    topics of the article of the impression and the "n" sets of topics of the articles in the user's history.
-    Then, these "n" values get aggregated using mean, min, max, std.dev.
-
-     Args:
-        train_ds: The training dataset (Can contain any feature, but it MUST contain user_id and article)
-        articles: The articles dataset (MUST contain article_id and topics)
-        history: The history dataset (MUST contain user_id and article_id_fixed)
-
-    Returns:
-        pl.DataFrame: The training dataset with added features
-    """
-    article_ds= articles.select(["article_id","topics"]).rename({"article_id":"article"})
-    history_ds = history.select(["user_id","article_id_fixed"])
+    if verbose:
+        logging.info('Built behaviors featues. Starting to join the history dataframe')
     
-    df = pl.concat(
-    (
-    rows.select(["impression_id","user_id","article"]) #Select only useful columns
-        .join(article_ds,on="article",how="left") #Add topics of the inview_article
-        .join(other = history_ds, on = "user_id",how="left") #Add history of the user
-        .explode("article_id_fixed") #explode the user's history
-        #For each article of the user's history, add its topics
-        .join(other = article_ds.rename({"article":"article_id_fixed","topics":"topics_history"}), on="article_id_fixed",how="left")
-        #add the JS between the topics of the article_inview and the topics of the article in the history
-        .with_columns(
-        (pl.col("topics").list.set_intersection(pl.col("topics_history")).list.len().truediv(
-            pl.col("topics").list.set_union(pl.col("topics_history")).list.len()
-        )).alias("JS")
-        ).group_by(["impression_id","article"]).agg([ #grouping on all the "n" articles in the user's history, compute aggregations of the "n" JS values
-            pl.col("JS").mean().alias("mean_JS"),
-            pl.col("JS").min().alias("min_JS"),
-            pl.col("JS").max().alias("max_JS"),
-            pl.col("JS").std().alias("std_JS")]
-        )
-    for rows in tqdm(train_ds.iter_slices(100), total = train_ds.shape[0] // 100) #Process train_ds in chunks of rows
-    )
-
-    )
-    return train_ds.join(other = df, on=["impression_id","article"], how="left")
-
-
-def _add_tf_idf_topics_feature(df_features: pl.DataFrame, articles: pl.DataFrame, history: pl.DataFrame,
-                               tf_idf_vectorizer: TfidfVectorizer = None) -> Tuple[pl.DataFrame, TfidfVectorizer]:
-    '''
-    Adds the cosine similarity between the topics of the target article in the df_features dataframe
-    with the topics of the user history dataframe (already preprocessed with the 'topics_flattented' column).
+    df_features = join_history(df_features, history, articles)
     
-    Args:
-        df_features: the training/validation/testing dataset with partial features
-        history: the users history, with already the 'topics_flattented' column
-        articles: the articles dataframe
-        tf_idf_vectorizer: an optional tf_idf_vectorizer already fitted, if None it will be fitted on the provided articles topics
-    
-    Returns:
-        (pl.DataFrame, TfidfVectorizer): df_features without 'topics_cosine' column and the fitted tf_idf_vectorizer
-    '''
-    if tf_idf_vectorizer is None:
-        tf_idf_vectorizer = TfidfVectorizer()
-        articles = articles.with_columns(
-            pl.Series(
-                tf_idf_vectorizer.fit_transform(
-                    articles.with_columns(pl.col('topics').list.join(separator=' '))['topics'].to_list()
-                ).toarray()
-            ).alias('topics_idf')
-        )
-    else:
-        articles = articles.with_columns(
-            pl.Series(
-                tf_idf_vectorizer.transform(
-                    articles.with_columns(pl.col('topics').list.join(separator=' '))['topics'].to_list()
-                ).toarray()
-            ).alias('topics_idf')
-        )
-        
-    history = history.with_columns(
-        pl.Series(
-            tf_idf_vectorizer.transform(
-                history.with_columns(pl.col('topics_flatten').list.join(separator=' '))['topics_flatten'].to_list()
-            ).toarray()
-        ).alias('topics_flatten_idf')
-    )
-    topics_similarity_df = pl.concat(
-        (
-            rows.select(["impression_id", "user_id", "article"])
-                .join(articles.select('article_id', 'topics_idf'), left_on='article', right_on='article_id', how='left')
-                .join(history.select(['user_id', 'topics_flatten_idf']), on="user_id",how="left")
-                .with_columns(
-                    pl.struct(['topics_idf', 'topics_flatten_idf']).map_elements(
-                        lambda x: cosine_similarity(x['topics_idf'], x['topics_flatten_idf']), return_dtype=pl.Float64
-                    ).cast(pl.Float32).alias('topics_cosine'),
-                ).select(['impression_id', 'article', 'topics_cosine'])
-            for rows in tqdm.tqdm(df_features.iter_slices(100), total = df_features.shape[0] // 100)
-        )
-    )
-    df_features = df_features.join(topics_similarity_df, on=['impression_id', 'article'], how='left')
-    return df_features, tf_idf_vectorizer
+    return df_features, tf_idf_vectorizer, unique_entities
 
 
 def _preprocess_articles(articles: pl.DataFrame) -> Tuple[pl.DataFrame, List[str]]:
     '''
-    Preprocess the articles dataframe, extracting the number of images and the length of title, subtitle and body
+    Preprocess the articles dataframe, extracting the number of images and the length of title, subtitle and body,
+    and adding the topics tf_idf vector
     
     Args:
         articles: the articles dataframe
     
     Returns:
         pl.DataFrame: the preprocessed articles
+        TfidfVectorizer: the fitted tf_idf vectorizer
         List[str]: the unique entities contained in the dataframe
     '''
     unique_entities = articles.select('entity_groups').explode('entity_groups')['entity_groups'].unique().to_list()
     unique_entities = [e for e in unique_entities if e is not None]
     
+    vectorizer = TfidfVectorizer()
     articles = articles.with_columns(
         pl.col('image_ids').list.len().alias('num_images'),
         pl.col('title').str.split(by=' ').list.len().alias('title_len'),
         pl.col('subtitle').str.split(by=' ').list.len().alias('subtitle_len'),
         pl.col('body').str.split(by=' ').list.len().alias('body_len'),
+        # useful for saving memory when joining with the history dataframe
+        pl.when(pl.col('sentiment_label') == 'Negative').then(-1) \
+            .otherwise(
+                pl.when(pl.col('sentiment_label') == 'Positive').then(1).otherwise(0)
+            ).cast(pl.Int8).alias('sentiment_label_int'),
+        (pl.col('article_type') == 'article_default').cast(pl.UInt8).alias('is_article_default'),
+        # very important for tf-idf, otherwise multiple tokens for topics with spaces are built
+        pl.col('topics').list.eval(pl.element().str.split(by=' ').list.join('_')),
+        pl.Series(
+            vectorizer.fit_transform(
+                articles.with_columns(pl.col('topics').list.join(separator=' '))['topics'].to_list()
+            ).toarray().astype(np.float32)
+        ).alias('topics_idf')
     )
-    return articles, unique_entities
-        
-        
-def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, unique_entities: List[str]) -> pl.DataFrame:
+    return articles, vectorizer, unique_entities
+
+
+def _add_topics_tf_idf_columns(df, topics_col, vectorizer):
+    return df.with_columns(
+        pl.Series(
+            vectorizer.transform(
+                df.with_columns(pl.col(topics_col).list.join(separator=' '))[topics_col].to_list()
+            ).toarray().astype(np.float32)
+        ).alias(f'{topics_col}_tf_idf')
+    )
+    
+    
+def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, unique_entities: List[str], 
+                            vectorizer: TfidfVectorizer, strong_thr: float = 0.8) -> pl.DataFrame:
     '''
     Builds all the features of the users history. These features are:
     - number of articles seen
@@ -247,134 +182,122 @@ def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, uniqu
     - most frequent category in the user history of seen articles
     - percentage of seen articles with type different from article_default
     - percentage of articles in the history that contains each given entity
+    It also adds the topics tf-idf vector.
     
     Args:
         history: the (raw) users history dataframe
-        articles: the (raw) articles dataframe
+        articles: the preprocessed articles dataframe
         unique_entities: a list containing all the possible/considered unique entity groups of the articles
+        vectorizer: a fitted tf-idf to build the topics tf-idf of the history
+        strong_thr: a threshold (between 0 and 1) on the sentiment score for considering a sentiment label as strong
         
     Returns:
         pl.DataFrame: the preprocessed history dataframe
     '''
-    history = _preprocess_history_df(history, articles)
-    
-    def sentiment_score_strong_pct(labels, scores, label_name, threshold=0.8):
-        scores_filter = np.array(labels) == label_name
-        label_scores = np.array(scores)[scores_filter]
-        return np.sum(label_scores > threshold) / len(labels) if len(label_scores) > 0 else 0
-    
-    history = history.with_columns(
-        pl.struct(['sentiment_label', 'sentiment_score']).map_elements(
-            lambda x: sentiment_score_strong_pct(x['sentiment_label'], x['sentiment_score'], 'Negative')
-        ).alias('PctStrongNegative'),
-        pl.struct(['sentiment_label', 'sentiment_score']).map_elements(
-            lambda x: sentiment_score_strong_pct(x['sentiment_label'], x['sentiment_score'], 'Neutral')
-        ).alias('PctStrongNeutral'),
-        pl.struct(['sentiment_label', 'sentiment_score']).map_elements(
-            lambda x: sentiment_score_strong_pct(x['sentiment_label'], x['sentiment_score'], 'Positive')
-        ).alias('PctStrongPositive')
-    ).with_columns(
-        pl.col('read_time_fixed').list.len().alias('NumArticlesHistory'),
-        pl.col('read_time_fixed').list.median().alias('MedianReadTime'),
-        pl.col('read_time_fixed').list.max().alias('MaxReadTime'),
-        pl.col('read_time_fixed').list.sum().alias('TotalReadTime'),
-        pl.col('scroll_percentage_fixed').list.median().alias('MedianScrollPercentage'),
-        pl.col('scroll_percentage_fixed').list.max().alias('MaxScrollPercentage'),
-        pl.col('impression_time_fixed').list.eval(pl.element().dt.weekday()).alias('weekdays'),
-        pl.col('impression_time_fixed').list.eval(pl.element().dt.hour()).alias('hours'),
-    ).with_columns(
-        pl.col('weekdays').map_elements(lambda x: stats.mode(x)[0], return_dtype=pl.Int64).cast(pl.Int8).alias('MostFrequentWeekday'),
-        pl.col('hours').map_elements(lambda x: stats.mode(x)[0], return_dtype=pl.Int64).cast(pl.Int8).alias('MostFrequentHour'),
-        pl.col('category').map_elements(lambda x: stats.mode(x)[0], return_dtype=pl.Int64).cast(pl.Int16).alias('MostFrequentCategory'),
-        (1 - (pl.col('article_type').list.count_matches('article_default') / pl.col('NumArticlesHistory'))).alias('PctNotDefaultArticles'),
-        (pl.col('sentiment_label').list.count_matches('Negative') / pl.col('NumArticlesHistory')).alias('NegativePct'),
-        (pl.col('sentiment_label').list.count_matches('Positive') / pl.col('NumArticlesHistory')).alias('PositivePct'),
-        (pl.col('sentiment_label').list.count_matches('Neutral') / pl.col('NumArticlesHistory')).alias('NeutralPct'),
-    ).drop(
-        ['read_time_fixed', 'scroll_percentage_fixed',  'weekdays', 'hours', 
-         'sentiment_label', 'sentiment_score', 'article_type']
-    ).with_columns(
-        (pl.col('entity_groups').list.count_matches(entity) / pl.col('NumArticlesHistory')).alias(f'{entity}Pct')
-        for entity in unique_entities
-    ).drop('entity_groups')
-    
-    return history
-    
-    
-def _preprocess_history_df(history: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
-    '''
-    Retrieves the categories, the article types, the sentiment labels and scores from the seen articles by each user
-    in the history dataframe, i.e. of the articles whose ids are in the article_id_fixed column.
-    
-    Args:
-        history: the dataframe containing the history of the users
-        articles: the dataframe containing the articles features
-        
-    Returns:
-        pl.DataFrame: the history dataframe, together with the columns 'category', 'article_type', 'sentiment_label', 
-        'sentiment_score', 'entity_groups', 'entity_groups_detailed'. The difference between 'entity_groups' and 
-        'entity_groups_detailed' is that the first one is a list of entities (all the concatenated entities from all
-        the seen articles, after applying .unique() in each single list and flattening the set of lists) and the second
-        one is a list of lists (where each list contains the unique entities of in the correspoding article of article_ids_fixed)  
-    '''
-    columns = ['category', 'article_type', 'sentiment_label', 'sentiment_score']
-    return_dtypes = [pl.Int64, pl.String, pl.String, pl.Float64]
-    with Progress() as progress: 
-        
-        tasks = {}
-        for col in columns:
-            tasks[col] = progress.add_task(f"Getting {col}", total=history.shape[0])
-        tasks['entity_groups'] = progress.add_task("Getting entity_groups", total=history.shape[0])
-        tasks['entity_groups_detailed'] = progress.add_task("Getting detailed entity_groups", total=history.shape[0])
-
-        history = history.with_columns(
-            [pl.col('article_id_fixed').map_elements(get_single_feature_function(articles, 'article_id', col, 
-                                                                                 progress, tasks[col]), 
-                                                    return_dtype=pl.List(dtype)).alias(col)
-            for col, dtype in zip(columns, return_dtypes)] + \
-            [pl.col('article_id_fixed').map_elements(get_unique_list_exploded_feature_function(articles, 'article_id', 'entity_groups', 
-                                                                                               progress, tasks['entity_groups']), 
-                                                    return_dtype=pl.List(pl.String)).alias('entity_groups'),
-             pl.col('article_id_fixed').map_elements(get_unique_list_exploded_feature_function(articles, 'article_id', 'topics', 
-                                                                                               progress, tasks['topics']), 
-                                                    return_dtype=pl.List(pl.String)).alias('topics_flatten'),
-             pl.col('article_id_fixed').map_elements(get_unique_list_feature_function(articles, 'article_id', 'entity_groups', 
-                                                                                      progress, tasks['entity_groups_detailed']), 
-                                                    return_dtype=pl.List(pl.List(pl.String))).alias('entity_groups_detailed')]
-        )
-    return history
-
-
-def _add_entity_features(df_features: pl.DataFrame, history: pl.DataFrame) -> pl.DataFrame:
-    '''
-    Adds the entity features to the df_features dataframe, from the history dataframe (already preprocessed
-    with the 'entity_groups_detailed' column). The dataframe df_features must be already preprocessed with the
-    'entity_groups' of the target article in each row.
-    
-    Args:
-        df_features: the training/validation/testing dataset with partial features and the 'entity_groups' column
-        history: the users history, with already the 'entity_groups_detailed' column
-    
-    Returns:
-        pl.DataFrame: df_features without 'entity_groups' column, and with two additional features, MeanCommonEntities and
-        MeanCommonEntities, that contains the mean and the maximum common entities with the articles in the history
-    '''
-    entities_df = pl.concat(
-        (
-            rows.select(['impression_id', 'user_id', 'article', 'entity_groups']) \
-                .join(history.select(['user_id', 'entity_groups_detailed']), on='user_id', how='left') \
-                .explode('entity_groups_detailed')
-                .with_columns(
-                    pl.col('entity_groups').list.set_intersection(pl.col('entity_groups_detailed')).list.len().alias('common_entities')
-                ).drop(['entity_groups_detailed', 'entity_groups']) \
-                .group_by(['impression_id', 'article']).agg(
-                    pl.col('common_entities').mean().alias('MeanCommonEntities'),
-                    pl.col('common_entities').max().alias('MeanCommonEntities'),
-                )
-            for rows in tqdm.tqdm(df_features.iter_slices(100), total=df_features.shape[0] // 100)
-        )
+    history = pl.concat(
+        rows.with_columns(pl.col('article_id_fixed').list.len().alias('NumArticlesHistory')) \
+            .explode(['article_id_fixed', 'impression_time_fixed', 'read_time_fixed', 'scroll_percentage_fixed']) \
+            .sort(by=['user_id', 'impression_time_fixed']) \
+            .with_columns(
+                pl.col('impression_time_fixed').dt.weekday().alias('weekday'),
+                pl.col('impression_time_fixed').dt.hour().alias('hour'),
+            ).join(articles.select(['article_id', 'category', 'is_article_default', 'sentiment_label_int', 
+                                    'sentiment_score', 'entity_groups', 'topics']), 
+                left_on='article_id_fixed', right_on='article_id', how='left') \
+            .with_columns(
+                (pl.col('sentiment_label_int') == 0).alias('is_neutral'),
+                (pl.col('sentiment_label_int') == 1).alias('is_positive'),
+                (pl.col('sentiment_label_int') == -1).alias('is_negative'),
+                ((pl.col('sentiment_label_int') == 0) & (pl.col('sentiment_score') > strong_thr)).alias('strong_neutral'),
+                ((pl.col('sentiment_label_int') == 1) & (pl.col('sentiment_score') > strong_thr)).alias('strong_positive'),
+                ((pl.col('sentiment_label_int') == -1) & (pl.col('sentiment_score') > strong_thr)).alias('strong_negative'),
+                pl.col('entity_groups').list.unique(),
+            ).group_by('user_id').agg(
+                pl.col('article_id_fixed'),
+                pl.col('impression_time_fixed'),
+                pl.col('category'),
+                pl.col('NumArticlesHistory').first(),
+                pl.col('read_time_fixed').median().alias('MedianReadTime'),
+                pl.col('read_time_fixed').max().alias('MaxReadTime'),
+                pl.col('read_time_fixed').sum().alias('TotalReadTime'),
+                pl.col('scroll_percentage_fixed').median().alias('MedianScrollPercentage'),
+                pl.col('scroll_percentage_fixed').max().alias('MaxScrollPercentage'),
+                (pl.col('is_neutral').sum() / pl.col('NumArticlesHistory').first()).alias('NeutralPct'),
+                (pl.col('is_positive').sum() / pl.col('NumArticlesHistory').first()).alias('PositivePct'),
+                (pl.col('is_negative').sum() / pl.col('NumArticlesHistory').first()).alias('NegativePct'),
+                (pl.col('strong_neutral').sum() / pl.col('NumArticlesHistory').first()).alias('PctStrongNeutral'),
+                (pl.col('strong_positive').sum() / pl.col('NumArticlesHistory').first()).alias('PctStrongPositive'),
+                (pl.col('strong_negative').sum() / pl.col('NumArticlesHistory').first()).alias('PctStrongNegative'),
+                (1 - (pl.col('is_article_default').sum() / pl.col('NumArticlesHistory').first())).alias('PctNotDefaultArticles'),
+                pl.col('category').mode().alias('MostFrequentCategory'),
+                pl.col('weekday').mode().alias('MostFrequentWeekday'),
+                pl.col('hour').mode().alias('MostFrequentHour'),
+                pl.col('entity_groups').flatten(),
+                pl.col('topics').flatten().alias('topics_flatten')
+            ).pipe(_add_topics_tf_idf_columns, topics_col='topics_flatten', vectorizer=vectorizer) \
+            .drop('topics_flatten').with_columns(
+                pl.col('MostFrequentCategory').list.first(),
+                pl.col('MostFrequentWeekday').list.first(),
+                pl.col('MostFrequentHour').list.first(),
+            ).with_columns(
+                (pl.col('entity_groups').list.count_matches(entity) / pl.col('NumArticlesHistory')).alias(f'{entity}Pct')
+                for entity in unique_entities
+            ).drop('entity_groups')
+        for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
     )
-    return df_features.join(entities_df, on=['impression_id', 'article'], how='left').drop(['entity_groups'])
+    return reduce_polars_df_memory_size(history)
+
+
+def join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame):
+    '''
+    Join the dataframe with the current features with the history dataframe, also adding the jaccard similarity features, the 
+    entity features, the tf-idf cosine and the category features.
+    
+    Args:
+        df_features: the dataframe with the partial features on which the history will be joined
+        history: the history dataframe
+        articles: the dataframe with the articles
+        
+    Returns:
+        pl.DataFrame: a dataframe with the added features
+    '''
+    
+    prev_train_columns = [c for c in df_features.columns if c not in ['impression_id', 'article']]
+
+    df_features = pl.concat(
+        rows.join(history.select(['user_id', 'article_id_fixed']), on='user_id', how='left') \
+            .join(articles.select(['article_id', 'topics', 'entity_groups', 'topics_idf']), left_on='article', right_on='article_id', how='left') \
+            .explode(['article_id_fixed']) \
+            .join(articles.select(['article_id', 'topics', 'entity_groups']), left_on='article_id_fixed', right_on='article_id', how='left') \
+            .rename({'topics_right': 'topics_history', 'entity_groups_right': 'entity_groups_history'}) \
+            .with_columns(
+                (pl.col("topics").list.set_intersection(pl.col("topics_history")).list.len().truediv(
+                    pl.col("topics").list.set_union(pl.col("topics_history")).list.len()
+                )).alias("JS"),
+                pl.col('entity_groups').list.set_intersection(pl.col('entity_groups_history')).list.len().alias('common_entities'),
+            ).drop(['entity_groups_history', 'entity_groups', 'topics', 'topics_history']) \
+            .group_by(['impression_id', 'article']).agg(
+                pl.col(prev_train_columns).first(),
+                pl.col('topics_idf').first(),
+                pl.col('common_entities').mean().alias('MeanCommonEntities'),
+                pl.col('common_entities').max().alias('MaxCommonEntities'),
+                pl.col("JS").mean().alias("mean_JS"),
+                pl.col("JS").min().alias("min_JS"),
+                pl.col("JS").max().alias("max_JS"),
+                pl.col("JS").std().alias("std_JS"),
+            ).join(history.drop(['article_id_fixed']), on='user_id', how='left') \
+            .with_columns(
+                pl.struct(['topics_idf', 'topics_flatten_tf_idf']).map_elements(
+                    lambda x: cosine_similarity(x['topics_idf'], x['topics_flatten_tf_idf']), return_dtype=pl.Float64
+                ).cast(pl.Float32).alias('topics_cosine'),
+                (pl.col('category') == pl.col('MostFrequentCategory')).alias('IsFavouriteCategory'),
+                pl.col('category_right').list.n_unique().alias('NumberDifferentCategories'),
+                list_pct_matches_with_col('category_right', 'category').alias('PctCategoryMatches'),
+            ).drop(['topics_idf', 'topics_flatten', 'topics_flatten_tf_idf', 'category_right'])
+        for rows in tqdm.tqdm(df_features.iter_slices(10000), total=df_features.shape[0] // 10000)
+    )
+    return reduce_polars_df_memory_size(df_features)
+
 
 def add_trendiness_feature(behaviors:pl.DataFrame, articles:pl.DataFrame,days:int=3)->pl.DataFrame:
     """
@@ -462,7 +385,7 @@ def add_category_popularity(df_features: pl.DataFrame, articles: pl.DataFrame) -
                                    left_on=[pl.col('impression_time').dt.date() - pl.duration(days=1), 'category']) \
         .rename({'category_daily_pct': 'yesterday_category_daily_pct'}).drop(['impression_time']) \
         .with_columns(pl.col('yesterday_category_daily_pct').fill_null(0))
-    return df_features
+    return reduce_polars_df_memory_size(df_features)
 
 
 def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame):
@@ -488,38 +411,36 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
     '''
     last_history_df = history.with_columns(
         pl.col('impression_time_fixed').list.max().alias('last_history_impression_time'),
-    ).select(['user_id', 'last_history_impression_time', 'article_id_fixed'])
+        pl.col('article_id_fixed').list.tail(1).alias('last_history_article'),
+    ).select(['user_id', 'last_history_impression_time', 'last_history_article'])
 
     last_session_time_df = behaviors.select(['session_id', 'user_id', 'impression_time', 'article_ids_inview', 'article_ids_clicked']) \
         .explode('article_ids_clicked') \
         .join(articles.select(['article_id', 'category']), left_on='article_ids_clicked', right_on='article_id', how='left') \
-        .with_columns(
-            # this is needed for the .flatten() that is done after
-            pl.col('category').cast(pl.List(pl.Int64))
-        ).group_by('session_id').agg(
+        .group_by('session_id').agg(
             pl.col('user_id').first(), 
-            pl.col('impression_time').max(), 
+            pl.col('impression_time').max().alias('session_time'), 
             pl.col('article_ids_inview').flatten().alias('all_seen_articles'),
             (pl.col('impression_time').max() - pl.col('impression_time').min()).dt.total_minutes().alias('session_duration'),
-            pl.col('article_ids_clicked').count().alias('nclicks'),
-            pl.col('category').flatten().alias('all_categories'),
+            pl.col('article_ids_clicked').count().alias('session_nclicks'),
+            # pl.col('category').alias('all_categories'),
+            pl.col('category').mode().alias('most_freq_category'),
+        ).sort(['user_id', 'session_time']).with_columns(
+            pl.col('most_freq_category').list.first(),
         ).with_columns(
-            pl.col('all_categories').map_elements(lambda x: stats.mode(x)[0], return_dtype=pl.Int64).alias('most_freq_category')
-        ).group_by('user_id').map_groups(
-            lambda user_impressions: user_impressions.sort('impression_time').with_columns(
-                pl.col('impression_time').shift(1).alias('last_session_time'),
-                pl.col('nclicks').shift(1).fill_null(0).alias('last_session_nclicks'),
-                pl.col('session_duration').shift(1).fill_null(0).alias('last_session_duration'),
-                pl.col('session_duration').rolling_mean(100, min_periods=1).alias('mean_prev_sessions_duration'),
-                pl.col('most_freq_category').shift(1).alias('last_session_most_seen_category'),
-                pl.col('all_seen_articles').list.unique().shift(1),
-            )
-        ).join(last_history_df, on='user_id', how='left') \
+            pl.col(['session_time', 'session_nclicks', 'session_duration', 'most_freq_category']) \
+                .shift(1).over('user_id').name.prefix('last_'),
+            pl.col('all_seen_articles').list.unique().shift(1).over('user_id'),
+            pl.col('session_duration').rolling_mean(100, min_periods=1).over('user_id').alias('mean_prev_sessions_duration'),
+        ).with_columns(pl.col(['last_session_nclicks', 'last_session_duration']).fill_null(0)) \
+        .join(last_history_df, on='user_id', how='left') \
         .with_columns(
             pl.col('last_session_time').fill_null(pl.col('last_history_impression_time')),
-            pl.col('all_seen_articles').fill_null(pl.col('article_id_fixed')),
-        ).select(['session_id', 'last_session_time', 'last_session_nclicks', 'last_session_most_seen_category',
-                  'last_session_duration', 'all_seen_articles', 'mean_prev_sessions_duration'])
+            pl.col('all_seen_articles').fill_null(pl.col('last_history_article')),
+        ).select(['session_id', 'last_session_time', 'last_session_nclicks', 'last_most_freq_category',
+                'last_session_duration', 'all_seen_articles', 'mean_prev_sessions_duration'])
+        
+    gc.collect()
         
     df_features = df_features.join(last_session_time_df, on='session_id', how='left').with_columns(
         (pl.col('impression_time') - pl.col('last_session_time')).dt.total_hours().alias('last_session_time_hour_diff'),
@@ -527,4 +448,4 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
         pl.col('all_seen_articles').list.contains(pl.col('article')).alias('is_already_seen_article'),
         (pl.col('category') == pl.col('last_session_most_seen_category')).fill_null(False).alias('is_last_session_most_seen_category'),
     ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time', 'last_session_most_seen_category'])
-    return df_features
+    return reduce_polars_df_memory_size(df_features)
