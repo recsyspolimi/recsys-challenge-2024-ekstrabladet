@@ -11,8 +11,8 @@ try:
 except ImportError:
     print("polars not available")
 
-from team_utils._polars import *
-from team_utils._utils import *
+from utils._polars import *
+from utils._custom import *
 from ebrec.utils._behaviors import (
     create_binary_labels_column,
     sampling_strategy_wu2019,
