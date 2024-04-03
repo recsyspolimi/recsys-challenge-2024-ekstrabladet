@@ -144,11 +144,11 @@ class LSTURDataLoader(NewsrecDataLoader):
                 fill_nulls=self.unknown_index,
                 drop_nulls=False,
             )
-            # .with_columns(
-            #     pl.col(self.user_col).replace(
-            #         self.user_id_mapping, default=self.unknown_user_value
-            #     )
-            # )
+            .with_columns(
+                pl.col(self.user_col).replace(
+                    self.user_id_mapping, default=self.unknown_user_value
+                )
+            )
         )
 
     def __getitem__(self, idx) -> tuple[tuple[np.ndarray], np.ndarray]:
