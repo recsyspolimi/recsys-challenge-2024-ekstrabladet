@@ -1,16 +1,20 @@
 from neo4j import Driver
 
-def delete_all(driver:Driver):
-    with driver.session() as session:
-        res = session.run("MATCH (n) DETACH DELETE n", database='neo4j').consume()
-    return res.counters
 
-def add_constraint(driver:Driver, label:str, key:str, debug=True):
+def execute_query(driver:Driver, query:str, database='newsdb-small', debug=True):
     with driver.session() as session:
-        res = session.run(f"CREATE CONSTRAINT {label}_id IF NOT EXISTS FOR (n:{label}) REQUIRE n.{key} IS UNIQUE", database='neo4j').consume()
+        res = session.run(query, database=database).consume()
     if debug:
         print(res.counters)
+    return res.counters
 
+
+def delete_all(driver:Driver, debug=True):
+    return execute_query(driver, "MATCH (n) DETACH DELETE n", debug=debug)
+
+def add_constraint(driver:Driver, label:str, key:str, debug=True):
+    query = f"CREATE CONSTRAINT {label}_id IF NOT EXISTS FOR (n:{label}) REQUIRE n.{key} IS UNIQUE"
+    return execute_query(driver, query, debug=debug)
 
 def create_neo4j_admin_script(type:str):
     return ' '.join(
