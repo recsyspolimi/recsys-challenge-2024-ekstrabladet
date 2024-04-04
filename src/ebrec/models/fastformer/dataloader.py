@@ -126,6 +126,11 @@ def batch_input_label_concatenation(
     """ """
     return (inputs[0].squeeze(0), inputs[1].squeeze(0)), labels.squeeze(0)
 
+def batch_input_label_concatenation_gpu(
+    inputs: tuple[torch.Tensor], labels: torch.Tensor, dev : str
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """ """
+    return (inputs[0].squeeze(0).to(dev), inputs[1].squeeze(0).to(dev)), labels.squeeze(0).to(dev)
 
 def compute_auc_from_fixed_pos_neg_samples(
     y_true: list[float], y_pred: list[float]
@@ -152,6 +157,7 @@ def train(
     tqdm_disable: bool = False,
     tqdm_ncol: int = 80,
     monitor_metric: str = "loss",
+    dev : str = "cpu"
 ) -> nn.Module:
     """ """
     min_val_loss = np.inf
@@ -175,7 +181,10 @@ def train(
         optimizer.zero_grad()
         for batch_idx, (inputs, labels) in enumerate(progress_bar, start=1):
             # => Move inputs and labels to device
-            inputs, labels = batch_input_label_concatenation(inputs, labels)
+            if dev != "cpu":
+                inputs, labels = batch_input_label_concatenation_gpu(inputs, labels, dev)
+            else:
+                inputs, labels = batch_input_label_concatenation(inputs, labels)
             # => Forward pass
             outputs = model(*inputs)
             loss = criterion(outputs, labels)
