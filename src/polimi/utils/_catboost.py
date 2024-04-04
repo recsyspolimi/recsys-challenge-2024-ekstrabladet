@@ -66,17 +66,12 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
             sampling_strategy_wu2019, npratio=npratio, shuffle=False, with_replacement=True, seed=123
         )
         
-    behaviors = behaviors.pipe(add_trendiness_feature, articles=articles, days=3)
-    
-    if verbose:
-        logging.info('Built trendiness feature')
-        
     if not test:
         behaviors = behaviors.pipe(create_binary_labels_column, shuffle=True, seed=123) 
-        columns_to_explode = ['article_ids_inview', 'labels', 'trendiness_scores']
+        columns_to_explode = ['article_ids_inview', 'labels']
         renaming_columns = {'article_ids_inview': 'article', 'labels': 'target'}
     else:
-        columns_to_explode = ['article_ids_inview', 'trendiness_scores']
+        columns_to_explode = 'article_ids_inview'
         renaming_columns = {'article_ids_inview': 'article'}
         
     articles, unique_entities, tf_idf_vectorizer = _preprocess_articles(articles)
@@ -92,6 +87,8 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         .with_columns(pl.col('gender').fill_null(2)) \
         .explode(columns_to_explode) \
         .rename(renaming_columns) \
+        .with_columns(pl.col('article').cast(pl.Int32)) \
+        .pipe(add_trendiness_feature, articles=articles, period='3d') \
         .unique(['impression_id', 'article']) \
         .with_columns(
             pl.col('impression_time').dt.weekday().alias('weekday'),
@@ -115,7 +112,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     history = history.drop(['impression_time_fixed'])
     
     if verbose:
-        logging.info('Built behaviors featues. Starting to join the history dataframe')
+        logging.info('Built behaviors features. Starting to join the history dataframe')
     
     df_features = join_history(df_features, history, articles)
     
