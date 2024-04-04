@@ -318,29 +318,29 @@ def add_trendiness_feature(train_ds: pl.DataFrame ,articles: pl.DataFrame ,perio
     topics=articles.select("topics").explode("topics").unique()
     topics=[topic for topic in topics["topics"] if topic is not None]
     
-    topics_popularity_published = articles.select(["published_time","topics"]).with_columns(
+    topics_popularity = articles.select(["published_time","topics"]).with_columns(
         pl.col("published_time").dt.date().alias("published_date")
     ).drop("published_time").group_by("published_date").agg(
         pl.col("topics").flatten()
-    ).sort("published_date").rolling(index_column="published_date",period=period).agg(
-        [pl.col("topics").list.count_matches(topic).sum().alias(f"{topic}_publications_matches") for topic in topics]
+    ).sort("published_date").set_sorted("published_date").upsample(time_column="published_date",every="1d") \
+    .rolling(index_column="published_date",period=period).agg(
+        [pl.col("topics").list.count_matches(topic).sum().alias(f"{topic}_matches") for topic in topics]
     )
-    
     
     return train_ds.with_columns(
         pl.col("impression_time").dt.date().alias("impression_date")
     ).join(other= articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left" ) \
     .with_columns(
         [pl.col("topics").list.contains(topic).cast(pl.Int8).alias(f"{topic}_present") for topic in topics]
-    ).join(other=topics_popularity_published,left_on="impression_date",right_on="published_date",how="left") \
+    ).join(other=topics_popularity,left_on=pl.col("impression_date"),right_on=(pl.col("published_date")+pl.duration(days=1)),how="left") \
     .with_columns(
-        [pl.col(f"{topic}_present").mul(pl.col(f"{topic}_publications_matches")).alias(f"trendiness_publications_score_{topic}") for topic in topics]
+        [pl.col(f"{topic}_present").mul(pl.col(f"{topic}_matches")).alias(f"trendiness_score_{topic}") for topic in topics]
     ).with_columns(
-        pl.sum_horizontal( [pl.col(f"trendiness_publications_score_{topic}") for topic in topics] ).alias("trendiness_publications_score")
+        pl.sum_horizontal( [pl.col(f"trendiness_score_{topic}") for topic in topics] ).alias("trendiness_score")
     ).drop(
-        [f"trendiness_publications_score_{topic}" for topic in topics]
+        [f"trendiness_score_{topic}" for topic in topics]
     ).drop(
-        [f"{topic}_publications_matches" for topic in topics]
+        [f"{topic}_matches" for topic in topics]
     ).drop(
         [f"{topic}_present" for topic in topics]
     ).drop(["topics","impression_date"])
