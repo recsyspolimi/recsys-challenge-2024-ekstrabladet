@@ -1,0 +1,8 @@
+{
+    "iterations": 1000,
+    "subsample": 0.1,
+    "learning_rate": 0.01,
+    "grow_policy": "SymmetricTree",
+    "depth": 6,
+    "rsm": 0.7
+}
