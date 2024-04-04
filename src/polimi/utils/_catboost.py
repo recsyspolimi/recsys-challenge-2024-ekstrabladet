@@ -74,16 +74,16 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         columns_to_explode = 'article_ids_inview'
         renaming_columns = {'article_ids_inview': 'article'}
         
-    articles, unique_entities, tf_idf_vectorizer = _preprocess_articles(articles)
+    articles, tf_idf_vectorizer, unique_entities = _preprocess_articles(articles)
     
-    history = _build_history_features(history, articles, unique_entities)
+    history = _build_history_features(history, articles, unique_entities, tf_idf_vectorizer)
     
     if verbose:
         logging.info('Preprocessed history')
         
     df_features = behaviors.select(['impression_id', 'article_ids_inview', 'article_id', 'impression_time', 'labels', 
                                     'device_type', 'read_time', 'scroll_percentage', 'user_id', 'is_sso_user', 'gender',
-                                    'age', 'is_subscriber', 'session_id', 'trendiness_scores']) \
+                                    'age', 'is_subscriber', 'session_id']) \
         .with_columns(pl.col('gender').fill_null(2)) \
         .explode(columns_to_explode) \
         .rename(renaming_columns) \
@@ -101,8 +101,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         .with_columns(
             (pl.col('impression_time') - pl.col('published_time')).dt.total_days().alias('article_delay_days'),
             (pl.col('impression_time') - pl.col('published_time')).dt.total_hours().alias('article_delay_hours')
-        ).drop(['impression_time', 'published_time', 'article_id']) \
-        .with_columns(
+        ).with_columns(
             pl.col('entity_groups').list.contains(entity).alias(f'Entity_{entity}_Present')
             for entity in unique_entities
         ).drop('entity_groups') \
@@ -240,7 +239,7 @@ def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, uniqu
                 (pl.col('entity_groups').list.count_matches(entity) / pl.col('NumArticlesHistory')).alias(f'{entity}Pct')
                 for entity in unique_entities
             ).drop('entity_groups')
-        for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+        for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
     )
     return reduce_polars_df_memory_size(history)
 
@@ -291,7 +290,7 @@ def join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.
                 pl.col('category_right').list.n_unique().alias('NumberDifferentCategories'),
                 list_pct_matches_with_col('category_right', 'category').alias('PctCategoryMatches'),
             ).drop(['topics_idf', 'topics_flatten', 'topics_flatten_tf_idf', 'category_right'])
-        for rows in tqdm.tqdm(df_features.iter_slices(10000), total=df_features.shape[0] // 10000)
+        for rows in tqdm(df_features.iter_slices(10000), total=df_features.shape[0] // 10000)
     )
     return reduce_polars_df_memory_size(df_features)
 
@@ -401,6 +400,7 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
 
     last_session_time_df = behaviors.select(['session_id', 'user_id', 'impression_time', 'article_ids_inview', 'article_ids_clicked']) \
         .explode('article_ids_clicked') \
+        .with_columns(pl.col('article_ids_clicked').cast(pl.Int32)) \
         .join(articles.select(['article_id', 'category']), left_on='article_ids_clicked', right_on='article_id', how='left') \
         .group_by('session_id').agg(
             pl.col('user_id').first(), 
@@ -431,6 +431,6 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
         (pl.col('impression_time') - pl.col('last_session_time')).dt.total_hours().alias('last_session_time_hour_diff'),
         ((pl.col('last_session_time') - pl.col('published_time')).dt.total_hours() > 0).alias('is_new_article'),
         pl.col('all_seen_articles').list.contains(pl.col('article')).alias('is_already_seen_article'),
-        (pl.col('category') == pl.col('last_session_most_seen_category')).fill_null(False).alias('is_last_session_most_seen_category'),
+        (pl.col('category') == pl.col('last_most_freq_category')).fill_null(False).alias('is_last_session_most_seen_category'),
     ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time', 'last_most_freq_category'])
     return reduce_polars_df_memory_size(df_features)

@@ -9,6 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import sys
+sys.path.append('/media/disk1/recsys-challenge-2024/RecSysChallenge2024/src')
+
 from polimi.utils._catboost import build_features
 
 
@@ -26,7 +29,11 @@ def main(input_path, output_dir, dataset_type='train'):
     
     logging.info('Finished to build parquet files. Starting feature engineering')
     
-    dataset, tf_idf_vectorizer, unique_entities = build_features(behaviors, history, articles)
+    is_test_data = dataset_type == 'test'
+    sample = dataset_type == 'train'
+    
+    dataset, tf_idf_vectorizer, unique_entities = build_features(behaviors, history, articles, test=is_test_data, 
+                                                                 sample=sample, verbose=True)
     
     categorical_columns = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
@@ -74,5 +81,11 @@ if __name__ == '__main__':
     
     log_path = os.path.join(output_dir, "log.txt")
     logging.basicConfig(filename=log_path, filemode="w", format=LOGGING_FORMATTER, level=logging.INFO, force=True)
+    
+    stdout_handler = logging.StreamHandler()
+    stdout_handler.setFormatter(logging.Formatter(LOGGING_FORMATTER))
+
+    root_logger = logging.getLogger()
+    root_logger.addHandler(stdout_handler)
     
     main(DATASET_DIR, OUTPUT_DIR, DATASET_TYPE)
