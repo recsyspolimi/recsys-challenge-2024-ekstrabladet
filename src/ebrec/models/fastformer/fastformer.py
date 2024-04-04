@@ -338,7 +338,6 @@ class Fastformer(nn.Module):
         self,
         config,
         word_embedding: nn.Embedding = None,
-        word_embedding_dim: int = 768,
     ):
         """Initializes the Fastformer model with the specified configuration and word embedding layer.
         Args:
@@ -351,15 +350,13 @@ class Fastformer(nn.Module):
 
         if word_embedding is None:
             self.word_embedding = nn.Embedding(config.vocab_size, config.hidden_size)
-            self.embedding_transform = nn.Linear(
-                self.word_embedding.weight.shape[1], config.hidden_size
-            )
+
         else:
             self.word_embedding = word_embedding
-            self.embedding_transform = nn.Linear(
-                self.word_embedding_dim, config.hidden_size
-            )
 
+        self.embedding_transform = nn.Linear(
+            self.word_embedding.weight.shape[1], config.hidden_size
+        )
         self.output_layer = nn.Linear(config.hidden_size * 2, 1)
         self.news_encoder = SequenceFastformerEncoder(config)
         self.user_attention_polling = AttentionPooling(config)
