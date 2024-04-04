@@ -435,5 +435,5 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
         ((pl.col('last_session_time') - pl.col('published_time')).dt.total_hours() > 0).alias('is_new_article'),
         pl.col('all_seen_articles').list.contains(pl.col('article')).alias('is_already_seen_article'),
         (pl.col('category') == pl.col('last_session_most_seen_category')).fill_null(False).alias('is_last_session_most_seen_category'),
-    ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time', 'last_session_most_seen_category'])
+    ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time', 'last_most_freq_category'])
     return reduce_polars_df_memory_size(df_features)
