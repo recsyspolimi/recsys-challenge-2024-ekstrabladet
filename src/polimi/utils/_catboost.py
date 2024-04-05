@@ -298,8 +298,8 @@ def join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.
 def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,period:str="3d"):
     """
     Adds a new feature "trendiness_publications_score" to each impression.
-    The trendiness score for an article is computed as the sum, for each topic of the article, of the times that topic has happeared in an article
-    published in the previous <period> before the impression.
+    The trendiness score for an article is computed as the sum, for each topic of the article, of the times that topic has happeared in some article
+    published in the previous <period> before the impression (normalized with the number of total publications for that topic).
 
     Args:
         df_features: The dataset to be enriched with the new feature. It MUST contain the "impression_time"
@@ -472,3 +472,23 @@ def add_mean_delays_features(df_features:pl.DataFrame,articles:pl.DataFrame,hist
         pl.col("topic_mean_delay_days").mean(),
         pl.col("topic_mean_delay_hours").mean()
     ).rename({"topic_mean_delay_days":"mean_topics_mean_delay_days","topic_mean_delay_hours":"mean_topics_mean_delay_hours"})
+
+
+def add_mean_user_trendiness_score_feature(df_features: pl.DataFrame,history: pl.DataFrame,articles:pl.DataFrame)->pl.DataFrame:
+    """
+    Adds the mean trendiness_score of the interactions performed by the user, in its history.
+    Args:
+        df_features: The dataframe to enrich with the new feature.
+        history: The dataframe containing the users histories.
+        articles: The dataframe containing the articles data.
+    Returns:
+        pl.DataFrame: The df_features enriched with the new feature.
+    """
+    users_mean_trendiness_scores= history.select(["user_id","impression_time_fixed","article_id_fixed"]).explode(["impression_time_fixed","article_id_fixed"]) \
+    .rename({"impression_time_fixed":"impression_time","article_id_fixed":"article"}).pipe(
+        add_trendiness_feature,articles
+    ).select(["user_id","trendiness_score"]).group_by("user_id").agg(
+        pl.col("trendiness_score").mean().alias("mean_user_trendiness_score")
+    )
+    
+    return df_features.join(other=users_mean_trendiness_scores, on="user_id",how="left")
