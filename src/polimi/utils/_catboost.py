@@ -299,14 +299,14 @@ def join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.
     return reduce_polars_df_memory_size(df_features)
 
 
-def add_trendiness_feature(train_ds: pl.DataFrame ,articles: pl.DataFrame ,period:str="3d"):
+def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,period:str="3d"):
     """
     Adds a new feature "trendiness_publications_score" to each impression.
     The trendiness score for an article is computed as the sum, for each topic of the article, of the times that topic has happeared in an article
     published in the previous <period> before the impression.
 
     Args:
-        train_ds: The train dataset to be enriched with the new feature. It MUST contain the "impression_time"
+        df_features: The dataset to be enriched with the new feature. It MUST contain the "impression_time"
         articles: The articles dataset with the topics of the articles and their publication time.
         period: The window size for the computation of the scores, in string encoding 
             (ex. 1ns, 1us, 1s, 1m, 1h, 1d, 1w,.. or combinations like "3d12h4m25s". See doc for polars.DataFrame.rolling for more details)
@@ -327,7 +327,7 @@ def add_trendiness_feature(train_ds: pl.DataFrame ,articles: pl.DataFrame ,perio
         [pl.col("topics").list.count_matches(topic).sum().alias(f"{topic}_matches") for topic in topics]
     )
     
-    return train_ds.with_columns(
+    return df_features.with_columns(
         pl.col("impression_time").dt.date().alias("impression_date")
     ).join(other= articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left" ) \
     .with_columns(
@@ -437,3 +437,34 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
         (pl.col('category') == pl.col('last_session_most_seen_category')).fill_null(False).alias('is_last_session_most_seen_category'),
     ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time', 'last_most_freq_category'])
     return reduce_polars_df_memory_size(df_features)
+
+
+def add_mean_delays_features(df_features:pl.DataFrame,articles:pl.DataFrame,history:pl.DataFrame)->pl.DataFrame:
+    """
+    Adds mean_topics_mean_delay_days, mean_topics_mean_delay_hours to the dataframe.
+    They are the mean over all the topics of the candidate article, of the mean delays (days/hours) of all the interactions of article with that 
+    topic, in the history.
+    
+    Args:
+        df_features: The dataset the new features will be added to.
+        articles: The dataframe containing the articles.
+        history: The dataframe containing the past interactions.
+    Returns:
+        pl.DataFrame: df_features enriched with the new features.
+    """
+    topic_mean_delays = history.select(["impression_time_fixed","article_id_fixed"]).explode(["impression_time_fixed","article_id_fixed"]) \
+    .join(other=articles.select(["article_id","topics","published_time"]),left_on="article_id_fixed",right_on="article_id",how="left") \
+    .drop("article_id_fixed").with_columns(
+        (pl.col('impression_time_fixed') - pl.col('published_time')).dt.total_days().alias('article_delay_days'),
+        (pl.col('impression_time_fixed') - pl.col('published_time')).dt.total_hours().alias('article_delay_hours')
+    ).explode("topics").group_by("topics").agg(
+        pl.col("article_delay_days").mean().alias("topic_mean_delay_days"),
+        pl.col("article_delay_hours").mean().alias("topic_mean_delay_hours")
+    )
+    
+    return df_features.join(other=articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left").explode("topics") \
+    .join(other=topic_mean_delays, on="topics",how="left").group_by(["impression_id","article","user_id"]).agg(
+        pl.exclude(["topic_mean_delay_days","topic_mean_delay_hours","topics"]).first(),
+        pl.col("topic_mean_delay_days").mean(),
+        pl.col("topic_mean_delay_hours").mean()
+    ).rename({"topic_mean_delay_days":"mean_topics_mean_delay_days","topic_mean_delay_hours":"mean_topics_mean_delay_hours"})
