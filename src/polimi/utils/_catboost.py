@@ -314,6 +314,8 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
     topics=articles.select("topics").explode("topics").unique()
     topics=[topic for topic in topics["topics"] if topic is not None]
     
+    topics_total_publications= articles.select("topics").explode("topics").group_by("topics").len()
+    
     topics_popularity = articles.select(["published_time","topics"]).with_columns(
         pl.col("published_time").dt.date().alias("published_date")
     ).drop("published_time").group_by("published_date").agg(
@@ -322,6 +324,8 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
     .rolling(index_column="published_date",period=period).agg(
         [pl.col("topics").list.count_matches(topic).sum().alias(f"{topic}_matches") for topic in topics]
     )
+    
+    
     
     return df_features.with_columns(
         pl.col("impression_time").dt.date().alias("impression_date")
@@ -332,6 +336,9 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
     .with_columns(
         [pl.col(f"{topic}_present").mul(pl.col(f"{topic}_matches")).alias(f"trendiness_score_{topic}") for topic in topics]
     ).with_columns(
+        [ pl.col(f"trendiness_score_{topic}").truediv(topics_total_publications.filter(pl.col("topics")==topic).select("len").item()) for topic in topics]
+    ) \
+    .with_columns(
         pl.sum_horizontal( [pl.col(f"trendiness_score_{topic}") for topic in topics] ).alias("trendiness_score")
     ).drop(
         [f"trendiness_score_{topic}" for topic in topics]
