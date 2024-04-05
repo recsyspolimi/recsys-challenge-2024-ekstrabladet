@@ -3,7 +3,7 @@ from rich.progress import Progress
 from scipy import stats
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
-from typing_extensions import Tuple, List
+from typing_extensions import Tuple, List, Dict
 import logging
 
 try:
@@ -22,9 +22,42 @@ Utils for catboost.
 """ 
 
 
+def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, 
+                           test: bool = False, sample: bool = True, npratio: int = 2, 
+                           tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10):
+    '''
+    Generator function to build the features from blocks of the behaviors. It returns an iterable of slices of the 
+    dataframe with the features. See build_features for a description of the features.
+    Use this function instead of build_features when there are memory issue.
+    
+    Args:
+        behaviors: the dataframe containing the impressions
+        history: the dataframe containing the users history
+        articles: the dataframe containing the articles features
+        test: if true consider the behaviors as a test split, so it will not attempt to build the target column
+        sample: if true, behaviors will be sampled using wu strategy, done only if test=False 
+            (otherwise there is no information about negative articles in the inview list)
+        npratio: the number of negative samples for wu sampling (useful only if sample=True)
+        tf_idf_vectorizer: an optional already fitted tf_idf_vectorizer, if None it will be fitted on the provided articles topics
+        n_batches: the number of blocks
+        
+    Returns:
+        (pl.DataFrame, TfidfVectorizer, List[str]): the dataframe with all the features, the fitted tf-idf vectorizer and the
+            unique entities (useful to cast the categorical columns when eventually transforming the dataframe to polars)
+    '''
+    behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
+        behaviors, history, articles, test, sample, npratio
+    )
+    
+    for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
+        slice_features = sliced_df.pipe(_build_features_behaviors, history=history, articles=articles,
+                                        cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities)
+        yield slice_features, vectorizer, unique_entities
+    
+    
 def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, 
                    test: bool = False, sample: bool = True, npratio: int = 2, 
-                   tf_idf_vectorizer: TfidfVectorizer = None, verbose: bool = False) -> pl.DataFrame:
+                   tf_idf_vectorizer: TfidfVectorizer = None) -> pl.DataFrame:
     '''
     Builds the training/evaluation features dataframe. Each row of the resulting dataframe will be an article
     in the article_ids_inview list (that will be exploded), if sampling is performed only some negative articles
@@ -61,32 +94,25 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         (pl.DataFrame, TfidfVectorizer, List[str]): the dataframe with all the features, the fitted tf-idf vectorizer and the
             unique entities (useful to cast the categorical columns when eventually transforming the dataframe to polars)
     '''
-    if not test and sample:
-        behaviors = behaviors.pipe(
-            sampling_strategy_wu2019, npratio=npratio, shuffle=False, with_replacement=True, seed=123
-        )
-        
-    if not test:
-        behaviors = behaviors.pipe(create_binary_labels_column, shuffle=True, seed=123) 
-        columns_to_explode = ['article_ids_inview', 'labels']
-        renaming_columns = {'article_ids_inview': 'article', 'labels': 'target'}
-    else:
-        columns_to_explode = 'article_ids_inview'
-        renaming_columns = {'article_ids_inview': 'article'}
-        
-    articles, tf_idf_vectorizer, unique_entities = _preprocess_articles(articles)
     
-    history = _build_history_features(history, articles, unique_entities, tf_idf_vectorizer)
-    
-    if verbose:
-        logging.info('Preprocessed history')
+    behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
+        behaviors, history, articles, test, sample, npratio
+    )
         
-    df_features = behaviors.select(['impression_id', 'article_ids_inview', 'article_id', 'impression_time', 'labels', 
+    df_features = behaviors.pipe(_build_features_behaviors, history=history, articles=articles,
+                                 cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities)
+    
+    return df_features, vectorizer, unique_entities
+
+
+def _build_features_behaviors(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
+                              cols_explode: List[str], rename_columns: Dict[str, str], unique_entities: List[str]):  
+    return behaviors.select(['impression_id', 'article_ids_inview', 'impression_time', 'labels', 
                                     'device_type', 'read_time', 'scroll_percentage', 'user_id', 'is_sso_user', 'gender',
                                     'age', 'is_subscriber', 'session_id']) \
         .with_columns(pl.col('gender').fill_null(2)) \
-        .explode(columns_to_explode) \
-        .rename(renaming_columns) \
+        .explode(cols_explode) \
+        .rename(rename_columns) \
         .with_columns(pl.col('article').cast(pl.Int32)) \
         .pipe(add_trendiness_feature, articles=articles, period='3d') \
         .unique(['impression_id', 'article']) \
@@ -106,16 +132,28 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
             for entity in unique_entities
         ).drop('entity_groups') \
         .pipe(add_session_features, history=history, behaviors=behaviors, articles=articles) \
-        .pipe(add_category_popularity, articles=articles)
-            
-    history = history.drop(['impression_time_fixed'])
-    
-    if verbose:
-        logging.info('Built behaviors features. Starting to join the history dataframe')
-    
-    df_features = join_history(df_features, history, articles)
-    
-    return df_features, tf_idf_vectorizer, unique_entities
+        .pipe(add_category_popularity, articles=articles) \
+        .pipe(_join_history, history=history, articles=articles)
+
+
+def _preprocessing(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, 
+                   test: bool = False, sample: bool = True, npratio: int = 2,):
+    if not test and sample:
+        behaviors = behaviors.pipe(
+            sampling_strategy_wu2019, npratio=npratio, shuffle=False, with_replacement=True, seed=123
+        )
+        
+    if not test:
+        behaviors = behaviors.pipe(create_binary_labels_column, shuffle=True, seed=123) 
+        columns_to_explode = ['article_ids_inview', 'labels']
+        renaming_columns = {'article_ids_inview': 'article', 'labels': 'target'}
+    else:
+        columns_to_explode = 'article_ids_inview'
+        renaming_columns = {'article_ids_inview': 'article'}
+        
+    articles, tf_idf_vectorizer, unique_entities = _preprocess_articles(articles)
+    history = _build_history_features(history, articles, unique_entities, tf_idf_vectorizer)
+    return behaviors, history, articles, tf_idf_vectorizer, unique_entities, columns_to_explode, renaming_columns
 
 
 def _preprocess_articles(articles: pl.DataFrame) -> Tuple[pl.DataFrame, List[str]]:
@@ -244,7 +282,7 @@ def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, uniqu
     return reduce_polars_df_memory_size(history)
 
 
-def join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame):
+def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame):
     '''
     Join the dataframe with the current features with the history dataframe, also adding the jaccard similarity features, the 
     entity features, the tf-idf cosine and the category features.
@@ -281,7 +319,7 @@ def join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.
                 pl.col("JS").min().alias("min_JS"),
                 pl.col("JS").max().alias("max_JS"),
                 pl.col("JS").std().alias("std_JS"),
-            ).join(history.drop(['article_id_fixed']), on='user_id', how='left') \
+            ).join(history.drop(['article_id_fixed', 'impression_time_fixed']), on='user_id', how='left') \
             .with_columns(
                 pl.struct(['topics_idf', 'topics_flatten_tf_idf']).map_elements(
                     lambda x: cosine_similarity(x['topics_idf'], x['topics_flatten_tf_idf']), return_dtype=pl.Float64

@@ -32,8 +32,7 @@ def main(input_path, output_dir, dataset_type='train'):
     is_test_data = dataset_type == 'test'
     sample = dataset_type == 'train'
     
-    dataset, tf_idf_vectorizer, unique_entities = build_features(behaviors, history, articles, test=is_test_data, 
-                                                                 sample=sample, verbose=True)
+    dataset, tf_idf_vectorizer, unique_entities = build_features(behaviors, history, articles, test=is_test_data, sample=sample)
     
     categorical_columns = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
@@ -88,4 +87,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, OUTPUT_DIR, DATASET_TYPE)
+    main(DATASET_DIR, output_dir, DATASET_TYPE)
