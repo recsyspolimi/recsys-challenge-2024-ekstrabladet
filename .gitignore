@@ -31,3 +31,4 @@ downloads/*
 build/*
 .env
 notebooks/catboost_info/*
+src/catboost_info

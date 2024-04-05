@@ -1,6 +1,6 @@
 import os
 import logging
-from catboost import CatBoostClassifier, Pool
+from lightgbm import LGBMClassifier
 from datetime import datetime
 import argparse
 import pandas as pd
@@ -9,28 +9,28 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from typing_extensions import List
 
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
-def save_feature_importances_plot(X, y, model, output_dir, categorical_columns):
-    train_pool = Pool(X, y, cat_features=categorical_columns)
-    feature_importances = model.get_feature_importance(train_pool)
+def save_feature_importances_plot(model: LGBMClassifier, feature_names: List[str], output_dir):
+    feature_importances = model.feature_importances_
     
     sorted_importances = np.argsort(feature_importances)[::-1]
     output_path = os.path.join(output_dir, 'feature_importances.png')
 
     plt.figure(figsize=(10, 10))
-    sns.barplot(x=feature_importances[sorted_importances], y=np.array(X.columns)[sorted_importances])
+    sns.barplot(x=feature_importances[sorted_importances], y=np.array(feature_names)[sorted_importances])
     plt.xlabel('Feature Importance')
     plt.ylabel('Feature Name')
-    plt.title('Catboost Feature Importances')
+    plt.title('Lightgbm Feature Importances')
     plt.savefig(output_path)
     plt.close()
 
 
-def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity):
+def main(dataset_path, lgbm_params_path, output_dir):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
     
     train_ds = pd.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
@@ -47,18 +47,18 @@ def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity):
     
     logging.info(f'Features ({len(X.columns)}): {np.array(list(X.columns))}')
     logging.info(f'Categorical features: {np.array(data_info["categorical_columns"])}')
-    logging.info(f'Reading catboost parameters from path: {catboost_params_path}')
+    logging.info(f'Reading lightgbm parameters from path: {lgbm_params_path}')
     
-    with open(catboost_params_path, 'r') as params_file:
+    with open(lgbm_params_path, 'r') as params_file:
         params = json.load(params_file)
         
-    logging.info(f'Catboost params: {params}')
-    logging.info(f'Starting to train the catboost model')
-    model = CatBoostClassifier(**params, cat_features=data_info['categorical_columns'])
-    model.fit(X, y, verbose=catboost_verbosity)
+    logging.info(f'Lightgbm params: {params}')
+    logging.info(f'Starting to train the lightgbm model')
+    model = LGBMClassifier(**params)
+    model.fit(X, y)
     logging.info(f'Model fitted. Saving the model and the feature importances at: {output_dir}')
     joblib.dump(model, os.path.join(output_dir, 'model.joblib'))
-    save_feature_importances_plot(X, y, model, output_dir, data_info['categorical_columns'])
+    save_feature_importances_plot(model, X.columns, output_dir)
     
     
 if __name__ == '__main__':
@@ -67,19 +67,16 @@ if __name__ == '__main__':
                         help="The directory where the models will be placed")
     parser.add_argument("-dataset_path", default=None, type=str, required=True,
                         help="Directory where the preprocessed dataset is placed")
-    parser.add_argument("-catboost_params_file", default=None, type=str, required=True,
+    parser.add_argument("-lgbm_params_file", default=None, type=str, required=True,
                         help="File path where the catboost hyperparameters are placed")
-    parser.add_argument("-catboost_verbosity", default=50, type=int,
-                        help="An integer representing how many iterations will pass between two catboost logs")
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
     DATASET_DIR = args.dataset_path
-    CATBOOST_HYPERPARAMS_PATH = args.catboost_params_file
-    CATBOOST_VERBOSITY = args.catboost_verbosity
+    LGBM_HYPERPARAMS_PATH = args.lgbm_params_file
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    model_name = f'Catboost_Training_{timestamp}'
+    model_name = f'Lightgbm_Training_{timestamp}'
     output_dir = os.path.join(OUTPUT_DIR, model_name)
     os.makedirs(output_dir)
     
@@ -92,4 +89,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, CATBOOST_HYPERPARAMS_PATH, output_dir, CATBOOST_VERBOSITY)
+    main(DATASET_DIR, LGBM_HYPERPARAMS_PATH, output_dir)
