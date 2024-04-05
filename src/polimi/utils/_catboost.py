@@ -313,8 +313,10 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
     
     topics=articles.select("topics").explode("topics").unique()
     topics=[topic for topic in topics["topics"] if topic is not None]
+    min_impression_time = df_features.select(pl.col("impression_time")).min().item()
     
-    topics_total_publications= articles.select("topics").explode("topics").group_by("topics").len()
+    topics_total_publications= articles.filter(pl.col("published_time")< min_impression_time ).select("topics") \
+    .explode("topics").group_by("topics").len()
     
     topics_popularity = articles.select(["published_time","topics"]).with_columns(
         pl.col("published_time").dt.date().alias("published_date")
@@ -347,6 +349,8 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
     ).drop(
         [f"{topic}_present" for topic in topics]
     ).drop(["topics","impression_date"])
+    
+    
     
 
 def add_category_popularity(df_features: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
