@@ -474,21 +474,52 @@ def add_mean_delays_features(df_features:pl.DataFrame,articles:pl.DataFrame,hist
     ).rename({"topic_mean_delay_days":"mean_topics_mean_delay_days","topic_mean_delay_hours":"mean_topics_mean_delay_hours"})
 
 
-def add_mean_user_trendiness_score_feature(df_features: pl.DataFrame,history: pl.DataFrame,articles:pl.DataFrame)->pl.DataFrame:
+def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.DataFrame,articles:pl.DataFrame)-> pl.DataFrame:
     """
-    Adds the mean trendiness_score of the interactions performed by the user, in its history.
+    Adds 2 features concerning the trendiness, computed on the history, to the features dataframe.
+    - mean_user_trendiness_score: For each user, the mean trendiness_score of the impressions in his history.
+    - mean_topics_trendiness_score: For each article, the mean over all its topics, of the mean trendiness_scores of the interactions in the history
+    with articles containin that topic.
+
     Args:
-        df_features: The dataframe to enrich with the new feature.
-        history: The dataframe containing the users histories.
-        articles: The dataframe containing the articles data.
+        df_features: The dataframe containing the features, to be enriched with the new features.
+        history: The history dataframe.
+        articles: The articles dataframe.
     Returns:
-        pl.DataFrame: The df_features enriched with the new feature.
+        pl.DataFrame: df_feature with the 2 features added. 
     """
-    users_mean_trendiness_scores= history.select(["user_id","impression_time_fixed","article_id_fixed"]).explode(["impression_time_fixed","article_id_fixed"]) \
+    
+        
+    topics=articles.select("topics").explode("topics").unique()
+    topics=[topic for topic in topics["topics"] if topic is not None]
+    
+    history_trendiness_scores= history.select(["user_id","impression_time_fixed","article_id_fixed"]).explode(["impression_time_fixed","article_id_fixed"]) \
     .rename({"impression_time_fixed":"impression_time","article_id_fixed":"article"}).pipe(
         add_trendiness_feature,articles
-    ).select(["user_id","trendiness_score"]).group_by("user_id").agg(
+    )
+    
+    users_mean_trendiness_scores = history_trendiness_scores.select(["user_id","trendiness_score"]).group_by("user_id").agg(
         pl.col("trendiness_score").mean().alias("mean_user_trendiness_score")
     )
     
-    return df_features.join(other=users_mean_trendiness_scores, on="user_id",how="left")
+    topics_mean_trendiness_scores= history_trendiness_scores.select("article","trendiness_score") \
+    .join(other=articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left") \
+    .explode("topics").group_by("topics").agg(
+        pl.col("trendiness_score").mean().alias("mean_topic_trendiness_score")
+    )
+    
+    return df_features.join(other=users_mean_trendiness_scores, on="user_id",how="left") \
+    .join(other=articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left") \
+    .with_columns(
+        [pl.col("topics").list.contains(topic).cast(pl.Int8).alias(f"{topic}_present") for topic in topics]
+    ).with_columns(
+        [pl.col(f"{topic}_present").mul(topics_mean_trendiness_scores.filter(pl.col("topics")==topic).select("mean_topic_trendiness_score")) \
+         .alias(f"mean_topic_{topic}_trendiness_score") for topic in topics]
+    ).with_columns(
+        pl.sum_horizontal( [pl.col(f"mean_topic_{topic}_trendiness_score") for topic in topics] ).truediv(pl.col("topics").list.len())
+        .alias("mean_topics_trendiness_score")
+    ).drop(
+        [f"{topic}_present" for topic in topics]
+    ).drop(
+        [f"mean_topic_{topic}_trendiness_score" for topic in topics]
+    ).drop("topics")
