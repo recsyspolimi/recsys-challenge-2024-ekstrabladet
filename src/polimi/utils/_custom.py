@@ -1,6 +1,8 @@
 import polars as pl
 import numpy as np
 from typing_extensions import List
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_import_list import *
+
 
 _PARQUET_TYPE = 'parquet'
 
@@ -40,3 +42,27 @@ def cosine_similarity(x: List[float], y: List[float]):
     y = np.array(y)
     normalization = np.linalg.norm(x, 2) * np.linalg.norm(y, 2)
     return np.dot(x, y) / normalization if normalization > 0 else 0
+
+
+
+ALGORITHMS = {
+    'SLIMElasticNetRecommender' : [
+        SLIMElasticNetRecommender,
+        {
+            # best_hyperparameters
+        },
+    ],
+    'RP3betaRecommender': [
+        RP3betaRecommender,
+        {
+
+        }
+    ],
+    'ItemKNNCFRecommender': [
+        ItemKNNCFRecommender,
+        {
+            
+        }
+    ]
+
+}

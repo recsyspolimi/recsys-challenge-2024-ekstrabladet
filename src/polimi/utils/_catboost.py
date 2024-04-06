@@ -1,6 +1,7 @@
 from tqdm import tqdm
 from rich.progress import Progress
 from scipy import stats
+import scipy.sparse as sps
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from typing_extensions import Tuple, List, Dict
@@ -565,3 +566,87 @@ def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.Da
     ).drop(
         [f"mean_topic_{topic}_trendiness_score" for topic in topics]
     ).drop("topics")
+
+
+
+def _create_URM(behaviors, history):
+    urm = behaviors.select(pl.col('user_id'),pl.col('article_id'),pl.col('article_ids_inview'), pl.col('article_ids_clicked'))\
+                .with_columns(
+                    pl.when(~pl.col("article_id").is_null() & ~pl.col('article_id').is_in('article_ids_clicked'))\
+                    .then(pl.concat_list(pl.col('article_ids_clicked'),pl.col('article_id')))\
+                    .otherwise(pl.col('article_ids_clicked'))
+                    .alias("article_ids_clicked"),
+                )\
+                .drop('article_id')\
+                .group_by('user_id')\
+                .agg(
+                    pl.col('article_ids_inview').flatten(),
+                    pl.col('article_ids_clicked').flatten()
+                )\
+                .with_columns(
+                    pl.col("article_ids_inview").list.set_difference("article_ids_clicked").alias('article_ids_inview')
+                )\
+                .group_by('user_id')\
+                .agg(
+                    pl.col('article_ids_inview').flatten(),
+                    pl.col('article_ids_clicked').flatten()
+                )\
+                .with_columns(
+                    pl.col("article_ids_inview").list.set_difference("article_ids_clicked").alias('article_ids_inview'),
+                ).join(history, on="user_id")\
+                    .select(pl.col('user_id', 'article_ids_inview', 'article_ids_clicked','article_id_fixed' ))\
+                    .with_columns(
+                        pl.concat_list('article_id_fixed','article_ids_clicked').alias('article_ids_clicked')
+                    )\
+                    .drop('article_id_fixed')\
+                    .with_columns(
+                        pl.col("article_ids_inview").list.set_difference("article_ids_clicked").alias('article_ids_inview'),
+                    )\
+                    .with_columns(
+                        pl.col("article_ids_inview").list.unique().alias('article_ids_inview'),
+                        pl.col("article_ids_clicked").list.unique().alias('article_ids_clicked'),
+                    )
+    urm_inview = urm.select('user_id','article_ids_inview')\
+            .explode('article_ids_inview')\
+            .with_columns(
+                pl.lit(-1).alias('Interaction')
+            ).rename({'article_ids_inview': 'article_id'})
+    
+    urm_clicked = urm.select('user_id','article_ids_clicked')\
+            .explode('article_ids_clicked')\
+            .with_columns(
+                pl.lit(1).alias('Interaction')
+            ).rename({'article_ids_clicked': 'article_id'})
+
+    df = pl.concat([urm_clicked,urm_inview]).rename({'user_id': 'UserID', 'article_id': 'ItemID'}).to_pandas()
+    # maybe add re-indexing ???
+    return sps.coo_matrix((df["Interaction"].values, 
+                          (df["UserID"].values, df["ItemID"].values)))
+
+def _train_recsys_algorithms(URM_train, models_to_train):
+    """
+        add tqdm and enrich the dictionary of models with name and parameter
+    """
+    trained_algorithms = {}
+    for model in models_to_train:
+        rec_instance = ALGORITHMS[model][0](URM_train)
+        trained_algorithms[model] = rec_instance.fit()
+
+    return trained_algorithms
+
+     
+def add_other_rec_features(train_ds, behaviors, history, algorithms):
+    """
+    Returns train_ds enriched with prediction from recsys models.
+    For each impression (user_id, article_id) add a feature that is the prediction computed by the alof
+    
+    """
+    URM_train = _create_URM(behaviors, history)
+    trained_algorithms = _train_recsys_algorithms(URM_train, algorithms)
+
+    
+    train_ds = train_ds.with_columns(
+        [(model._compute_item_score([pl.col('user_id')], items_to_compute = pl.col('article'))).alias(name) for name,model in trained_algorithms.items()]
+    )
+
+    return train_ds
