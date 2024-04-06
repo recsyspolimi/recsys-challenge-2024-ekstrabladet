@@ -53,4 +53,4 @@ from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCBFRecommender import UserK
 ######################################################################
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNN_CFCBF_Hybrid_Recommender import ItemKNN_CFCBF_Hybrid_Recommender
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNN_CFCBF_Hybrid_Recommender import UserKNN_CFCBF_Hybrid_Recommender
-from RecSys_Course_AT_PoliMi.Recommenders.FactorizationMachines.LightFMRecommender import LightFMUserHybridRecommender, LightFMItemHybridRecommender
+#from RecSys_Course_AT_PoliMi.Recommenders.FactorizationMachines.LightFMRecommender import LightFMUserHybridRecommender, LightFMItemHybridRecommender
