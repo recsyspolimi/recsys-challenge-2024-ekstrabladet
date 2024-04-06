@@ -642,7 +642,8 @@ def _train_recsys_algorithms(URM_train, models_to_train):
     trained_algorithms = {}
     for model in models_to_train:
         rec_instance = ALGORITHMS[model][0](URM_train)
-        trained_algorithms[model] = rec_instance.fit()
+        m = rec_instance.fit()
+        trained_algorithms[model] = m
     print(trained_algorithms)
     return trained_algorithms
 
