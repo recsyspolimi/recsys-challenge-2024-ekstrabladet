@@ -6,7 +6,7 @@ Created on 26/11/18
 @author: Maurizio Ferrari Dacrema
 """
 import os, shutil
-from Data_manager.DataReader import DataReader
+from RecSys_Course_AT_PoliMi.Data_Manager.DataReader import DataReader
 
 if __name__ == '__main__':
 

@@ -8,7 +8,7 @@ Created on 23/10/17
 
 from RecSys_Course_AT_PoliMi.Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import similarityMatrixTopK, check_matrix
-from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
+from RecSys_Course_AT_PoliMi.Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 from sklearn.preprocessing import normalize
 import numpy as np
 import time

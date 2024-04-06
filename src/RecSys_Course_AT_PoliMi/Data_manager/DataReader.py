@@ -7,7 +7,7 @@ Created on 01/01/2018
 """
 
 import os, traceback
-from Data_manager.Dataset import Dataset
+from RecSys_Course_AT_PoliMi.Data_Manager.Dataset import Dataset
 
 
 #################################################################################################################

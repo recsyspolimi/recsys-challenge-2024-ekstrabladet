@@ -13,7 +13,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.Incremental_Training_Early_Stopping im
 from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
 from RecSys_Course_AT_PoliMi.Recommenders.IR_feature_weighting import okapi_BM_25, TF_IDF
 
-from CythonCompiler.run_compile_subprocess import run_compile_subprocess
+from RecSys_Course_AT_PoliMi.CythonCompiler.run_compile_subprocess import run_compile_subprocess
 
 import scipy.sparse as sps
 import sys, time

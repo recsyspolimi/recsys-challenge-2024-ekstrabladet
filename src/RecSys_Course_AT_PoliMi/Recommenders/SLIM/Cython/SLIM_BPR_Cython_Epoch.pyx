@@ -32,7 +32,7 @@ ELSE:
 
 
 from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import similarityMatrixTopK, check_matrix
-from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
+from RecSys_Course_AT_PoliMi.Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 import numpy as np
 import cython
 cimport numpy as np

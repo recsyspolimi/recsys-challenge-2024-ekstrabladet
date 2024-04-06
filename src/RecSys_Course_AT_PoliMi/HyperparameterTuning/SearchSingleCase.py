@@ -6,7 +6,7 @@ Created on 14/12/18
 @author: Maurizio Ferrari Dacrema
 """
 
-from HyperparameterTuning.SearchAbstractClass import SearchAbstractClass
+from RecSys_Course_AT_PoliMi.HyperparameterTuning.SearchAbstractClass import SearchAbstractClass
 import traceback
 
 class SearchSingleCase(SearchAbstractClass):

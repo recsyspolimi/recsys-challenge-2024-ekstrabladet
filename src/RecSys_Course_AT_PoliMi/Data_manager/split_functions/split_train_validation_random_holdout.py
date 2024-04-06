@@ -8,7 +8,7 @@ Created on 23/04/2019
 
 import numpy as np
 import scipy.sparse as sps
-from Data_manager.IncrementalSparseMatrix import IncrementalSparseMatrix
+from RecSys_Course_AT_PoliMi.Data_Manager.IncrementalSparseMatrix import IncrementalSparseMatrix
 
 
 def split_train_in_two_percentage_user_wise(URM_train, train_percentage = 0.1, verbose = False):
@@ -22,7 +22,7 @@ def split_train_in_two_percentage_user_wise(URM_train, train_percentage = 0.1, v
 
     assert train_percentage >= 0.0 and train_percentage<=1.0, "train_percentage must be a value between 0.0 and 1.0, provided was '{}'".format(train_percentage)
 
-    from Data_manager.IncrementalSparseMatrix import IncrementalSparseMatrix
+    from RecSys_Course_AT_PoliMi.Data_Manager.IncrementalSparseMatrix import IncrementalSparseMatrix
 
     # ensure to use csr matrix or we get big problem
     URM_train = URM_train.tocsr()
@@ -100,7 +100,7 @@ def split_train_in_two_percentage_global_sample(URM_all, train_percentage = 0.1)
     assert train_percentage >= 0.0 and train_percentage<=1.0, "train_percentage must be a value between 0.0 and 1.0, provided was '{}'".format(train_percentage)
 
 
-    from Data_manager.IncrementalSparseMatrix import IncrementalSparseMatrix
+    from RecSys_Course_AT_PoliMi.Data_Manager.IncrementalSparseMatrix import IncrementalSparseMatrix
 
     num_users, num_items = URM_all.shape
 

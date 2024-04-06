@@ -11,7 +11,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.BaseSimilarityMatrixRecommender import
 from RecSys_Course_AT_PoliMi.Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
 from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
 from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
-from CythonCompiler.run_compile_subprocess import run_compile_subprocess
+from RecSys_Course_AT_PoliMi.CythonCompiler.run_compile_subprocess import run_compile_subprocess
 
 import time, sys
 import numpy as np

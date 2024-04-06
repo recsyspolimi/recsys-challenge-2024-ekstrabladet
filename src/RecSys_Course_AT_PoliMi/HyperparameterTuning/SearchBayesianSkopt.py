@@ -11,9 +11,9 @@ import pandas as pd
 import numpy as np
 import time, os
 from skopt.space import Real, Integer, Categorical
-from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
+from RecSys_Course_AT_PoliMi.Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
-from HyperparameterTuning.SearchAbstractClass import SearchAbstractClass
+from RecSys_Course_AT_PoliMi.HyperparameterTuning.SearchAbstractClass import SearchAbstractClass
 import traceback
 
 def _extend_dataframe(initial_dataframe, new_rows):

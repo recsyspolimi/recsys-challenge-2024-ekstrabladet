@@ -63,9 +63,9 @@ from RecSys_Course_AT_PoliMi.Recommenders.FeatureWeighting.Cython.FBSM_Rating_Cy
 from skopt.space import Real, Integer, Categorical
 import traceback
 
-from HyperparameterTuning.SearchBayesianSkopt import SearchBayesianSkopt
-from HyperparameterTuning.SearchSingleCase import SearchSingleCase
-from HyperparameterTuning.SearchAbstractClass import SearchInputRecommenderArgs
+from RecSys_Course_AT_PoliMi.HyperparameterTuning.SearchBayesianSkopt import SearchBayesianSkopt
+from RecSys_Course_AT_PoliMi.HyperparameterTuning.SearchSingleCase import SearchSingleCase
+from RecSys_Course_AT_PoliMi.HyperparameterTuning.SearchAbstractClass import SearchInputRecommenderArgs
 
 ######################################################################
 
@@ -1107,8 +1107,8 @@ def read_data_split_and_search():
         - A _best_result_test file which contains a dictionary with the results, on the test set, of the best solution chosen using the validation set
     """
 
-    from Data_manager.Movielens.Movielens1MReader import Movielens1MReader
-    from Data_manager.DataSplitter_Holdout import DataSplitter_Holdout
+    from RecSys_Course_AT_PoliMi.Data_Manager.Movielens.Movielens1MReader import Movielens1MReader
+    from RecSys_Course_AT_PoliMi.Data_Manager.DataSplitter_Holdout import DataSplitter_Holdout
 
 
     dataset_reader = Movielens1MReader()
@@ -1141,7 +1141,7 @@ def read_data_split_and_search():
 
 
 
-    from Evaluation.Evaluator import EvaluatorHoldout
+    from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 
     evaluator_validation = EvaluatorHoldout(URM_validation, cutoff_list=[5])
     evaluator_test = EvaluatorHoldout(URM_test, cutoff_list=[5, 10])

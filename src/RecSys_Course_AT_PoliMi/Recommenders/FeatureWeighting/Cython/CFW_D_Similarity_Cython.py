@@ -15,7 +15,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.IR_feature_weighting import okapi_BM_2
 
 from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Compute_Similarity import Compute_Similarity
 
-from CythonCompiler.run_compile_subprocess import run_compile_subprocess
+from RecSys_Course_AT_PoliMi.CythonCompiler.run_compile_subprocess import run_compile_subprocess
 import time, sys
 import numpy as np
 from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO

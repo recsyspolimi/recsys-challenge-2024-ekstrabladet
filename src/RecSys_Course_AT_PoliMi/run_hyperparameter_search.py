@@ -15,10 +15,10 @@ from functools import partial
 
 
 
-from Data_manager.Movielens.Movielens1MReader import Movielens1MReader
-from Data_manager.split_functions.split_train_validation_random_holdout import split_train_in_two_percentage_global_sample
+from RecSys_Course_AT_PoliMi.Data_Manager.Movielens.Movielens1MReader import Movielens1MReader
+from RecSys_Course_AT_PoliMi.Data_Manager.split_functions.split_train_validation_random_holdout import split_train_in_two_percentage_global_sample
 
-from HyperparameterTuning.run_hyperparameter_search import runHyperparameterSearch_Collaborative, runHyperparameterSearch_Content, runHyperparameterSearch_Hybrid
+from RecSys_Course_AT_PoliMi.HyperparameterTuning.run_hyperparameter_search import runHyperparameterSearch_Collaborative, runHyperparameterSearch_Content, runHyperparameterSearch_Hybrid
 
 
 def read_data_split_and_search():
@@ -66,7 +66,7 @@ def read_data_split_and_search():
 
 
 
-    from Evaluation.Evaluator import EvaluatorHoldout
+    from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 
     cutoff_list = [5, 10, 20]
     metric_to_optimize = "MAP"

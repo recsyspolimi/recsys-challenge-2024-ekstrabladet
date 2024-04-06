@@ -89,7 +89,7 @@ def remove_empty_rows_and_cols(URM, ICM = None):
 
 
 
-from Data_manager.IncrementalSparseMatrix import IncrementalSparseMatrix, IncrementalSparseMatrix_FilterIDs
+from RecSys_Course_AT_PoliMi.Data_Manager.IncrementalSparseMatrix import IncrementalSparseMatrix, IncrementalSparseMatrix_FilterIDs
 import pandas as pd
 
 def remove_Dataframe_duplicates(dataframe, unique_values_in_columns = ['UserID', 'ItemID'], keep_highest_value_in_col ="timestamp"):

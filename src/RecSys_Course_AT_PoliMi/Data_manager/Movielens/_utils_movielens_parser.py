@@ -55,7 +55,7 @@ def _loadURM(URM_path, header=None, separator=','):
 def _loadICM_tags(tags_path, header=True, separator=','):
 
     # Tags
-    from Data_manager.TagPreprocessing import tagFilterAndStemming
+    from RecSys_Course_AT_PoliMi.Data_Manager.TagPreprocessing import tagFilterAndStemming
 
     fileHandle = open(tags_path, "r", encoding="latin1")
 
@@ -102,7 +102,7 @@ def _loadICM_tags(tags_path, header=True, separator=','):
 def _loadUCM(UCM_path, header=True, separator=','):
 
     # Genres
-    from Data_manager.IncrementalSparseMatrix import IncrementalSparseMatrix_FilterIDs
+    from RecSys_Course_AT_PoliMi.Data_Manager.IncrementalSparseMatrix import IncrementalSparseMatrix_FilterIDs
 
     ICM_builder = IncrementalSparseMatrix_FilterIDs(preinitialized_col_mapper = None, on_new_col = "add",
                                                     preinitialized_row_mapper = None, on_new_row = "add")

@@ -16,7 +16,7 @@ import torch, copy, math
 from torch.autograd import Variable
 import torch.nn.functional as f
 from RecSys_Course_AT_PoliMi.Recommenders.Neural.architecture_utils import generate_autoencoder_architecture
-from Utils.PyTorch.utils import get_optimizer, clone_pytorch_model_to_numpy_dict
+from RecSys_Course_AT_PoliMi.Utils.PyTorch.utils import get_optimizer, clone_pytorch_model_to_numpy_dict
 
 def from_sparse_to_tensor(A_tilde):
     A_tilde = sps.coo_matrix(A_tilde)

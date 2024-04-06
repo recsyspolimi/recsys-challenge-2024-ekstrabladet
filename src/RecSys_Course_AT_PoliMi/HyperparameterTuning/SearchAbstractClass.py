@@ -11,7 +11,7 @@ import pandas as pd
 from RecSys_Course_AT_PoliMi.Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
 import numpy as np
 from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
-from Evaluation.Evaluator import get_result_string_df
+from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import get_result_string_df
 from numpy.core._exceptions import _ArrayMemoryError
 
 MEMORY_ERROR_EXCEPTION_TUPLE = (_ArrayMemoryError, MemoryError)

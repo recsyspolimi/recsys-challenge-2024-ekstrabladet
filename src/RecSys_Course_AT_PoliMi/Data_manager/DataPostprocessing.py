@@ -6,7 +6,7 @@ Created on 30/11/18
 @author: Maurizio Ferrari Dacrema
 """
 
-from Data_manager.DataReader import DataReader
+from RecSys_Course_AT_PoliMi.Data_Manager.DataReader import DataReader
 
 
 class DataPostprocessing(DataReader):

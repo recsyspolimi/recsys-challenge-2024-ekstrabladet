@@ -18,7 +18,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
 from RecSys_Course_AT_PoliMi.Recommenders.IR_feature_weighting import okapi_BM_25, TF_IDF
 from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Compute_Similarity import Compute_Similarity
 
-from CythonCompiler.run_compile_subprocess import run_compile_subprocess
+from RecSys_Course_AT_PoliMi.CythonCompiler.run_compile_subprocess import run_compile_subprocess
 
 
 class CFW_DVV_Similarity_Cython(BaseItemCBFRecommender, BaseItemSimilarityMatrixRecommender, Incremental_Training_Early_Stopping):

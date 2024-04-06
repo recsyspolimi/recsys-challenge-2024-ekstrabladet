@@ -7,7 +7,7 @@ Created on 30/03/2019
 """
 
 import sys, glob, traceback, os
-from CythonCompiler.run_compile_subprocess import run_compile_subprocess
+from RecSys_Course_AT_PoliMi.CythonCompiler.run_compile_subprocess import run_compile_subprocess
 
 
 if __name__ == '__main__':

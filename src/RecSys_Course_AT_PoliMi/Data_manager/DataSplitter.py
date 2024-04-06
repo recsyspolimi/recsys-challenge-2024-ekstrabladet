@@ -7,7 +7,7 @@ Created on 30/11/18
 """
 
 import traceback, os
-from Data_manager.DataReader import DataReader
+from RecSys_Course_AT_PoliMi.Data_Manager.DataReader import DataReader
 
 class DataSplitter(object):
     """
