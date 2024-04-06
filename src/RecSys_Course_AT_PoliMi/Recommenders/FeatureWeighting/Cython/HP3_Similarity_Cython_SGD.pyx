@@ -94,7 +94,7 @@ cdef class HP3_Similarity_Cython_SGD:
         self.precompute_common_features = precompute_common_features
 
         #For now...
-        ICM = ICM.astype(np.bool)
+        ICM = ICM.astype(bool)
 
         self.icm_indices = np.array(ICM.indices, dtype=np.int32)
         self.icm_indptr = np.array(ICM.indptr, dtype=np.int32)

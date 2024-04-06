@@ -50,7 +50,7 @@ def split_train_leave_k_out_user_wise(URM, k_out = 1, use_validation_set = True,
 
 
         if leave_random_out:
-            indices_to_suffle = np.arange(len(user_profile), dtype=np.int)
+            indices_to_suffle = np.arange(len(user_profile), dtype=int)
 
             np.random.shuffle(indices_to_suffle)
 

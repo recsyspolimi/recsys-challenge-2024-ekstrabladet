@@ -322,7 +322,7 @@ class HP3_Similarity_Cython(BaseItemCBFRecommender, BaseItemSimilarityMatrixReco
 
         block_dim = 300
         d_t = self.ICM * sps.diags([feature_weights.squeeze()], [0])
-        icm_t = self.ICM.astype(np.bool).T
+        icm_t = self.ICM.astype(bool).T
         indptr, indices, data = [0], [], []
         for r in range(0, self.n_items, block_dim):
             if r + block_dim > self.n_items:

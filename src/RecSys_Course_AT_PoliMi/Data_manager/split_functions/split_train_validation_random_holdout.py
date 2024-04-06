@@ -51,7 +51,7 @@ def split_train_in_two_percentage_user_wise(URM_train, train_percentage = 0.1, v
         if n_train_items == len(user_profile_items) and n_train_items > 1:
             n_train_items -= 1
 
-        indices_for_sampling = np.arange(0, user_profile_length, dtype=np.int)
+        indices_for_sampling = np.arange(0, user_profile_length, dtype=int)
         np.random.shuffle(indices_for_sampling)
 
         train_items = user_profile_items[indices_for_sampling[0:n_train_items]]
@@ -110,7 +110,7 @@ def split_train_in_two_percentage_global_sample(URM_all, train_percentage = 0.1)
 
     URM_train = sps.coo_matrix(URM_all)
 
-    indices_for_sampling = np.arange(0, URM_all.nnz, dtype=np.int)
+    indices_for_sampling = np.arange(0, URM_all.nnz, dtype=int)
     np.random.shuffle(indices_for_sampling)
 
     n_train_interactions = round(URM_all.nnz * train_percentage)

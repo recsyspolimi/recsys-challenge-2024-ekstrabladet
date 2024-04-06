@@ -97,7 +97,7 @@ class P3alphaRecommender(BaseItemSimilarityMatrixRecommender):
                     relevant_items_partition = relevant_items_partition[non_zero_mask]
                     row_data = row_data[non_zero_mask]
 
-                similarity_builder.add_data_lists(row_list_to_add=np.ones(len(row_data), dtype = np.int) * (current_block_start_row + row_in_block),
+                similarity_builder.add_data_lists(row_list_to_add=np.ones(len(row_data), dtype = int) * (current_block_start_row + row_in_block),
                                                   col_list_to_add=relevant_items_partition,
                                                   data_list_to_add=row_data)
 

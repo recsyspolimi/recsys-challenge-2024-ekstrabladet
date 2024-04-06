@@ -375,7 +375,7 @@ def reconcile_mapper_with_removed_tokens(key_to_value_dict, values_to_remove):
 
     # The value is an index, so we can use it to be both the value and the index of an array.
     # We do not assume values to be contiguous, the missing ones will be -np.inf
-    mapper_values_array = np.ones(max(key_to_value_dict.values())+1, dtype=np.int) * -np.inf
+    mapper_values_array = np.ones(max(key_to_value_dict.values())+1, dtype=int) * -np.inf
 
     value_to_key = invert_dictionary(key_to_value_dict)
 
@@ -504,7 +504,7 @@ def add_boolean_matrix_iterator(original_data_dict):
 
         if np.max(matrix_object.data) != 1.0 or np.min(matrix_object.data) != 1.0:
             matrix_object_implicit = matrix_object.copy()
-            matrix_object_implicit.astype(np.bool, copy=True)
+            matrix_object_implicit.astype(bool, copy=True)
             matrix_object_implicit.data = np.ones_like(matrix_object.data)
 
             output_data_dict[matrix_name + "_bool"] = matrix_object_implicit

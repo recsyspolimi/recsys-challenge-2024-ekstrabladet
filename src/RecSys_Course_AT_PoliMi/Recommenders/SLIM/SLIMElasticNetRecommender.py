@@ -99,7 +99,7 @@ class SLIMElasticNetRecommender(BaseItemSimilarityMatrixRecommender):
                 nonzero_model_coef_value = nonzero_model_coef_value[relevant_items_partition]
 
             similarity_builder.add_data_lists(row_list_to_add=nonzero_model_coef_index,
-                                              col_list_to_add=np.ones(len(nonzero_model_coef_index), dtype = np.int) * currentItem,
+                                              col_list_to_add=np.ones(len(nonzero_model_coef_index), dtype = int) * currentItem,
                                               data_list_to_add=nonzero_model_coef_value)
 
 

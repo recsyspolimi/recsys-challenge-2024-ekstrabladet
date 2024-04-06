@@ -20,7 +20,7 @@ class PredefinedListRecommender(BaseRecommender):
         super(PredefinedListRecommender, self).__init__()
 
         # convert to csc matrix for faster column-wise sum
-        self.URM_recommendations = check_matrix(URM_recommendations_items, 'csr', dtype=np.int)
+        self.URM_recommendations = check_matrix(URM_recommendations_items, 'csr', dtype=int)
 
         self.URM_train = sps.csr_matrix((self.URM_recommendations.shape))
 

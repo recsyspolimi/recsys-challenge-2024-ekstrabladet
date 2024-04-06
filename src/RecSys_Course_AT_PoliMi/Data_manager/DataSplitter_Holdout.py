@@ -234,7 +234,7 @@ class DataSplitter_Holdout(_DataSplitter):
                 URM_test = URM_test[user_to_preserve,:]
 
                 self.SPLIT_GLOBAL_MAPPER_DICT["user_original_ID_to_index"] = reconcile_mapper_with_removed_tokens(self.SPLIT_GLOBAL_MAPPER_DICT["user_original_ID_to_index"],
-                                                                                                                  np.arange(0, len(user_to_remove), dtype=np.int)[user_to_remove])
+                                                                                                                  np.arange(0, len(user_to_remove), dtype=int)[user_to_remove])
 
                 for UCM_name, UCM_object in self.SPLIT_UCM_DICT.items():
                     UCM_object = UCM_object[user_to_preserve,:]

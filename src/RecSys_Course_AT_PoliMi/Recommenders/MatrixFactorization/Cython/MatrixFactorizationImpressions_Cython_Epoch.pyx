@@ -782,11 +782,11 @@ cdef class MatrixFactorization_Cython_Epoch:
     def _init_minibatch_data_structures(self):
 
         # The shape depends on the batch size. 1 for FunkSVD 2 for BPR as it samples two items
-        self.mini_batch_sampled_items = np.zeros(self.batch_size*2, dtype=np.int)
-        self.mini_batch_sampled_users = np.zeros(self.batch_size, dtype=np.int)
+        self.mini_batch_sampled_items = np.zeros(self.batch_size*2, dtype=int)
+        self.mini_batch_sampled_users = np.zeros(self.batch_size, dtype=int)
 
-        self.mini_batch_sampled_items_flag = np.zeros(self.n_items, dtype=np.int)
-        self.mini_batch_sampled_users_flag = np.zeros(self.n_users, dtype=np.int)
+        self.mini_batch_sampled_items_flag = np.zeros(self.n_items, dtype=int)
+        self.mini_batch_sampled_users_flag = np.zeros(self.n_users, dtype=int)
 
         self.mini_batch_sampled_items_counter = 0
         self.mini_batch_sampled_users_counter = 0

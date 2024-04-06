@@ -4,6 +4,27 @@ from typing_extensions import List
 from RecSys_Course_AT_PoliMi.Recommenders.Recommender_import_list import *
 
 
+ALGORITHMS = {
+    'SLIMElasticNetRecommender' : [
+        SLIMElasticNetRecommender,
+        {
+            # best_hyperparameters
+        },
+    ],
+    'RP3betaRecommender': [
+        RP3betaRecommender,
+        {
+
+        }
+    ],
+    'ItemKNNCFRecommender': [
+        ItemKNNCFRecommender,
+        {
+            
+        }
+    ]
+
+}
 _PARQUET_TYPE = 'parquet'
 
 def load_history(base_path, type, split, lazy=False):
@@ -44,25 +65,3 @@ def cosine_similarity(x: List[float], y: List[float]):
     return np.dot(x, y) / normalization if normalization > 0 else 0
 
 
-
-ALGORITHMS = {
-    'SLIMElasticNetRecommender' : [
-        SLIMElasticNetRecommender,
-        {
-            # best_hyperparameters
-        },
-    ],
-    'RP3betaRecommender': [
-        RP3betaRecommender,
-        {
-
-        }
-    ],
-    'ItemKNNCFRecommender': [
-        ItemKNNCFRecommender,
-        {
-            
-        }
-    ]
-
-}

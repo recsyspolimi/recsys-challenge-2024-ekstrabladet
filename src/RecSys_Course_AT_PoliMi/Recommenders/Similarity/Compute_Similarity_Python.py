@@ -396,7 +396,7 @@ class Compute_Similarity_Python:
                     this_column_weights = this_column_weights[non_zero_mask]
 
                 similarity_builder.add_data_lists(row_list_to_add=relevant_items_partition,
-                                                  col_list_to_add=np.ones(len(relevant_items_partition), dtype = np.int) * columnIndex,
+                                                  col_list_to_add=np.ones(len(relevant_items_partition), dtype = int) * columnIndex,
                                                   data_list_to_add=this_column_weights)
 
             # Add previous block size

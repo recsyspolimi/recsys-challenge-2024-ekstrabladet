@@ -182,7 +182,7 @@ def _prune_users(URM_test, ignore_items_ID, min_ratings_per_user):
     :return:
     """
 
-    users_to_evaluate_mask = np.zeros(URM_test.shape[0], dtype=np.bool)
+    users_to_evaluate_mask = np.zeros(URM_test.shape[0], dtype=bool)
 
     URM_test = _remove_item_interactions(URM_test, ignore_items_ID)
     URM_test = sps.csr_matrix(URM_test)
@@ -521,7 +521,7 @@ class EvaluatorNegativeItemSample(Evaluator):
                                                           ignore_items = ignore_items, ignore_users = ignore_users)
 
 
-        self.URM_items_to_rank = sps.csr_matrix(self.URM_test.copy().astype(np.bool)) + sps.csr_matrix(URM_test_negative.copy().astype(np.bool))
+        self.URM_items_to_rank = sps.csr_matrix(self.URM_test.copy().astype(bool)) + sps.csr_matrix(URM_test_negative.copy().astype(bool))
         self.URM_items_to_rank.eliminate_zeros()
         self.URM_items_to_rank.data = np.ones_like(self.URM_items_to_rank.data)
 

@@ -26,10 +26,10 @@ class BaseRecommender(object):
         self.verbose = verbose
 
         self.filterTopPop = False
-        self.filterTopPop_ItemsID = np.array([], dtype=np.int)
+        self.filterTopPop_ItemsID = np.array([], dtype=int)
 
         self.items_to_ignore_flag = False
-        self.items_to_ignore_ID = np.array([], dtype=np.int)
+        self.items_to_ignore_ID = np.array([], dtype=int)
 
         self._cold_user_mask = np.ediff1d(self.URM_train.indptr) == 0
 
@@ -82,11 +82,11 @@ class BaseRecommender(object):
 
     def set_items_to_ignore(self, items_to_ignore):
         self.items_to_ignore_flag = True
-        self.items_to_ignore_ID = np.array(items_to_ignore, dtype=np.int)
+        self.items_to_ignore_ID = np.array(items_to_ignore, dtype=int)
 
     def reset_items_to_ignore(self):
         self.items_to_ignore_flag = False
-        self.items_to_ignore_ID = np.array([], dtype=np.int)
+        self.items_to_ignore_ID = np.array([], dtype=int)
 
 
     #########################################################################################################

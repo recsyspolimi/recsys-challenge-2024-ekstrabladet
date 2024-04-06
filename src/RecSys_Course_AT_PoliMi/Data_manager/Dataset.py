@@ -441,7 +441,7 @@ class Dataset(object):
 
         if items_to_remove is not None:
 
-            items_to_keep_mask = np.ones(n_items, dtype=np.bool)
+            items_to_keep_mask = np.ones(n_items, dtype=bool)
             items_to_keep_mask[items_to_remove] = False
 
             self.item_original_ID_to_index = reconcile_mapper_with_removed_tokens(self.item_original_ID_to_index, items_to_remove)
@@ -452,7 +452,7 @@ class Dataset(object):
 
             if self._HAS_ICM:
 
-                items_to_keep_mask = np.ones(n_items, dtype=np.bool)
+                items_to_keep_mask = np.ones(n_items, dtype=bool)
                 items_to_keep_mask[items_to_remove] = False
 
                 for ICM_name, ICM_object in self.AVAILABLE_ICM.items():
@@ -476,7 +476,7 @@ class Dataset(object):
 
         if users_to_remove is not None:
 
-            users_to_keep_mask = np.ones(n_users, dtype=np.bool)
+            users_to_keep_mask = np.ones(n_users, dtype=bool)
             users_to_keep_mask[users_to_remove] = False
 
             self.user_original_ID_to_index = reconcile_mapper_with_removed_tokens(self.user_original_ID_to_index, users_to_remove)
@@ -487,7 +487,7 @@ class Dataset(object):
 
             if self._HAS_UCM:
 
-                users_to_keep_mask = np.ones(n_users, dtype=np.bool)
+                users_to_keep_mask = np.ones(n_users, dtype=bool)
                 users_to_keep_mask[users_to_remove] = False
 
                 for UCM_name, UCM_object in self.AVAILABLE_UCM.items():

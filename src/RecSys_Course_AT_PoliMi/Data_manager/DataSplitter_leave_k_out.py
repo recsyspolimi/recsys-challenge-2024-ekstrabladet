@@ -215,7 +215,7 @@ class DataSplitter_leave_k_out(_DataSplitter):
             URM = URM[user_to_preserve,:]
 
             self.SPLIT_GLOBAL_MAPPER_DICT["user_original_ID_to_index"] = reconcile_mapper_with_removed_tokens(self.SPLIT_GLOBAL_MAPPER_DICT["user_original_ID_to_index"],
-                                                                                                              np.arange(0, len(self.removed_cold_users), dtype=np.int)[self.removed_cold_users])
+                                                                                                              np.arange(0, len(self.removed_cold_users), dtype=int)[self.removed_cold_users])
 
             for UCM_name, UCM_object in self.SPLIT_UCM_DICT.items():
                 UCM_object = UCM_object[user_to_preserve,:]

@@ -109,13 +109,13 @@ def assert_URM_ICM_mapper_consistency(URM_DICT, user_original_ID_to_index, item_
     # Check if every non-empty user and item has a mapper value
     URM_all = sps.csc_matrix(URM_all)
     nonzero_items_mask = np.ediff1d(URM_all.indptr)>0
-    nonzero_items = np.arange(0, n_items_URM, dtype=np.int)[nonzero_items_mask]
+    nonzero_items = np.arange(0, n_items_URM, dtype=int)[nonzero_items_mask]
     assert np.isin(nonzero_items, np.array(list(item_original_ID_to_index.values()))).all(), print_preamble + "there exist items with interactions that do not have a mapper entry"
 
 
     URM_all = sps.csr_matrix(URM_all)
     nonzero_users_mask = np.ediff1d(URM_all.indptr)>0
-    nonzero_users = np.arange(0, n_users_URM, dtype=np.int)[nonzero_users_mask]
+    nonzero_users = np.arange(0, n_users_URM, dtype=int)[nonzero_users_mask]
     assert np.isin(nonzero_users, np.array(list(user_original_ID_to_index.values()))).all(), print_preamble + "there exist users with interactions that do not have a mapper entry"
 
     if ICM_MAPPER_DICT is not None:
@@ -146,13 +146,13 @@ def assert_URM_ICM_mapper_consistency(URM_DICT, user_original_ID_to_index, item_
             # Check if every non-empty item and feature has a mapper value
             ICM_object = sps.csr_matrix(ICM_object)
             nonzero_items_mask = np.ediff1d(ICM_object.indptr)>0
-            nonzero_items = np.arange(0, n_items_URM, dtype=np.int)[nonzero_items_mask]
+            nonzero_items = np.arange(0, n_items_URM, dtype=int)[nonzero_items_mask]
             assert np.isin(nonzero_items, np.array(list(item_original_ID_to_index.values()))).all(), print_preamble + "there exist items with features that do not have a mapper entry in ICM {}".format(ICM_name)
 
 
             ICM_object = sps.csc_matrix(ICM_object)
             nonzero_features_mask = np.ediff1d(ICM_object.indptr)>0
-            nonzero_features = np.arange(0, n_features, dtype=np.int)[nonzero_features_mask]
+            nonzero_features = np.arange(0, n_features, dtype=int)[nonzero_features_mask]
             assert np.isin(nonzero_features, np.array(list(feature_original_id_to_index.values()))).all(), print_preamble + "there exist users with interactions that do not have a mapper entry in ICM {}".format(ICM_name)
 
 
@@ -188,13 +188,13 @@ def assert_URM_ICM_mapper_consistency(URM_DICT, user_original_ID_to_index, item_
             # Check if every non-empty user and feature has a mapper value
             UCM_object = sps.csr_matrix(UCM_object)
             nonzero_users_mask = np.ediff1d(UCM_object.indptr)>0
-            nonzero_users = np.arange(0, n_users_URM, dtype=np.int)[nonzero_users_mask]
+            nonzero_users = np.arange(0, n_users_URM, dtype=int)[nonzero_users_mask]
             assert np.isin(nonzero_users, np.array(list(user_original_ID_to_index.values()))).all(), print_preamble + "there exist users with features that do not have a mapper entry in UCM {}".format(UCM_name)
 
 
             UCM_object = sps.csc_matrix(UCM_object)
             nonzero_features_mask = np.ediff1d(UCM_object.indptr)>0
-            nonzero_features = np.arange(0, n_features, dtype=np.int)[nonzero_features_mask]
+            nonzero_features = np.arange(0, n_features, dtype=int)[nonzero_features_mask]
             assert np.isin(nonzero_features, np.array(list(feature_original_id_to_index.values()))).all(), print_preamble + "there exist users with interactions that do not have a mapper entry in UCM {}".format(UCM_name)
 
 

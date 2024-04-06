@@ -77,7 +77,7 @@ cdef class CFW_DVV_Similarity_Cython_SGD:
 
         self.n_samples = len(self.row_list)
 
-        self.ICM = check_matrix(ICM, 'csr').astype(np.bool)
+        self.ICM = check_matrix(ICM, 'csr').astype(bool)
 
 
         self.n_items = ICM.shape[0]
