@@ -9,7 +9,7 @@ Created on 23/10/17
 import numpy as np
 import time, sys
 import scipy.sparse as sps
-import Recommenders.Recommender_utils as recommender_utils
+import RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils as recommender_utils
 from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
 
