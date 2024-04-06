@@ -3,6 +3,7 @@ from rich.progress import Progress
 from scipy import stats
 import scipy.sparse as sps
 import numpy as np
+import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from typing_extensions import Tuple, List, Dict
 import logging
@@ -620,8 +621,19 @@ def _create_URM(behaviors, history):
 
     df = pl.concat([urm_clicked,urm_inview]).rename({'user_id': 'UserID', 'article_id': 'ItemID'}).to_pandas()
     # maybe add re-indexing ???
+    mapped_id, original_id = pd.factorize(df["ItemID"].unique())
+    item_original_ID_to_index = pd.Series(mapped_id, index=original_id)
+
+
+
+    mapped_id, original_id = pd.factorize(df["UserID"].unique())
+    user_original_ID_to_index = pd.Series(mapped_id, index=original_id)
+
+
+    df["UserID"] = df["UserID"].map(user_original_ID_to_index)
+    df["ItemID"] = df["ItemID"].map(item_original_ID_to_index)
     return sps.coo_matrix((df["Interaction"].values, 
-                          (df["UserID"].values, df["ItemID"].values)))
+                          (df["UserID"].values, df["ItemID"].values))),item_original_ID_to_index,user_original_ID_to_index
 
 def _train_recsys_algorithms(URM_train, models_to_train):
     """
@@ -641,12 +653,12 @@ def add_other_rec_features(train_ds, behaviors, history, algorithms):
     For each impression (user_id, article_id) add a feature that is the prediction computed by the alof
     
     """
-    URM_train = _create_URM(behaviors, history)
+    URM_train,item_mapping,user_mapping = _create_URM(behaviors, history)
     trained_algorithms = _train_recsys_algorithms(URM_train, algorithms)
 
     
     train_ds = train_ds.with_columns(
-        [(model._compute_item_score([pl.col('user_id')], items_to_compute = pl.col('article'))).alias(name) for name,model in trained_algorithms.items()]
+        [(model._compute_item_score([user_mapping[pl.col('user_id')]], items_to_compute = item_mapping[pl.col('article')])).alias(name) for name,model in trained_algorithms.items()]
     )
 
     return train_ds
