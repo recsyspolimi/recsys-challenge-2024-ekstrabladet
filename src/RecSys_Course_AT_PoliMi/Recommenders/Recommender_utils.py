@@ -5,7 +5,7 @@
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.Similarity.Compute_Similarity_Python import Incremental_Similarity_Builder
+from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Compute_Similarity_Python import Incremental_Similarity_Builder
 
 import numpy as np
 import scipy.sparse as sps

@@ -6,8 +6,8 @@ Created on 14/06/18
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.Similarity.Compute_Similarity_Python import Incremental_Similarity_Builder
-from Recommenders.BaseMatrixFactorizationRecommender import BaseSVDRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Compute_Similarity_Python import Incremental_Similarity_Builder
+from RecSys_Course_AT_PoliMi.Recommenders.BaseMatrixFactorizationRecommender import BaseSVDRecommender
 from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 from sklearn.utils.extmath import randomized_svd
 import scipy.sparse as sps
@@ -100,7 +100,7 @@ def compute_W_sparse_from_item_latent_factors(ITEM_factors, topK = 100):
     return similarity_builder.get_SparseMatrix()
 
 
-from Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
 
 class PureSVDItemRecommender(BaseItemSimilarityMatrixRecommender):
     """ PureSVDItemRecommender

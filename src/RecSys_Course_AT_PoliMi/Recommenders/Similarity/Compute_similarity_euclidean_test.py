@@ -26,7 +26,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_euclidean_similarity_integer(self):
 
-        from Recommenders.Similarity.Compute_Similarity_Euclidean import Compute_Similarity_Euclidean
+        from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Compute_Similarity_Euclidean import Compute_Similarity_Euclidean
         from scipy.spatial.distance import euclidean
 
         data_matrix = np.array([[1,1,0,1],[0,1,1,1],[1,0,1,0]])
@@ -54,7 +54,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_euclidean_similarity_float(self):
 
-        from Recommenders.Similarity.Compute_Similarity_Euclidean import Compute_Similarity_Euclidean
+        from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Compute_Similarity_Euclidean import Compute_Similarity_Euclidean
         from scipy.spatial.distance import euclidean
 
         data_matrix = np.array([[0.12,0.0,0.87,1.0],

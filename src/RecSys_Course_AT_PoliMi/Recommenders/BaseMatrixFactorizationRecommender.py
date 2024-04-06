@@ -6,8 +6,8 @@ Created on 16/09/2017
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.BaseRecommender import BaseRecommender
-from Recommenders.DataIO import DataIO
+from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
 import scipy.sparse as sps
 import numpy as np
 

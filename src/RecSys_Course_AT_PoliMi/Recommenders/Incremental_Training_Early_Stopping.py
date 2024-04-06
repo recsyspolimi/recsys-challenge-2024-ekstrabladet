@@ -10,7 +10,7 @@ import time, sys
 import numpy as np
 import pandas as pd
 
-from Recommenders.BaseTempFolder import BaseTempFolder
+from RecSys_Course_AT_PoliMi.Recommenders.BaseTempFolder import BaseTempFolder
 from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
 

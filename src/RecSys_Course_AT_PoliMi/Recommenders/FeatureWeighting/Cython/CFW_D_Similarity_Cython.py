@@ -6,19 +6,19 @@ Created on 08/09/17
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.BaseCBFRecommender import BaseItemCBFRecommender
-from Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
-from Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
-from Recommenders.Recommender_utils import check_matrix
-from Recommenders.IR_feature_weighting import okapi_BM_25, TF_IDF
+from RecSys_Course_AT_PoliMi.Recommenders.BaseCBFRecommender import BaseItemCBFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
+from RecSys_Course_AT_PoliMi.Recommenders.IR_feature_weighting import okapi_BM_25, TF_IDF
 
 
-from Recommenders.Similarity.Compute_Similarity import Compute_Similarity
+from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Compute_Similarity import Compute_Similarity
 
 from CythonCompiler.run_compile_subprocess import run_compile_subprocess
 import time, sys
 import numpy as np
-from Recommenders.DataIO import DataIO
+from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
 
 
 
@@ -105,7 +105,7 @@ class CFW_D_Similarity_Cython(BaseItemCBFRecommender, BaseItemSimilarityMatrixRe
 
 
         # Import compiled module
-        from Recommenders.FeatureWeighting.Cython.CFW_D_Similarity_Cython_SGD import CFW_D_Similarity_Cython_SGD
+        from RecSys_Course_AT_PoliMi.Recommenders.FeatureWeighting.Cython.CFW_D_Similarity_Cython_SGD import CFW_D_Similarity_Cython_SGD
 
         self.show_max_performance = show_max_performance
         self.normalize_similarity = normalize_similarity

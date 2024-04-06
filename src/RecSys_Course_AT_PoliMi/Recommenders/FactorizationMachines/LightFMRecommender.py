@@ -6,10 +6,10 @@ Created on 11/07/2021
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
-from Recommenders.BaseRecommender import BaseRecommender
-from Recommenders.DataIO import DataIO
-from Recommenders.BaseCBFRecommender import BaseItemCBFRecommender, BaseUserCBFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
+from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
+from RecSys_Course_AT_PoliMi.Recommenders.BaseCBFRecommender import BaseItemCBFRecommender, BaseUserCBFRecommender
 from lightfm import LightFM
 import numpy as np
 from copy import deepcopy

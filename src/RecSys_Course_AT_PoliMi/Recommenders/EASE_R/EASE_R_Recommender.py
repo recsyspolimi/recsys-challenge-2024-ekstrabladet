@@ -6,8 +6,8 @@ Created on 23/10/17
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
-from Recommenders.Recommender_utils import similarityMatrixTopK, check_matrix
+from RecSys_Course_AT_PoliMi.Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import similarityMatrixTopK, check_matrix
 from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 from sklearn.preprocessing import normalize
 import numpy as np

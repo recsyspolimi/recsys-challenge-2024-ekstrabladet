@@ -6,16 +6,16 @@ Created on 24/06/2023
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.DataIO import DataIO
+from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
 import scipy.sparse as sps
 import numpy as np
 from tqdm import tqdm
-from Recommenders.BaseRecommender import BaseRecommender
-from Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
+from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
 import torch, copy, math
 from torch.autograd import Variable
 import torch.nn.functional as f
-from Recommenders.Neural.architecture_utils import generate_autoencoder_architecture
+from RecSys_Course_AT_PoliMi.Recommenders.Neural.architecture_utils import generate_autoencoder_architecture
 from Utils.PyTorch.utils import get_optimizer, clone_pytorch_model_to_numpy_dict
 
 def from_sparse_to_tensor(A_tilde):

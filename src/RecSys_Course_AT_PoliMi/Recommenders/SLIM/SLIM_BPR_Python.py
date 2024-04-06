@@ -11,8 +11,8 @@ import time
 import numpy as np
 import scipy.sparse as sps
 
-from Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
-from Recommenders.Recommender_utils import similarityMatrixTopK
+from RecSys_Course_AT_PoliMi.Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import similarityMatrixTopK
 
 
 class SLIM_BPR_Python(BaseItemSimilarityMatrixRecommender):

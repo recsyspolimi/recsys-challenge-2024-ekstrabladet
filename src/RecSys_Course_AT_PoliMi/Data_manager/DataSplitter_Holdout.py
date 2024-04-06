@@ -8,7 +8,7 @@ Created on 12/01/18
 
 import scipy.sparse as sps
 import numpy as np
-from Recommenders.DataIO import DataIO
+from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
 
 from Data_manager.DataSplitter import DataSplitter as _DataSplitter
 from Data_manager.DataReader import DataReader as _DataReader

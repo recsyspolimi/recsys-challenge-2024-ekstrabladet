@@ -6,8 +6,8 @@
 """
 
 import numpy as np
-from Recommenders.DataIO import DataIO
-from Recommenders.Recommender_utils import check_matrix
+from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
 
 
 class BaseRecommender(object):

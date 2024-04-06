@@ -12,7 +12,7 @@ Created on 15/04/19
 ##########                  NON PERSONALIZED                ##########
 ##########                                                  ##########
 ######################################################################
-from Recommenders.NonPersonalizedRecommender import TopPop, Random, GlobalEffects
+from RecSys_Course_AT_PoliMi.Recommenders.NonPersonalizedRecommender import TopPop, Random, GlobalEffects
 
 
 
@@ -21,19 +21,19 @@ from Recommenders.NonPersonalizedRecommender import TopPop, Random, GlobalEffect
 ##########                  PURE COLLABORATIVE              ##########
 ##########                                                  ##########
 ######################################################################
-from Recommenders.KNN.UserKNNCFRecommender import UserKNNCFRecommender
-from Recommenders.KNN.ItemKNNCFRecommender import ItemKNNCFRecommender
-from Recommenders.SLIM.Cython.SLIM_BPR_Cython import SLIM_BPR_Cython
-from Recommenders.SLIM.SLIMElasticNetRecommender import SLIMElasticNetRecommender, MultiThreadSLIM_SLIMElasticNetRecommender
-from Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
-from Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
-from Recommenders.MatrixFactorization.Cython.MatrixFactorization_Cython import MatrixFactorization_BPR_Cython, MatrixFactorization_WARP_Cython, MatrixFactorization_SVDpp_Cython, MatrixFactorization_AsySVD_Cython
-from Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
-from Recommenders.MatrixFactorization.IALSRecommender import IALSRecommender
-from Recommenders.MatrixFactorization.NMFRecommender import NMFRecommender
-from Recommenders.EASE_R.EASE_R_Recommender import EASE_R_Recommender
-from Recommenders.FactorizationMachines.LightFMRecommender import LightFMCFRecommender
-from Recommenders.Neural.MultVAERecommender import MultVAERecommender_OptimizerMask as MultVAERecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKNNCFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCFRecommender import ItemKNNCFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.SLIM.Cython.SLIM_BPR_Cython import SLIM_BPR_Cython
+from RecSys_Course_AT_PoliMi.Recommenders.SLIM.SLIMElasticNetRecommender import SLIMElasticNetRecommender, MultiThreadSLIM_SLIMElasticNetRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.Cython.MatrixFactorization_Cython import MatrixFactorization_BPR_Cython, MatrixFactorization_WARP_Cython, MatrixFactorization_SVDpp_Cython, MatrixFactorization_AsySVD_Cython
+from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.IALSRecommender import IALSRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.NMFRecommender import NMFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.EASE_R.EASE_R_Recommender import EASE_R_Recommender
+from RecSys_Course_AT_PoliMi.Recommenders.FactorizationMachines.LightFMRecommender import LightFMCFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.Neural.MultVAERecommender import MultVAERecommender_OptimizerMask as MultVAERecommender
 
 
 ######################################################################
@@ -41,8 +41,8 @@ from Recommenders.Neural.MultVAERecommender import MultVAERecommender_OptimizerM
 ##########                  PURE CONTENT BASED              ##########
 ##########                                                  ##########
 ######################################################################
-from Recommenders.KNN.ItemKNNCBFRecommender import ItemKNNCBFRecommender
-from Recommenders.KNN.UserKNNCBFRecommender import UserKNNCBFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCBFRecommender import ItemKNNCBFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCBFRecommender import UserKNNCBFRecommender
 
 
 
@@ -51,6 +51,6 @@ from Recommenders.KNN.UserKNNCBFRecommender import UserKNNCBFRecommender
 ##########                       HYBRID                     ##########
 ##########                                                  ##########
 ######################################################################
-from Recommenders.KNN.ItemKNN_CFCBF_Hybrid_Recommender import ItemKNN_CFCBF_Hybrid_Recommender
-from Recommenders.KNN.UserKNN_CFCBF_Hybrid_Recommender import UserKNN_CFCBF_Hybrid_Recommender
-from Recommenders.FactorizationMachines.LightFMRecommender import LightFMUserHybridRecommender, LightFMItemHybridRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNN_CFCBF_Hybrid_Recommender import ItemKNN_CFCBF_Hybrid_Recommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNN_CFCBF_Hybrid_Recommender import UserKNN_CFCBF_Hybrid_Recommender
+from RecSys_Course_AT_PoliMi.Recommenders.FactorizationMachines.LightFMRecommender import LightFMUserHybridRecommender, LightFMItemHybridRecommender

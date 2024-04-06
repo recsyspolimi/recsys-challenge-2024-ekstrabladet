@@ -8,12 +8,12 @@ Created on 22/11/2018
 
 import traceback, os, shutil
 
-from Recommenders.BaseCBFRecommender import BaseItemCBFRecommender, BaseUserCBFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.BaseCBFRecommender import BaseItemCBFRecommender, BaseUserCBFRecommender
 
 from Evaluation.Evaluator import EvaluatorHoldout, EvaluatorNegativeItemSample
 from Data_manager.Movielens.Movielens1MReader import Movielens1MReader
 from Data_manager.DataSplitter_leave_k_out import DataSplitter_leave_k_out
-from Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
+from RecSys_Course_AT_PoliMi.Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
 
 
 def write_log_string(log_file, string):
@@ -119,7 +119,7 @@ def run_recommender(recommender_class):
 
 
 
-        from Recommenders.DataIO import DataIO
+        from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
         dataIO = DataIO(temp_save_file_folder)
         data = dataIO.load_data("temp_model.zip")
 
@@ -139,7 +139,7 @@ def run_recommender(recommender_class):
         traceback.print_exc()
 
 
-from Recommenders.Recommender_import_list import *
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_import_list import *
 
 
 if __name__ == '__main__':

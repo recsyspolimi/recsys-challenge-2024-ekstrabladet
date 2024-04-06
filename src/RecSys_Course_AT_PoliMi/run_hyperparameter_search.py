@@ -6,7 +6,7 @@ Created on 22/11/17
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.Recommender_import_list import *
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_import_list import *
 
 import traceback
 

@@ -6,8 +6,8 @@ Created on 23/10/17
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.Recommender_utils import check_matrix, similarityMatrixTopK
-from Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix, similarityMatrixTopK
+from RecSys_Course_AT_PoliMi.Recommenders.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
 
 
 class ItemKNNCustomSimilarityRecommender(BaseItemSimilarityMatrixRecommender):

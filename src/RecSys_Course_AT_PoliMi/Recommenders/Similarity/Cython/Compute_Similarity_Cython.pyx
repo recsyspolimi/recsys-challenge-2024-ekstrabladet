@@ -40,7 +40,7 @@ from libc.math cimport sqrt
 
 
 import scipy.sparse as sps
-from Recommenders.Recommender_utils import check_matrix
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
 from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
 @cython.boundscheck(False)

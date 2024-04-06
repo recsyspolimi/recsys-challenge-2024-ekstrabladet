@@ -13,7 +13,7 @@ import unittest
 import numpy as np
 import scipy.sparse as sps
 
-from Recommenders.Recommender_utils import similarityMatrixTopK
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import similarityMatrixTopK
 
 
 def areSparseEquals(Sparse1, Sparse2):

@@ -14,13 +14,13 @@ import os,  shutil, zipfile
 
 import numpy as np
 from scipy import sparse
-from Recommenders.Neural.architecture_utils import generate_autoencoder_architecture
+from RecSys_Course_AT_PoliMi.Recommenders.Neural.architecture_utils import generate_autoencoder_architecture
 
 
-from Recommenders.BaseRecommender import BaseRecommender
-from Recommenders.BaseTempFolder import BaseTempFolder
-from Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
-from Recommenders.DataIO import DataIO
+from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.BaseTempFolder import BaseTempFolder
+from RecSys_Course_AT_PoliMi.Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
+from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
 
 
 

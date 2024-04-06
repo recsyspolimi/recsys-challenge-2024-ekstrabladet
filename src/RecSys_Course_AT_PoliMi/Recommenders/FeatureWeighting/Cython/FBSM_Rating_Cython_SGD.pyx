@@ -24,7 +24,7 @@ from libc.math cimport exp, log, sqrt
 from cpython.array cimport array, clone
 
 
-from Recommenders.Recommender_utils import check_matrix
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
 import time
 
 

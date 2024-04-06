@@ -21,7 +21,7 @@ cimport numpy as np
 
 import time
 import scipy.sparse as sps
-from Recommenders.Recommender_utils import check_matrix
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
 
 from libc.math cimport sqrt
 from cpython.array cimport array, clone

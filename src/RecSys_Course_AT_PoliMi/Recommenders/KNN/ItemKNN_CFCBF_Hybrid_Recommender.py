@@ -6,7 +6,7 @@ Created on 23/10/17
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.KNN.ItemKNNCBFRecommender import ItemKNNCBFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCBFRecommender import ItemKNNCBFRecommender
 
 import scipy.sparse as sps
 import numpy as np

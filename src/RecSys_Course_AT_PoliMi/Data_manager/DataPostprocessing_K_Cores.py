@@ -6,7 +6,7 @@ Created on 13/01/2018
 @author: Maurizio Ferrari Dacrema
 """
 
-from Recommenders.Recommender_utils import check_matrix
+from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
 
 from Data_manager.DataPostprocessing import DataPostprocessing
 from Data_manager.DataReader_utils import remove_empty_rows_and_cols

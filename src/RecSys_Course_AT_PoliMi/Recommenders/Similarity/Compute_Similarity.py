@@ -10,8 +10,8 @@ import numpy as np
 import scipy.sparse as sps
 import warnings
 
-from Recommenders.Similarity.Compute_Similarity_Python import Compute_Similarity_Python
-from Recommenders.Similarity.Compute_Similarity_Euclidean import Compute_Similarity_Euclidean
+from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Compute_Similarity_Python import Compute_Similarity_Python
+from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Compute_Similarity_Euclidean import Compute_Similarity_Euclidean
 
 
 from enum import Enum
@@ -102,7 +102,7 @@ class Compute_Similarity:
             if use_implementation == "cython":
 
                 try:
-                    from Recommenders.Similarity.Cython.Compute_Similarity_Cython import Compute_Similarity_Cython
+                    from RecSys_Course_AT_PoliMi.Recommenders.Similarity.Cython.Compute_Similarity_Cython import Compute_Similarity_Cython
                     self.compute_similarity_object = Compute_Similarity_Cython(dataMatrix, **args)
 
                 except ImportError:
