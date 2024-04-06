@@ -658,7 +658,8 @@ def add_other_rec_features(train_ds, behaviors, history, algorithms):
 
     
     train_ds = train_ds.with_columns(
-        [(model._compute_item_score([user_mapping[pl.col('user_id')]], items_to_compute = item_mapping[pl.col('article')])).alias(name) for name,model in trained_algorithms.items()]
+        [(model._compute_item_score([user_mapping[pl.col('user_id')]],[item_mapping[pl.col('article')]])).alias(name) for name,model in trained_algorithms.items()]
+
     )
 
     return train_ds
