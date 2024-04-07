@@ -487,9 +487,11 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
 
 def add_mean_delays_features(df_features:pl.DataFrame,articles:pl.DataFrame,history:pl.DataFrame)->pl.DataFrame:
     """
-    Adds mean_topics_mean_delay_days, mean_topics_mean_delay_hours to the dataframe.
-    They are the mean over all the topics of the candidate article, of the mean delays (days/hours) of all the interactions of article with that 
-    topic, in the history.
+    Adds features concerning the delay in the dataframe.
+    - mean_topics_mean_delay_days/mean_topics_mean_delay_hours: For each candidate article, the mean over all its topics 
+    of the mean delays (days/hours) of the articles containing that topic, considering past interactions taken from the history.
+    - user_mean_delay_days/user_mean_delay_hours: The mean delays (days/hours) of the user in his past interactions.
+    
     
     Args:
         df_features: The dataset the new features will be added to.
@@ -508,12 +510,23 @@ def add_mean_delays_features(df_features:pl.DataFrame,articles:pl.DataFrame,hist
         pl.col("article_delay_hours").mean().alias("topic_mean_delay_hours")
     )
     
+    user_mean_delays = history.select(["user_id","impression_time_fixed","article_id_fixed"]).explode(["impression_time_fixed","article_id_fixed"]) \
+    .join(other=articles.select(["article_id","published_time"]),left_on="article_id_fixed",right_on="article_id",how="left") \
+    .drop("article_id_fixed").with_columns(
+        (pl.col('impression_time_fixed') - pl.col('published_time')).dt.total_days().alias('article_delay_days'),
+        (pl.col('impression_time_fixed') - pl.col('published_time')).dt.total_hours().alias('article_delay_hours')
+    ).group_by("user_id").agg(
+        pl.col("article_delay_days").mean().alias("user_mean_delay_days"),
+        pl.col("article_delay_hours").mean().alias("user_mean_delay_hours")
+    )
+    
     return df_features.join(other=articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left").explode("topics") \
     .join(other=topic_mean_delays, on="topics",how="left").group_by(["impression_id","article","user_id"]).agg(
         pl.exclude(["topic_mean_delay_days","topic_mean_delay_hours","topics"]).first(),
         pl.col("topic_mean_delay_days").mean(),
         pl.col("topic_mean_delay_hours").mean()
-    ).rename({"topic_mean_delay_days":"mean_topics_mean_delay_days","topic_mean_delay_hours":"mean_topics_mean_delay_hours"})
+    ).rename({"topic_mean_delay_days":"mean_topics_mean_delay_days","topic_mean_delay_hours":"mean_topics_mean_delay_hours"}) \
+    .join(other=user_mean_delays,on="user_id",how="left")
 
 
 def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.DataFrame,articles:pl.DataFrame)-> pl.DataFrame:
