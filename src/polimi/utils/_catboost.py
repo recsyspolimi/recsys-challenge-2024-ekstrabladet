@@ -446,31 +446,22 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
     ).select(['user_id', 'last_history_impression_time', 'last_history_article'])
 
     last_session_time_df = behaviors.select(['session_id', 'user_id', 'impression_time', 'article_ids_inview', 'article_ids_clicked']) \
-        .explode('article_ids_clicked') \
-        .with_columns(pl.col('article_ids_clicked').cast(pl.Int32)) \
-        .join(articles.select(['article_id', 'category']), left_on='article_ids_clicked', right_on='article_id', how='left') \
         .group_by('session_id').agg(
             pl.col('user_id').first(), 
             pl.col('impression_time').max().alias('session_time'), 
             pl.col('article_ids_inview').flatten().alias('all_seen_articles'),
             (pl.col('impression_time').max() - pl.col('impression_time').min()).dt.total_minutes().alias('session_duration'),
-            pl.col('article_ids_clicked').count().alias('session_nclicks'),
-            # pl.col('category').alias('all_categories'),
-            pl.col('category').mode().alias('most_freq_category'),
-        ).sort(['user_id', 'session_time']).with_columns(
-            pl.col('most_freq_category').list.first(),
         ).with_columns(
-            pl.col(['session_time', 'session_nclicks', 'session_duration', 'most_freq_category']) \
-                .shift(1).over('user_id').name.prefix('last_'),
+            pl.col(['session_time', 'session_duration']).shift(1).over('user_id').name.prefix('last_'),
             pl.col('all_seen_articles').list.unique().shift(1).over('user_id'),
             pl.col('session_duration').rolling_mean(100, min_periods=1).over('user_id').alias('mean_prev_sessions_duration'),
-        ).with_columns(pl.col(['last_session_nclicks', 'last_session_duration']).fill_null(0)) \
+        ).with_columns(pl.col(['last_session_duration']).fill_null(0)) \
         .join(last_history_df, on='user_id', how='left') \
         .with_columns(
             pl.col('last_session_time').fill_null(pl.col('last_history_impression_time')),
             pl.col('all_seen_articles').fill_null(pl.col('last_history_article')),
-        ).select(['session_id', 'last_session_time', 'last_session_nclicks', 'last_most_freq_category',
-                'last_session_duration', 'all_seen_articles', 'mean_prev_sessions_duration'])
+        ).select(['session_id', 'last_session_time', 'last_session_duration',
+                'all_seen_articles', 'mean_prev_sessions_duration'])
         
     gc.collect()
         
@@ -478,8 +469,7 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
         (pl.col('impression_time') - pl.col('last_session_time')).dt.total_hours().alias('last_session_time_hour_diff'),
         ((pl.col('last_session_time') - pl.col('published_time')).dt.total_hours() > 0).alias('is_new_article'),
         pl.col('all_seen_articles').list.contains(pl.col('article')).alias('is_already_seen_article'),
-        (pl.col('category') == pl.col('last_most_freq_category')).fill_null(False).alias('is_last_session_most_seen_category'),
-    ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time', 'last_most_freq_category'])
+    ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time'])
     return reduce_polars_df_memory_size(df_features)
 
 
