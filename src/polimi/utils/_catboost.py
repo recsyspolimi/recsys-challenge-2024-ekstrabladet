@@ -335,7 +335,7 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
 
 def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,period:str="3d"):
     """
-    Adds a new feature "trendiness_publications_score" to each impression.
+    Adds a new feature "trendiness_score" to each impression.
     The trendiness score for an article is computed as the sum, for each topic of the article, of the times that topic has happeared in some article
     published in the previous <period> before the impression (normalized with the number of total publications for that topic).
 
@@ -349,12 +349,13 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
         pl.DataFrame: The training dataset enriched with a new column, containing the trendiness_score. Can be 
     """
     
+        
     topics=articles.select("topics").explode("topics").unique()
     topics=[topic for topic in topics["topics"] if topic is not None]
-    min_impression_time = df_features.select(pl.col("impression_time")).min().item()
+    #min_impression_time = df_features.select(pl.col("impression_time")).min().item()
     
-    topics_total_publications= articles.filter(pl.col("published_time")< min_impression_time ).select("topics") \
-    .explode("topics").group_by("topics").len()
+    #topics_total_publications= articles.filter(pl.col("published_time")< min_impression_time ).select("topics") \
+    #.explode("topics").group_by("topics").len()
     
     topics_popularity = articles.select(["published_time","topics"]).with_columns(
         pl.col("published_time").dt.date().alias("published_date")
@@ -376,10 +377,7 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
     .with_columns(
         [pl.col(f"{topic}_present").mul(pl.col(f"{topic}_matches")).alias(f"trendiness_score_{topic}") for topic in topics]
     ).with_columns(
-        [ pl.col(f"trendiness_score_{topic}").truediv(topics_total_publications.filter(pl.col("topics")==topic).select("len").item()) for topic in topics]
-    ) \
-    .with_columns(
-        pl.sum_horizontal( [pl.col(f"trendiness_score_{topic}") for topic in topics] ).alias("trendiness_score")
+        pl.mean_horizontal( [pl.col(f"trendiness_score_{topic}") for topic in topics] ).alias("trendiness_score"),
     ).drop(
         [f"trendiness_score_{topic}" for topic in topics]
     ).drop(
@@ -544,7 +542,6 @@ def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.Da
         pl.DataFrame: df_feature with the 2 features added. 
     """
     
-        
     topics=articles.select("topics").explode("topics").unique()
     topics=[topic for topic in topics["topics"] if topic is not None]
     
