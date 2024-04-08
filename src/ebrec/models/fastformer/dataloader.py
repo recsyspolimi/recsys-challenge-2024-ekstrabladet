@@ -157,7 +157,7 @@ def train(
     tqdm_disable: bool = False,
     tqdm_ncol: int = 80,
     monitor_metric: str = "loss",
-    dev : str = "cpu"
+    dev: str = "cpu"
 ) -> nn.Module:
     """ """
     min_val_loss = np.inf

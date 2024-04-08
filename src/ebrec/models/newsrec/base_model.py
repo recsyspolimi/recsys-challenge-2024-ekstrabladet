@@ -146,10 +146,8 @@ class BaseModel:
 
     def fit(
             self,
-            train_news_file,
-            train_behaviors_file,
-            valid_news_file,
-            valid_behaviors_file,
+            train_dataloader,
+            val_dataloader,
             test_news_file=None,
             test_behaviors_file=None,
     ):
@@ -171,25 +169,13 @@ class BaseModel:
             epoch_loss = 0
             train_start = time.time()
 
-            tqdm_util = tqdm(
-                self.train_iterator.load_data_from_file(
-                    train_news_file, train_behaviors_file
-                )
-            )
-
-            for batch_data_input in tqdm_util:
+            for batch_data_input in enumerate(train_dataloader):
 
                 step_result = self.train(batch_data_input)
                 step_data_loss = step_result
 
                 epoch_loss += step_data_loss
                 step += 1
-                if step % self.hparams.show_step == 0:
-                    tqdm_util.set_description(
-                        "step {0:d} , total_loss: {1:.4f}, data_loss: {2:.4f}".format(
-                            step, epoch_loss / step, step_data_loss
-                        )
-                    )
 
             train_end = time.time()
             train_time = train_end - train_start
@@ -203,7 +189,7 @@ class BaseModel:
                 ]
             )
 
-            eval_res = self.run_eval(valid_news_file, valid_behaviors_file)
+            eval_res = self.run_eval(val_dataloader)
             eval_info = ", ".join(
                 [
                     str(item[0]) + ":" + str(item[1])
