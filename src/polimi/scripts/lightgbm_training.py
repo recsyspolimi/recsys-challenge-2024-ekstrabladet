@@ -26,7 +26,7 @@ def save_feature_importances_plot(model: LGBMClassifier, feature_names: List[str
     plt.xlabel('Feature Importance')
     plt.ylabel('Feature Name')
     plt.title('Lightgbm Feature Importances')
-    plt.savefig(output_path)
+    plt.savefig(output_path, bbox_inches='tight')
     plt.close()
 
 
