@@ -554,7 +554,7 @@ def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.Da
         pl.col("trendiness_max").max().alias("max_user_trendiness_max"),
     )
     
-    topic_trendiness= history_trendiness_scores.select("article","trendiness_score") \
+    topic_trendiness= history_trendiness_scores.select("article","trendiness_mean","trendiness_sum","trendiness_max") \
     .join(other=articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left") \
     .explode("topics").group_by("topics").agg(
         pl.col("trendiness_mean").mean().alias("mean_topic_trendiness_mean"),
