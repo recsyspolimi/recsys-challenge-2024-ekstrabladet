@@ -573,13 +573,79 @@ def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.Da
     .with_columns(
         [pl.col("topics").list.contains(topic).cast(pl.Int8).alias(f"{topic}_present") for topic in topics]
     ).with_columns(
-        [pl.col(f"{topic}_present").mul(topic_trendiness.filter(pl.col("topics")==topic) \
-        .select(["mean_topic_trendiness_mean","mean_topic_trendiness_sum","mean_topic_trendiness_max",
-                 "sum_topic_trendiness_mean","sum_topic_trendiness_sum","sum_topic_trendiness_max",
-                 "max_topic_trendiness_mean","max_topic_trendiness_sum","max_topic_trendiness_max"])) \
-         .alias([f"mean_topic_{topic}_trendiness_mean",f"mean_topic_{topic}_trendiness_sum",f"mean_topic_{topic}_trendiness_max",
-                 f"sum_topic_{topic}_trendiness_mean",f"sum_topic_{topic}_trendiness_sum",f"sum_topic_{topic}_trendiness_max",
-                 f"max_topic_{topic}_trendiness_mean",f"max_topic_{topic}_trendiness_sum",f"max_topic_{topic}_trendiness_max"]) for topic in topics]
+       [
+    pl.col(f"{topic}_present").mul(
+        topic_trendiness.filter(pl.col("topics")==topic)
+        .select(["mean_topic_trendiness_mean"])
+    ).alias(f"mean_topic_{topic}_trendiness_mean")
+    for topic in topics
+],
+
+[
+    pl.col(f"{topic}_present").mul(
+        topic_trendiness.filter(pl.col("topics")==topic)
+        .select(["mean_topic_trendiness_sum"])
+    ).alias(f"mean_topic_{topic}_trendiness_sum")
+    for topic in topics
+],
+
+[
+    pl.col(f"{topic}_present").mul(
+        topic_trendiness.filter(pl.col("topics")==topic)
+        .select(["mean_topic_trendiness_max"])
+    ).alias(f"mean_topic_{topic}_trendiness_max")
+    for topic in topics
+],
+
+[
+    pl.col(f"{topic}_present").mul(
+        topic_trendiness.filter(pl.col("topics")==topic)
+        .select(["sum_topic_trendiness_mean"])
+    ).alias(f"sum_topic_{topic}_trendiness_mean")
+    for topic in topics
+],
+
+[
+    pl.col(f"{topic}_present").mul(
+        topic_trendiness.filter(pl.col("topics")==topic)
+        .select(["sum_topic_trendiness_sum"])
+    ).alias(f"sum_topic_{topic}_trendiness_sum")
+    for topic in topics
+],
+
+[
+    pl.col(f"{topic}_present").mul(
+        topic_trendiness.filter(pl.col("topics")==topic)
+        .select(["sum_topic_trendiness_max"])
+    ).alias(f"sum_topic_{topic}_trendiness_max")
+    for topic in topics
+],
+
+[
+    pl.col(f"{topic}_present").mul(
+        topic_trendiness.filter(pl.col("topics")==topic)
+        .select(["max_topic_trendiness_mean"])
+    ).alias(f"max_topic_{topic}_trendiness_mean")
+    for topic in topics
+],
+
+[
+    pl.col(f"{topic}_present").mul(
+        topic_trendiness.filter(pl.col("topics")==topic)
+        .select(["max_topic_trendiness_sum"])
+    ).alias(f"max_topic_{topic}_trendiness_sum")
+    for topic in topics
+],
+
+[
+    pl.col(f"{topic}_present").mul(
+        topic_trendiness.filter(pl.col("topics")==topic)
+        .select(["max_topic_trendiness_max"])
+    ).alias(f"max_topic_{topic}_trendiness_max")
+    for topic in topics
+]
+
+
     ).with_columns(
         pl.mean_horizontal( [pl.col(f"mean_topic_{topic}_trendiness_mean") for topic in topics] ).alias("mean_mean_topics_trendiness_mean"),
         pl.mean_horizontal( [pl.col(f"mean_topic_{topic}_trendiness_sum") for topic in topics] ).alias("mean_mean_topics_trendiness_sum"),
