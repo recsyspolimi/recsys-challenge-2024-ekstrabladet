@@ -1,15 +1,8 @@
-from typing import Any, Dict
 # from tensorflow import keras
 import keras
-import time
-import tensorflow as tf
-import numpy as np
-import abc
 
 __all__ = ["BaseModel"]
 
-from tqdm import tqdm
-import numpy as np
 from sklearn.metrics import (
     roc_auc_score,
     log_loss,
@@ -17,84 +10,127 @@ from sklearn.metrics import (
     accuracy_score,
     f1_score,
 )
+# Copyright (c) Recommenders contributors.
+# Licensed under the MIT License.
 
+import abc
+import time
+import numpy as np
+from tqdm import tqdm
+import tensorflow as tf
+
+tf.compat.v1.disable_eager_execution()
+tf.compat.v1.experimental.output_all_intermediates(True)
+__all__ = ["BaseModel"]
 
 
 class BaseModel:
     """Basic class of models
 
     Attributes:
-        hparams (object): A tf.contrib.training.HParams object, hold the entire set of hyperparameters.
+        hparams (HParams): A HParams object, holds the entire set of hyperparameters.
+        train_iterator (object): An iterator to load the data in training steps.
+        test_iterator (object): An iterator to load the data in testing steps.
         graph (object): An optional graph.
         seed (int): Random seed.
     """
 
     def __init__(
         self,
-        hparams: Dict[str, Any],
-        word2vec_embedding: np.ndarray = None,
-        # if 'word2vec_embedding' not provided:
-        word_emb_dim: int = 300,
-        vocab_size: int = 32000,
+        hparams,
+        iterator_creator,
         seed=None,
     ):
         """Initializing the model. Create common logics which are needed by all deeprec models, such as loss function,
         parameter set.
 
         Args:
-            hparams (object): Hold the entire set of hyperparameters.
+            hparams (HParams): A HParams object, holds the entire set of hyperparameters.
+            iterator_creator (object): An iterator to load the data.
+            graph (object): An optional graph.
             seed (int): Random seed.
         """
         self.seed = seed
-        tf.random.set_seed(seed)
+        tf.compat.v1.set_random_seed(seed)
         np.random.seed(seed)
 
-        # ASSIGN 'hparams':
-        self.hparams = hparams
-
-        # INIT THE WORD-EMBEDDINGS:
-        if word2vec_embedding is None:
-            self.word2vec_embedding = np.random.rand(vocab_size, word_emb_dim)
-        else:
-            self.word2vec_embedding = word2vec_embedding
-
-        # BUILD AND COMPILE MODEL:
-        self.model, self.scorer = self._build_graph()
-        self.loss = self._get_loss(self.hparams.loss)
-        self.train_optimizer = self._get_opt(
-            optimizer=self.hparams.optimizer, lr=self.hparams.learning_rate
+        self.train_iterator = iterator_creator(
+            hparams,
+            hparams.npratio,
+            col_spliter="\t",
         )
+        self.test_iterator = iterator_creator(
+            hparams,
+            col_spliter="\t",
+        )
+
+        self.hparams = hparams
+        self.support_quick_scoring = hparams.support_quick_scoring
+
+        # set GPU use with on demand growth
+        gpu_options = tf.compat.v1.GPUOptions(allow_growth=True)
+        sess = tf.compat.v1.Session(
+            config=tf.compat.v1.ConfigProto(gpu_options=gpu_options)
+        )
+
+        # set this TensorFlow session as the default session for Keras
+        tf.compat.v1.keras.backend.set_session(sess)
+
+        # IMPORTANT: models have to be loaded AFTER SETTING THE SESSION for keras!
+        # Otherwise, their weights will be unavailable in the threads after the session there has been set
+        self.model, self.scorer = self._build_graph()
+
+        self.loss = self._get_loss()
+        self.train_optimizer = self._get_opt()
+
         self.model.compile(loss=self.loss, optimizer=self.train_optimizer)
+
+    def _init_embedding(self, file_path):
+        """Load pre-trained embeddings as a constant tensor.
+
+        Args:
+            file_path (str): the pre-trained glove embeddings file path.
+
+        Returns:
+            numpy.ndarray: A constant numpy array.
+        """
+
+        return np.load(file_path)
 
     @abc.abstractmethod
     def _build_graph(self):
         """Subclass will implement this."""
         pass
 
-    def _get_loss(self, loss: str):
+    @abc.abstractmethod
+    def _get_input_label_from_iter(self, batch_data):
+        """Subclass will implement this"""
+        pass
+
+    def _get_loss(self):
         """Make loss function, consists of data loss and regularization loss
 
         Returns:
             object: Loss function or loss function name
         """
-        if loss == "cross_entropy_loss":
+        if self.hparams.loss == "cross_entropy_loss":
             data_loss = "categorical_crossentropy"
-        elif loss == "log_loss":
+        elif self.hparams.loss == "log_loss":
             data_loss = "binary_crossentropy"
         else:
-            raise ValueError(f"this loss not defined {loss}")
+            raise ValueError("this loss not defined {0}".format(self.hparams.loss))
         return data_loss
 
-    def _get_opt(self, optimizer: str, lr: float):
+    def _get_opt(self):
         """Get the optimizer according to configuration. Usually we will use Adam.
         Returns:
             object: An optimizer.
         """
+        lr = self.hparams.learning_rate
+        optimizer = self.hparams.optimizer
 
         if optimizer == "adam":
-            train_opt = keras.optimizers.Adam(learning_rate=lr)
-        else:
-            raise ValueError(f"this optimizer not defined {optimizer}")
+            train_opt = keras.optimizers.Adam(lr=lr)
 
         return train_opt
 
@@ -152,11 +188,13 @@ class BaseModel:
         return pred_rslt, eval_label, imp_index
 
     def fit(
-            self,
-            train_dataloader,
-            val_dataloader,
-            test_news_file=None,
-            test_behaviors_file=None,
+        self,
+        train_news_file,
+        train_behaviors_file,
+        valid_news_file,
+        valid_behaviors_file,
+        test_news_file=None,
+        test_behaviors_file=None,
     ):
         """Fit the model with train_file. Evaluate the model on valid_file per epoch to observe the training status.
         If test_news_file is not None, evaluate it too.
@@ -176,13 +214,25 @@ class BaseModel:
             epoch_loss = 0
             train_start = time.time()
 
-            for batch_data_input in enumerate(train_dataloader):
+            tqdm_util = tqdm(
+                self.train_iterator.load_data_from_file(
+                    train_news_file, train_behaviors_file
+                )
+            )
+
+            for batch_data_input in tqdm_util:
 
                 step_result = self.train(batch_data_input)
                 step_data_loss = step_result
 
                 epoch_loss += step_data_loss
                 step += 1
+                if step % self.hparams.show_step == 0:
+                    tqdm_util.set_description(
+                        "step {0:d} , total_loss: {1:.4f}, data_loss: {2:.4f}".format(
+                            step, epoch_loss / step, step_data_loss
+                        )
+                    )
 
             train_end = time.time()
             train_time = train_end - train_start
@@ -196,7 +246,7 @@ class BaseModel:
                 ]
             )
 
-            eval_res = self.run_eval(val_dataloader)
+            eval_res = self.run_eval(valid_news_file, valid_behaviors_file)
             eval_info = ", ".join(
                 [
                     str(item[0]) + ":" + str(item[1])
@@ -315,7 +365,7 @@ class BaseModel:
         user_indexes = []
         user_vecs = []
         for batch_data_input in tqdm(
-                self.test_iterator.load_user_from_file(news_filename, behaviors_file)
+            self.test_iterator.load_user_from_file(news_filename, behaviors_file)
         ):
             user_index, user_vec = self.user(batch_data_input)
             user_indexes.extend(np.reshape(user_index, -1))
@@ -330,7 +380,7 @@ class BaseModel:
         news_indexes = []
         news_vecs = []
         for batch_data_input in tqdm(
-                self.test_iterator.load_news_from_file(news_filename)
+            self.test_iterator.load_news_from_file(news_filename)
         ):
             news_index, news_vec = self.news(batch_data_input)
             news_indexes.extend(np.reshape(news_index, -1))
@@ -344,7 +394,7 @@ class BaseModel:
         imp_indexes = []
 
         for batch_data_input in tqdm(
-                self.test_iterator.load_data_from_file(news_filename, behaviors_file)
+            self.test_iterator.load_data_from_file(news_filename, behaviors_file)
         ):
             step_pred, step_labels, step_imp_index = self.eval(batch_data_input)
             preds.extend(np.reshape(step_pred, -1))
@@ -368,10 +418,10 @@ class BaseModel:
         group_preds = []
 
         for (
-                impr_index,
-                news_index,
-                user_index,
-                label,
+            impr_index,
+            news_index,
+            user_index,
+            label,
         ) in tqdm(self.test_iterator.load_impression_from_file(behaviors_file)):
             pred = np.dot(
                 np.stack([news_vecs[i] for i in news_index], axis=0),
