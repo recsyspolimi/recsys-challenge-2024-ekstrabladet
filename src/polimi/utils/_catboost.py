@@ -122,7 +122,7 @@ def _build_features_behaviors(behaviors: pl.DataFrame, history: pl.DataFrame, ar
             pl.col('article').cast(pl.Int32),
         ).join(articles.select(['article_id', 'premium', 'published_time', 'category',
                                 'sentiment_score', 'sentiment_label', 'entity_groups',
-                                'num_images', 'title_len', 'subtitle_len', 'body_len']),
+                                'num_images', 'title_len', 'subtitle_len', 'body_len','num_topics']),
                left_on='article', right_on='article_id', how='left') \
         .with_columns(
             (pl.col('impression_time') - pl.col('published_time')).dt.total_days().alias('article_delay_days'),
@@ -178,6 +178,7 @@ def _preprocess_articles(articles: pl.DataFrame) -> Tuple[pl.DataFrame, List[str
         pl.col('title').str.split(by=' ').list.len().alias('title_len'),
         pl.col('subtitle').str.split(by=' ').list.len().alias('subtitle_len'),
         pl.col('body').str.split(by=' ').list.len().alias('body_len'),
+        pl.col('topics').list.len().alias('num_topics'),
         # useful for saving memory when joining with the history dataframe
         pl.when(pl.col('sentiment_label') == 'Negative').then(-1) \
             .otherwise(
