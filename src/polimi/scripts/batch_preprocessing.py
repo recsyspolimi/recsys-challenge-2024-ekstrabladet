@@ -12,7 +12,7 @@ import seaborn as sns
 import sys
 sys.path.append('/media/disk1/recsys-challenge-2024/RecSysChallenge2024/src')
 
-from polimi.utils._catboost import build_features
+from polimi.utils._catboost import build_features_iterator
 
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
@@ -32,19 +32,23 @@ def main(input_path, output_dir, dataset_type='train'):
     is_test_data = dataset_type == 'test'
     sample = dataset_type == 'train'
     
-    dataset, tf_idf_vectorizer, unique_entities = build_features(behaviors, history, articles, test=is_test_data, sample=sample)
+    dataset_complete = []
+    for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, 
+                                                                        test=is_test_data, sample=sample):
+        dataset_complete.append(dataset)
+    dataset_complete = pl.concat(dataset_complete)
     
     categorical_columns = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
                            'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory']
     categorical_columns += [f'Entity_{entity}_Present' for entity in unique_entities]
     
-    dataset.write_parquet(os.path.join(output_dir, f'{dataset_type}_ds.parquet'))
+    dataset_complete.write_parquet(os.path.join(output_dir, f'{dataset_type}_ds.parquet'))
     
     logging.info(f'Preprocessing complete. There are {len(dataset.columns)} columns: {np.array(dataset.columns)}')
     vectorizer_path = os.path.join(output_dir, 'tf_idf_vectorizer.joblib')
     logging.info(f'Saving the tf-idf vectorizer at: {vectorizer_path}')
-    joblib.dump(tf_idf_vectorizer, vectorizer_path)
+    joblib.dump(vectorizer, vectorizer_path)
     
     dataset_info = {
         'type': dataset_type,

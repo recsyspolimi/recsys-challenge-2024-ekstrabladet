@@ -26,7 +26,7 @@ def save_feature_importances_plot(X, y, model, output_dir, categorical_columns):
     plt.xlabel('Feature Importance')
     plt.ylabel('Feature Name')
     plt.title('Catboost Feature Importances')
-    plt.savefig(output_path)
+    plt.savefig(output_path, bbox_inches='tight')
     plt.close()
 
 
