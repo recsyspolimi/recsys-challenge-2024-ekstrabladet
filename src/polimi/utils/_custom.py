@@ -5,12 +5,6 @@ from RecSys_Course_AT_PoliMi.Recommenders.Recommender_import_list import *
 
 
 ALGORITHMS = {
-    'SLIMElasticNetRecommender' : [
-        SLIMElasticNetRecommender,
-        {
-            # best_hyperparameters
-        },
-    ],
     'RP3betaRecommender': [
         RP3betaRecommender,
         {

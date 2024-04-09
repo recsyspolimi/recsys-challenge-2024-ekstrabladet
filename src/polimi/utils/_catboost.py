@@ -7,6 +7,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from typing_extensions import Tuple, List, Dict
 import logging
+from tqdm import tqdm
 
 try:
     import polars as pl
@@ -569,99 +570,137 @@ def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.Da
     ).drop("topics")
 
 
-
-def _create_URM(behaviors, history):
-    urm = behaviors.select(pl.col('user_id'),pl.col('article_id'),pl.col('article_ids_inview'), pl.col('article_ids_clicked'))\
-                .with_columns(
-                    pl.when(~pl.col("article_id").is_null() & ~pl.col('article_id').is_in('article_ids_clicked'))\
-                    .then(pl.concat_list(pl.col('article_ids_clicked'),pl.col('article_id')))\
-                    .otherwise(pl.col('article_ids_clicked'))
-                    .alias("article_ids_clicked"),
-                )\
-                .drop('article_id')\
-                .group_by('user_id')\
-                .agg(
-                    pl.col('article_ids_inview').flatten(),
-                    pl.col('article_ids_clicked').flatten()
-                )\
-                .with_columns(
-                    pl.col("article_ids_inview").list.set_difference("article_ids_clicked").alias('article_ids_inview')
-                )\
-                .group_by('user_id')\
-                .agg(
-                    pl.col('article_ids_inview').flatten(),
-                    pl.col('article_ids_clicked').flatten()
-                )\
-                .with_columns(
-                    pl.col("article_ids_inview").list.set_difference("article_ids_clicked").alias('article_ids_inview'),
-                ).join(history, on="user_id")\
-                    .select(pl.col('user_id', 'article_ids_inview', 'article_ids_clicked','article_id_fixed' ))\
-                    .with_columns(
-                        pl.concat_list('article_id_fixed','article_ids_clicked').alias('article_ids_clicked')
-                    )\
-                    .drop('article_id_fixed')\
-                    .with_columns(
-                        pl.col("article_ids_inview").list.set_difference("article_ids_clicked").alias('article_ids_inview'),
-                    )\
-                    .with_columns(
-                        pl.col("article_ids_inview").list.unique().alias('article_ids_inview'),
-                        pl.col("article_ids_clicked").list.unique().alias('article_ids_clicked'),
-                    )
-    urm_inview = urm.select('user_id','article_ids_inview')\
-            .explode('article_ids_inview')\
-            .with_columns(
-                pl.lit(-1).alias('Interaction')
-            ).rename({'article_ids_inview': 'article_id'})
-    
-    urm_clicked = urm.select('user_id','article_ids_clicked')\
-            .explode('article_ids_clicked')\
-            .with_columns(
-                pl.lit(1).alias('Interaction')
-            ).rename({'article_ids_clicked': 'article_id'})
-
-    df = pl.concat([urm_clicked,urm_inview]).rename({'user_id': 'UserID', 'article_id': 'ItemID'}).to_pandas()
-    # maybe add re-indexing ???
-    mapped_id, original_id = pd.factorize(df["ItemID"].unique())
-    item_original_ID_to_index = pd.Series(mapped_id, index=original_id)
-
-
-
-    mapped_id, original_id = pd.factorize(df["UserID"].unique())
-    user_original_ID_to_index = pd.Series(mapped_id, index=original_id)
-
-
-    df["UserID"] = df["UserID"].map(user_original_ID_to_index)
-    df["ItemID"] = df["ItemID"].map(item_original_ID_to_index)
-    return sps.coo_matrix((df["Interaction"].values, 
-                          (df["UserID"].values, df["ItemID"].values))),item_original_ID_to_index,user_original_ID_to_index
-
-def _train_recsys_algorithms(URM_train, models_to_train):
+def _create_URM(behaviors, history, is_testset= False):
+    """ 
+    Helper function to create an URM starting from the dataset.
+    We will create an URM with as rows the users, as items the items and 
+    with a 0 if there is no interaction, else 1 if there is a click and -1 if it's viewed but not clicked.
+    Args:
+        - behaviors: the behaviors dataframe, if the URM is used for train/validation we use also the clicked from behaviors, else we use only the inviews.
+        - history: history dataframe
+        - is_testset: boolean to indicate if we have also the behaviors clicked or not
+    Returns:
+        - scipy.sparse.coo_matrix: the created urm
+        - df: item_mapping
+        - df: user mapping
     """
-        add tqdm and enrich the dictionary of models with name and parameter
+    
+    
+    user_id_mapping = history.sort('user_id').with_row_index() \
+        .select(['index', 'user_id']).rename({'index': 'user_index', 'user_id': 'UserID'})
+    
+    item_id_mapping = pl.concat([
+        behaviors.select('article_ids_inview').explode('article_ids_inview').unique(['article_ids_inview']).rename({'article_ids_inview': 'ItemID'}),
+        history.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})
+        ])\
+        .unique(['ItemID'])\
+        .sort('ItemID').with_row_index() \
+        .select(['index', 'ItemID']) \
+        .rename({'index': 'item_index'})
+    
+    
+    
+    if is_testset:
+        urm_test = history.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
+            .unique(['ItemID','UserID'])\
+            .join(user_id_mapping, on='UserID')\
+            .join(item_id_mapping, on='ItemID')\
+            .select(['UserID', 'user_index', 'ItemID', 'item_index'])\
+            .unique(['user_index', 'item_index'])
+        
+        URM_test = sps.csr_matrix((np.ones(urm_test.shape[0]),
+                          (urm_test['user_index'].to_numpy(), urm_test['item_index'].to_numpy())),
+                         shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
+        #print(URM_test.shape)
+        return URM_test, item_id_mapping, user_id_mapping
+        
+    else:
+        urm_train = pl.concat([
+            history.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
+            .unique(['ItemID','UserID']),
+            behaviors.select('user_id', 'article_ids_clicked').explode('article_ids_clicked').rename({'article_ids_clicked': 'ItemID', 'user_id': 'UserID'})\
+            .unique(['ItemID', 'UserID']),
+            behaviors.select('user_id','article_id').drop_nulls().rename({'user_id': 'UserID', 'article_id': 'ItemID'})\
+            .unique(['ItemID', 'UserID'])
+            ])\
+            .unique(['ItemID', 'UserID'])\
+            .join(user_id_mapping, on='UserID')\
+            .join(item_id_mapping, on='ItemID')\
+            .select(['UserID', 'user_index', 'ItemID', 'item_index'])\
+            .unique(['user_index', 'item_index'])
+        
+        
+        URM_train = sps.csr_matrix((np.ones(urm_train.shape[0]),
+                          (urm_train['user_index'].to_numpy(), urm_train['item_index'].to_numpy())),
+                         shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
+        
+        
+        return URM_train,item_id_mapping, user_id_mapping
+    
+
+def _train_recsys_algorithms(URM_train, models_to_train, evaluate=False):
+    """
+        Function used to fit recsys models specified in models_to_train,
+        with URM_train.
+        All the hyperparameters and the models are specified in
+
+        ALGORITHMS in polimi.utils._custom.py
+
+        Args:
+            - URM_train: the Urm used to train the models
+            - models_to_train: list of models to train
+
+        Return:
+            - dictionary with key the names of the models, and values the trained istances
+
     """
     trained_algorithms = {}
-    for model in models_to_train:
+    for model in tqdm(models_to_train):
         rec_instance = ALGORITHMS[model][0](URM_train)
-        print(rec_instance)
-        m = rec_instance.fit()
-        trained_algorithms[model] = m
-    print(trained_algorithms)
+        print("Training {} ...".format(model))
+        rec_instance.fit()
+        trained_algorithms[model] = rec_instance
     return trained_algorithms
 
-     
-def add_other_rec_features(train_ds, behaviors, history, algorithms):
-    """
-    Returns train_ds enriched with prediction from recsys models.
-    For each impression (user_id, article_id) add a feature that is the prediction computed by the alof
+def get_recommender_scores(user_items_df, recommenders):
+    user_index = user_items_df['user_index'].to_list()[0]
+    items = user_items_df['item_index'].to_numpy()
     
-    """
-    URM_train,item_mapping,user_mapping = _create_URM(behaviors, history)
-    trained_algorithms = _train_recsys_algorithms(URM_train, algorithms)
-
+    scores = {} 
+    for name, model in recommenders.items():
+        scores[name] = model._compute_item_score([user_index], items)[0, items]
     
-    train_ds = train_ds.with_columns(
-        [(model._compute_item_score([user_mapping[pl.col('user_id')]],[item_mapping[pl.col('article')]])).alias(name) for name,model in trained_algorithms.items()]
-
+    return user_items_df.with_columns(
+        [
+            pl.Series(model).alias(name) for name,model in scores.items()
+        ]
     )
+    
 
-    return train_ds
+def add_other_rec_features(ds, behaviors, history, algorithms, is_testset=False):
+    """
+    For each impression (user_id, article_id) add a feature that is the prediction computed by the models specified in algorithms
+    trained on the URMs created on behaviors+history if is_testset is false else also the behaviors are used.
+    
+    Args:
+        - ds: the dataframe to enrich with one feature for each algorithm
+        - behaviors: the behaviors_dataframe
+        - history: the history dataframe
+        - algorithms: list of models to train and to compute the predictions
+        - is_testset: boolean, to specify if the ds is test or train/val
+        
+    Returns:
+        pl.DataFrame: the enriched dataframe
+    """
+    
+    URM,item_mapping,user_mapping = _create_URM(behaviors, history,is_testset)
+    
+    trained_algorithms = _train_recsys_algorithms(URM, algorithms)
+    
+  
+    ds = ds.join(item_mapping, left_on='article', right_on='ItemID')\
+            .join(user_mapping, left_on='user_id', right_on='UserID')\
+            .sort(['user_index', 'item_index'])\
+            .group_by('user_index').map_groups(lambda df: df.pipe(get_recommender_scores, recommenders=trained_algorithms))
+
+    return ds
