@@ -377,7 +377,7 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
     .with_columns(
         [pl.col(f"{topic}_present").mul(pl.col(f"{topic}_matches")).alias(f"trendiness_score_{topic}") for topic in topics]
     ).with_columns(
-        pl.mean_horizontal( [pl.col(f"trendiness_score_{topic}") for topic in topics] ).alias("trendiness_score"),
+        pl.sum_horizontal( [pl.col(f"trendiness_score_{topic}") for topic in topics] ).alias("trendiness_score"),
     ).drop(
         [f"trendiness_score_{topic}" for topic in topics]
     ).drop(
