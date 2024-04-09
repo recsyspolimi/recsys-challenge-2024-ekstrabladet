@@ -125,7 +125,7 @@ def _build_features_behaviors(behaviors: pl.DataFrame, history: pl.DataFrame, ar
             pl.col('article').cast(pl.Int32),
         ).join(articles.select(['article_id', 'premium', 'published_time', 'category',
                                 'sentiment_score', 'sentiment_label', 'entity_groups',
-                                'num_images', 'title_len', 'subtitle_len', 'body_len']),
+                                'num_images', 'title_len', 'subtitle_len', 'body_len','num_topics']),
                left_on='article', right_on='article_id', how='left') \
         .with_columns(
             (pl.col('impression_time') - pl.col('published_time')).dt.total_days().alias('article_delay_days'),
@@ -181,6 +181,7 @@ def _preprocess_articles(articles: pl.DataFrame) -> Tuple[pl.DataFrame, List[str
         pl.col('title').str.split(by=' ').list.len().alias('title_len'),
         pl.col('subtitle').str.split(by=' ').list.len().alias('subtitle_len'),
         pl.col('body').str.split(by=' ').list.len().alias('body_len'),
+        pl.col('topics').list.len().alias('num_topics'),
         # useful for saving memory when joining with the history dataframe
         pl.when(pl.col('sentiment_label') == 'Negative').then(-1) \
             .otherwise(
@@ -338,7 +339,7 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
 
 def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,period:str="3d"):
     """
-    Adds a new feature "trendiness_publications_score" to each impression.
+    Adds a new feature "trendiness_score" to each impression.
     The trendiness score for an article is computed as the sum, for each topic of the article, of the times that topic has happeared in some article
     published in the previous <period> before the impression (normalized with the number of total publications for that topic).
 
@@ -352,12 +353,13 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
         pl.DataFrame: The training dataset enriched with a new column, containing the trendiness_score. Can be 
     """
     
+        
     topics=articles.select("topics").explode("topics").unique()
     topics=[topic for topic in topics["topics"] if topic is not None]
-    min_impression_time = df_features.select(pl.col("impression_time")).min().item()
+    #min_impression_time = df_features.select(pl.col("impression_time")).min().item()
     
-    topics_total_publications= articles.filter(pl.col("published_time")< min_impression_time ).select("topics") \
-    .explode("topics").group_by("topics").len()
+    #topics_total_publications= articles.filter(pl.col("published_time")< min_impression_time ).select("topics") \
+    #.explode("topics").group_by("topics").len()
     
     topics_popularity = articles.select(["published_time","topics"]).with_columns(
         pl.col("published_time").dt.date().alias("published_date")
@@ -379,10 +381,7 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
     .with_columns(
         [pl.col(f"{topic}_present").mul(pl.col(f"{topic}_matches")).alias(f"trendiness_score_{topic}") for topic in topics]
     ).with_columns(
-        [ pl.col(f"trendiness_score_{topic}").truediv(topics_total_publications.filter(pl.col("topics")==topic).select("len").item()) for topic in topics]
-    ) \
-    .with_columns(
-        pl.sum_horizontal( [pl.col(f"trendiness_score_{topic}") for topic in topics] ).alias("trendiness_score")
+        pl.sum_horizontal( [pl.col(f"trendiness_score_{topic}") for topic in topics] ).alias("trendiness_score"),
     ).drop(
         [f"trendiness_score_{topic}" for topic in topics]
     ).drop(
@@ -451,31 +450,22 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
     ).select(['user_id', 'last_history_impression_time', 'last_history_article'])
 
     last_session_time_df = behaviors.select(['session_id', 'user_id', 'impression_time', 'article_ids_inview', 'article_ids_clicked']) \
-        .explode('article_ids_clicked') \
-        .with_columns(pl.col('article_ids_clicked').cast(pl.Int32)) \
-        .join(articles.select(['article_id', 'category']), left_on='article_ids_clicked', right_on='article_id', how='left') \
         .group_by('session_id').agg(
             pl.col('user_id').first(), 
             pl.col('impression_time').max().alias('session_time'), 
             pl.col('article_ids_inview').flatten().alias('all_seen_articles'),
             (pl.col('impression_time').max() - pl.col('impression_time').min()).dt.total_minutes().alias('session_duration'),
-            pl.col('article_ids_clicked').count().alias('session_nclicks'),
-            # pl.col('category').alias('all_categories'),
-            pl.col('category').mode().alias('most_freq_category'),
-        ).sort(['user_id', 'session_time']).with_columns(
-            pl.col('most_freq_category').list.first(),
         ).with_columns(
-            pl.col(['session_time', 'session_nclicks', 'session_duration', 'most_freq_category']) \
-                .shift(1).over('user_id').name.prefix('last_'),
+            pl.col(['session_time', 'session_duration']).shift(1).over('user_id').name.prefix('last_'),
             pl.col('all_seen_articles').list.unique().shift(1).over('user_id'),
             pl.col('session_duration').rolling_mean(100, min_periods=1).over('user_id').alias('mean_prev_sessions_duration'),
-        ).with_columns(pl.col(['last_session_nclicks', 'last_session_duration']).fill_null(0)) \
+        ).with_columns(pl.col(['last_session_duration']).fill_null(0)) \
         .join(last_history_df, on='user_id', how='left') \
         .with_columns(
             pl.col('last_session_time').fill_null(pl.col('last_history_impression_time')),
             pl.col('all_seen_articles').fill_null(pl.col('last_history_article')),
-        ).select(['session_id', 'last_session_time', 'last_session_nclicks', 'last_most_freq_category',
-                'last_session_duration', 'all_seen_articles', 'mean_prev_sessions_duration'])
+        ).select(['session_id', 'last_session_time', 'last_session_duration',
+                'all_seen_articles', 'mean_prev_sessions_duration'])
         
     gc.collect()
         
@@ -483,16 +473,17 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
         (pl.col('impression_time') - pl.col('last_session_time')).dt.total_hours().alias('last_session_time_hour_diff'),
         ((pl.col('last_session_time') - pl.col('published_time')).dt.total_hours() > 0).alias('is_new_article'),
         pl.col('all_seen_articles').list.contains(pl.col('article')).alias('is_already_seen_article'),
-        (pl.col('category') == pl.col('last_most_freq_category')).fill_null(False).alias('is_last_session_most_seen_category'),
-    ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time', 'last_most_freq_category'])
+    ).drop(['published_time', 'session_id', 'all_seen_articles', 'last_session_time'])
     return reduce_polars_df_memory_size(df_features)
 
 
 def add_mean_delays_features(df_features:pl.DataFrame,articles:pl.DataFrame,history:pl.DataFrame)->pl.DataFrame:
     """
-    Adds mean_topics_mean_delay_days, mean_topics_mean_delay_hours to the dataframe.
-    They are the mean over all the topics of the candidate article, of the mean delays (days/hours) of all the interactions of article with that 
-    topic, in the history.
+    Adds features concerning the delay in the dataframe.
+    - mean_topics_mean_delay_days/mean_topics_mean_delay_hours: For each candidate article, the mean over all its topics 
+    of the mean delays (days/hours) of the articles containing that topic, considering past interactions taken from the history.
+    - user_mean_delay_days/user_mean_delay_hours: The mean delays (days/hours) of the user in his past interactions.
+    
     
     Args:
         df_features: The dataset the new features will be added to.
@@ -511,12 +502,23 @@ def add_mean_delays_features(df_features:pl.DataFrame,articles:pl.DataFrame,hist
         pl.col("article_delay_hours").mean().alias("topic_mean_delay_hours")
     )
     
+    user_mean_delays = history.select(["user_id","impression_time_fixed","article_id_fixed"]).explode(["impression_time_fixed","article_id_fixed"]) \
+    .join(other=articles.select(["article_id","published_time"]),left_on="article_id_fixed",right_on="article_id",how="left") \
+    .drop("article_id_fixed").with_columns(
+        (pl.col('impression_time_fixed') - pl.col('published_time')).dt.total_days().alias('article_delay_days'),
+        (pl.col('impression_time_fixed') - pl.col('published_time')).dt.total_hours().alias('article_delay_hours')
+    ).group_by("user_id").agg(
+        pl.col("article_delay_days").mean().alias("user_mean_delay_days"),
+        pl.col("article_delay_hours").mean().alias("user_mean_delay_hours")
+    )
+    
     return df_features.join(other=articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left").explode("topics") \
     .join(other=topic_mean_delays, on="topics",how="left").group_by(["impression_id","article","user_id"]).agg(
         pl.exclude(["topic_mean_delay_days","topic_mean_delay_hours","topics"]).first(),
         pl.col("topic_mean_delay_days").mean(),
         pl.col("topic_mean_delay_hours").mean()
-    ).rename({"topic_mean_delay_days":"mean_topics_mean_delay_days","topic_mean_delay_hours":"mean_topics_mean_delay_hours"})
+    ).rename({"topic_mean_delay_days":"mean_topics_mean_delay_days","topic_mean_delay_hours":"mean_topics_mean_delay_hours"}) \
+    .join(other=user_mean_delays,on="user_id",how="left")
 
 
 def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.DataFrame,articles:pl.DataFrame)-> pl.DataFrame:
@@ -534,7 +536,6 @@ def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.Da
         pl.DataFrame: df_feature with the 2 features added. 
     """
     
-        
     topics=articles.select("topics").explode("topics").unique()
     topics=[topic for topic in topics["topics"] if topic is not None]
     
