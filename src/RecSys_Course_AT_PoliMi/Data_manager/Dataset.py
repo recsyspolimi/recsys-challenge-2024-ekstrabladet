@@ -22,7 +22,7 @@ def gini_index(array):
     """Calculate the Gini coefficient of a numpy array."""
     # based on bottom eq: http://www.statsdirect.com/help/content/image/stat0206_wmf.gif
     # from: http://www.statsdirect.com/help/default.htm#nonparametric_methods/gini.htm
-    array = np.array(array, dtype=np.float)
+    array = np.array(array, dtype=float)
     array = array.flatten() #all values are treated equally, arrays must be 1d
     if np.amin(array) < 0:
         array -= np.amin(array) #values cannot be negative

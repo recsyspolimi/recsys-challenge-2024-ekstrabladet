@@ -40,7 +40,7 @@ class SLIM_BPR_Python(BaseItemSimilarityMatrixRecommender):
 
 
         # Initialize similarity with zero values
-        self.item_item_S = np.zeros((self.n_items, self.n_items), dtype = np.float)
+        self.item_item_S = np.zeros((self.n_items, self.n_items), dtype = float)
 
         self.lambda_i = lambda_i
         self.lambda_j = lambda_j

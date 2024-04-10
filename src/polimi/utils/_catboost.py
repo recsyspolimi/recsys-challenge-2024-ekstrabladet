@@ -594,15 +594,22 @@ def _create_URM(history_train, behaviors_train, behaviors_val= None, history_val
     user_id_mapping = history_train.sort('user_id').with_row_index() \
         .select(['index', 'user_id']).rename({'index': 'user_index', 'user_id': 'UserID'})
     
-    item_id_mapping = pl.concat([
-        behaviors_train.select('article_ids_inview').explode('article_ids_inview').unique(['article_ids_inview']).rename({'article_ids_inview': 'ItemID'}),
-        history_train.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})
-        ])\
-        .unique(['ItemID'])\
-        .sort('ItemID').with_row_index() \
-        .select(['index', 'ItemID']) \
-        .rename({'index': 'item_index'})
-    
+    if is_testset:
+        item_id_mapping = history_train.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})\
+            .unique(['ItemID'])\
+            .sort('ItemID').with_row_index() \
+            .select(['index', 'ItemID']) \
+            .rename({'index': 'item_index'})
+    else:
+        item_id_mapping = pl.concat([
+            behaviors_train.select('article_ids_inview').explode('article_ids_inview').unique(['article_ids_inview']).rename({'article_ids_inview': 'ItemID'}),
+            history_train.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})
+            ])\
+            .unique(['ItemID'])\
+            .sort('ItemID').with_row_index() \
+            .select(['index', 'ItemID']) \
+            .rename({'index': 'item_index'})
+
     
     
     if is_testset:
@@ -690,7 +697,7 @@ def _train_recsys_algorithms(URM_train, models_to_train,URM_val=None, evaluate=F
             print("Evaluating {}".format(model))
             evaluator = EvaluatorHoldout(URM_val, cutoff_list=[10], exclude_seen=False)
             result_df, _ = evaluator.evaluateRecommender(rec_instance)
-            print(result_df)
+            print(result_df.loc[10]["MAP"])
                
     return trained_algorithms
 
