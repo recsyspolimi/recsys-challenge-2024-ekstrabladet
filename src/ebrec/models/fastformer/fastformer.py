@@ -7,8 +7,6 @@ import logging
 import torch.nn as nn
 import torch
 
-from models.fastformer.fastformer_wu import StandardFastformerEncoder
-
 
 class AttentionPooling(nn.Module):
     """
@@ -352,6 +350,7 @@ class Fastformer(nn.Module):
 
         if word_embedding is None:
             self.word_embedding = nn.Embedding(config.vocab_size, config.hidden_size)
+
         else:
             self.word_embedding = word_embedding
 
