@@ -8,7 +8,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from typing_extensions import Tuple, List, Dict
 import logging
 from tqdm import tqdm
-from Evaluation.Evaluator import EvaluatorHoldout
+from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 try:
     import polars as pl
 except ImportError:
