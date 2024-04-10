@@ -661,7 +661,7 @@ def _create_URM(history_train, behaviors_train, behaviors_val= None, history_val
         
             return URM_train,item_id_mapping, user_id_mapping , URM_val
         else:
-            return URM_train,item_id_mapping, user_id_mapping 
+            return URM_train,item_id_mapping, user_id_mapping,None
     
 
 def _train_recsys_algorithms(URM_train, models_to_train,URM_val=None, evaluate=False):
@@ -681,7 +681,7 @@ def _train_recsys_algorithms(URM_train, models_to_train,URM_val=None, evaluate=F
 
     """
     trained_algorithms = {}
-    for model in tqdm(models_to_train):
+    for model in models_to_train:
         rec_instance = ALGORITHMS[model][0](URM_train)
         print("Training {} ...".format(model))
         rec_instance.fit()
