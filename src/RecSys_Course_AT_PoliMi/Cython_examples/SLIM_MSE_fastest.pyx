@@ -31,7 +31,7 @@ def train_multiple_epochs(URM_train, learning_rate_input, n_epochs):
     cdef int[:] URM_train_indptr = URM_train.indptr
     cdef double[:] URM_train_data = URM_train.data
 
-    cdef double[:,:] item_item_S = np.zeros((n_items, n_items), dtype = np.float)
+    cdef double[:,:] item_item_S = np.zeros((n_items, n_items), dtype = float)
     cdef double learning_rate = learning_rate_input
     cdef double loss = 0.0
     cdef long start_time

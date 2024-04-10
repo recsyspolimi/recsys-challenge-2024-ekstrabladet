@@ -79,7 +79,7 @@ class DatasetIterator_URM(Dataset):
 
         self.user_item_coordinates[:,0] = URM.row.copy()
         self.user_item_coordinates[:,1] = URM.col.copy()
-        self.rating = URM.data.copy().astype(np.float)
+        self.rating = URM.data.copy().astype(float)
 
         self.user_item_coordinates = torch.Tensor(self.user_item_coordinates).type(torch.LongTensor)
         self.rating = torch.Tensor(self.rating)

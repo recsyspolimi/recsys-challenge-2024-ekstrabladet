@@ -127,7 +127,7 @@ class GlobalEffects(BaseRecommender):
         else:
             item_bias_to_copy = self.item_bias.copy()
 
-        item_scores = np.array(item_bias_to_copy, dtype=np.float).reshape((1, -1))
+        item_scores = np.array(item_bias_to_copy, dtype=float).reshape((1, -1))
         item_scores = np.repeat(item_scores, len(user_id_array), axis = 0)
 
         return item_scores
