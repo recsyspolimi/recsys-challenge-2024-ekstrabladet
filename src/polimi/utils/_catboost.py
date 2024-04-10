@@ -690,6 +690,7 @@ def _train_recsys_algorithms(URM_train, models_to_train,URM_val=None, evaluate=F
             print("Evaluating {}".format(model))
             evaluator = EvaluatorHoldout(URM_val, cutoff_list=[10], exclude_seen=False)
             result_df, _ = evaluator.evaluateRecommender(rec_instance)
+            print(result_df)
                
     return trained_algorithms
 
