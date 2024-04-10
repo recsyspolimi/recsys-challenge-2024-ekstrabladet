@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License.
-from tensorflow.keras import layers
-import tensorflow.keras as keras
+import keras
+from keras import layers
+# from tensorflow.keras import layers
+# import tensorflow.keras as keras
 import numpy as np
 
 from ebrec.models.newsrec.base_model import BaseModel
