@@ -1,7 +1,9 @@
 import polars as pl
 import numpy as np
 from typing_extensions import List
-from RecSys_Course_AT_PoliMi.Recommenders.Recommender_import_list import *
+from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCFRecommender import ItemKNNCFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
 
 
 ALGORITHMS = {
@@ -16,7 +18,14 @@ ALGORITHMS = {
         {
             
         }
+    ],
+    'PureSVDRecommender': [
+        PureSVDRecommender,
+        {
+            
+        }
     ]
+
 
 }
 _PARQUET_TYPE = 'parquet'

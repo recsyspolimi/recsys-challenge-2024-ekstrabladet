@@ -9,13 +9,14 @@ from typing_extensions import Tuple, List, Dict
 import logging
 import tqdm
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
+from polimi.utils._custom import ALGORITHMS
 try:
     import polars as pl
 except ImportError:
     print("polars not available")
 
 from polimi.utils._polars import *
-from polimi.utils._custom import *
+#from polimi.utils._custom import *
 from ebrec.utils._behaviors import (
     create_binary_labels_column,
     sampling_strategy_wu2019,
@@ -609,8 +610,7 @@ def _create_URM(history_train, behaviors_train, behaviors_val= None, history_val
             .sort('ItemID').with_row_index() \
             .select(['index', 'ItemID']) \
             .rename({'index': 'item_index'})
-
-    
+            
     
     if is_testset:
         urm_test = history_train.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
@@ -660,13 +660,15 @@ def _create_URM(history_train, behaviors_train, behaviors_val= None, history_val
                 .join(item_id_mapping, on='ItemID')\
                 .select(['UserID', 'user_index', 'ItemID', 'item_index'])\
                 .unique(['user_index', 'item_index'])
-        
-        
+                
             URM_val = sps.csr_matrix((np.ones(urm_val.shape[0]),
-                    (urm_val['user_index'].to_numpy(), urm_val['item_index'].to_numpy())),
-                    shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
-        
+                (urm_val['user_index'].to_numpy(), urm_val['item_index'].to_numpy())),
+                shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
             return URM_train,item_id_mapping, user_id_mapping , URM_val
+                
+
+        
+            
         else:
             return URM_train,item_id_mapping, user_id_mapping,None
     
@@ -716,7 +718,7 @@ def get_recommender_scores(user_items_df, recommenders):
     )
     
 
-def add_other_rec_features(ds, behaviors_train, history_train,algorithms , behaviors_val =None,history_val=None, evaluate=False, is_testset=False):
+def add_other_rec_features(ds, history_train,algorithms ,is_testset=True, behaviors_train=None,behaviors_val =None,history_val=None, evaluate=False):
     """
     For each impression (user_id, article_id) add a feature that is the prediction computed by the models specified in algorithms
     trained on the URMs created on behaviors+history if is_testset is false else also the behaviors are used.
