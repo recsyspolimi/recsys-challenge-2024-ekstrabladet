@@ -603,7 +603,7 @@ def _create_URM(history_train, behaviors_train, behaviors_val= None, history_val
             .rename({'index': 'item_index'})
     else:
         item_id_mapping = pl.concat([
-            behaviors_train.select('article_ids_inview').explode('article_ids_inview').unique(['article_ids_inview']).rename({'article_ids_inview': 'ItemID'}),
+            #behaviors_train.select('article_ids_inview').explode('article_ids_inview').unique(['article_ids_inview']).rename({'article_ids_inview': 'ItemID'}),
             history_train.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})
             ])\
             .unique(['ItemID'])\
