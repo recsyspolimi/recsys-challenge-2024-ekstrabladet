@@ -55,7 +55,7 @@ def load_dataset(base_path, type, split, lazy=False):
     return {
         'history': load_history(base_path, type, split, lazy),
         'behaviors': load_behaviors(base_path, type, split, lazy),
-        'articles': load_articles(base_path, type, split, lazy)
+        'articles': load_articles(base_path, type, lazy)
     }
     
 
