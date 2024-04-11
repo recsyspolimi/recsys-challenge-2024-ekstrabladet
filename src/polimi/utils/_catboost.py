@@ -715,36 +715,65 @@ def add_other_rec_features(ds, history_train,algorithms ,history_val=None, evalu
 
 def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
     """
-    Given each impression with its timestamp, it assigns to it a time window. It also counts for every user, the number of articles clicked
-    in the history in every possible time window. It uses 1-hot encoding of the windows. 
+    Given each impression with its timestamp, it assigns to it:
+     - Its time_window, thanks to the is_inside_window_{index} features
+     - The length of the user history divided for each time window, thanks to window_{index}_history_length features
+     - How many articles with at least one of the topics of the candidate article, the user has clicked in that time_window,
+        thanks to window_topics_score feature
 
     Args:
         df_features: The features dataframe to be enriched with the time window features
         history: The history dataframe
-        articles: The articles dataframe. NB: UNUSED FOR NOW, I STILL NEED TO ADD SOME FEATURE THAT USES IT
+        articles: The articles dataframe.
     Returns:
         pl.DataFrame: The df_features with the new features.
     """
-    windows = [[5,8],[7,10],[9,12],[11,15],[14,18],[17,21],[20,23],[22,5]]
-    
+    windows = [[5,7],[7,9],[9,11],[11,14],[14,17],[17,20],[20,23],[23,5]]
+
     topics=articles.select("topics").explode("topics").unique()
     topics=[topic for topic in topics["topics"] if topic is not None]
-
-    user_windows=history.select(["user_id","impression_time_fixed","article_id_fixed"]).explode(['impression_time_fixed','article_id_fixed']) \
+    
+    
+    users_hourly_preferences=history.select(["user_id","impression_time_fixed","article_id_fixed"]).explode(['impression_time_fixed','article_id_fixed']) \
     .join(other=articles.select(['article_id','topics']),left_on='article_id_fixed',right_on='article_id',how='left') \
     .rename({'impression_time_fixed':'impression_time'}) \
-    .drop('article_id_fixed').with_columns(
-        [pl.when(window[0]<window[1]).then(pl.col('impression_time').dt.time().is_between(time(window[0]),time(window[1]),closed='left')).otherwise(
-            pl.col('impression_time').dt.time().ge(time(window[0])).or_(pl.col('impression_time').dt.time().lt(time(window[1])))
-        ).cast(pl.Int8).alias(f'is_inside_window_{index}') 
-        for index,window in enumerate(windows)]
-    ).group_by('user_id').agg(
-        [pl.col(f'is_inside_window_{index}').sum().alias(f'window_{index}_history_length') for index,window in enumerate(windows)]
-    )
+    .drop('article_id_fixed') \
+    .with_columns(
+        [pl.col('impression_time').dt.hour().is_between(window[0],window[1],closed='left').cast(pl.Int8).alias(f'window_{index}') for index,window in enumerate(windows)]
+    ).with_columns(
+        pl.when(pl.col("window_0")==1).then(pl.lit("0")).when(pl.col('window_1')==1).then(pl.lit('1')).when(pl.col('window_2')==1).then(pl.lit('2')) \
+        .when(pl.col('window_3')==1).then(pl.lit('3')).when(pl.col('window_4')==1).then(pl.lit('4')).when(pl.col('window_5')==1).then(pl.lit('5')) \
+        .when(pl.col('window_6')==1).then(pl.lit('6')).otherwise(pl.lit('7')).alias('window')
+    ).drop(
+    [f'window_{index}' for index,window in enumerate(windows)]
+    ).drop('impression_time') \
+    .group_by(["user_id","window"]).agg(
+        pl.col("topics").count().alias("window_history_length"),
+        pl.col('topics').flatten()
+    ).with_columns(
+        [pl.col('topics').list.count_matches(topic).alias(f'{topic}_matches') for topic in topics]
+    ).drop('topics')
     
-    return df_features.join(other=user_windows,on='user_id',how='left').with_columns(
-        [pl.when(window[0]<window[1]).then(pl.col('impression_time').dt.time().is_between(time(window[0]),time(window[1]),closed='left')).otherwise(
-        pl.col('impression_time').dt.time().ge(time(window[0])).or_(pl.col('impression_time').dt.time().lt(time(window[1])))
-        ).cast(pl.Int8).alias(f'is_inside_window_{index}')
-            for index,window in enumerate(windows)]
-    )
+    return df_features.with_columns(
+        [pl.col('impression_time').dt.hour().is_between(window[0],window[1],closed='left').cast(pl.Int8).alias(f'window_{index}') for index,window in enumerate(windows)]
+    ).with_columns(
+        pl.when(pl.col("window_0")==1).then(pl.lit("0")).when(pl.col('window_1')==1).then(pl.lit('1')).when(pl.col('window_2')==1).then(pl.lit('2')) \
+        .when(pl.col('window_3')==1).then(pl.lit('3')).when(pl.col('window_4')==1).then(pl.lit('4')).when(pl.col('window_5')==1).then(pl.lit('5')) \
+        .when(pl.col('window_6')==1).then(pl.lit('6')).otherwise(pl.lit('7')).alias('window')
+    ).drop(
+        [f'window_{index}' for index,window in enumerate(windows)]
+    ).join(other= articles.select(["article_id","topics"]),left_on="article",right_on="article_id",how="left" ) \
+    .with_columns(
+        [pl.col("topics").list.contains(topic).cast(pl.Int8).alias(f"{topic}_present") for topic in topics]
+    ).join(other=users_hourly_preferences,on=['user_id','window'],how="left") \
+    .with_columns(
+        [pl.col(f"{topic}_present").mul(pl.col(f"{topic}_matches")).alias(f"hourly_score_{topic}") for topic in topics]
+    ).with_columns(
+        pl.sum_horizontal( [pl.col(f"hourly_score_{topic}") for topic in topics] ).alias("hourly_score"),
+    ).drop(
+        [f"hourly_score_{topic}" for topic in topics]
+    ).drop(
+        [f"{topic}_matches" for topic in topics]
+    ).drop(
+        [f"{topic}_present" for topic in topics]
+    ).drop(["topics"])
