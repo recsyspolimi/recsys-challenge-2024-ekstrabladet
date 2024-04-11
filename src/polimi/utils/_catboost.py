@@ -630,10 +630,10 @@ def _create_URM(history_train, behaviors_train, behaviors_val= None, history_val
         urm_train = pl.concat([
             history_train.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
             .unique(['ItemID','UserID']),
-            behaviors_train.select('user_id', 'article_ids_clicked').explode('article_ids_clicked').rename({'article_ids_clicked': 'ItemID', 'user_id': 'UserID'})\
-            .unique(['ItemID', 'UserID']),
-            behaviors_train.select('user_id','article_id').drop_nulls().rename({'user_id': 'UserID', 'article_id': 'ItemID'})\
-            .unique(['ItemID', 'UserID'])
+            #behaviors_train.select('user_id', 'article_ids_clicked').explode('article_ids_clicked').rename({'article_ids_clicked': 'ItemID', 'user_id': 'UserID'})\
+            #.unique(['ItemID', 'UserID']),
+            #behaviors_train.select('user_id','article_id').drop_nulls().rename({'user_id': 'UserID', 'article_id': 'ItemID'})\
+            #.unique(['ItemID', 'UserID'])
             ])\
             .unique(['ItemID', 'UserID'])\
             .join(user_id_mapping, on='UserID')\
@@ -650,10 +650,10 @@ def _create_URM(history_train, behaviors_train, behaviors_val= None, history_val
             urm_val = pl.concat([
                 history_val.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
                 .unique(['ItemID','UserID']),
-                behaviors_val.select('user_id', 'article_ids_clicked').explode('article_ids_clicked').rename({'article_ids_clicked': 'ItemID', 'user_id': 'UserID'})\
-                .unique(['ItemID', 'UserID']),
-                behaviors_val.select('user_id','article_id').drop_nulls().rename({'user_id': 'UserID', 'article_id': 'ItemID'})\
-                .unique(['ItemID', 'UserID'])
+                #behaviors_val.select('user_id', 'article_ids_clicked').explode('article_ids_clicked').rename({'article_ids_clicked': 'ItemID', 'user_id': 'UserID'})\
+                #.unique(['ItemID', 'UserID']),
+                #behaviors_val.select('user_id','article_id').drop_nulls().rename({'user_id': 'UserID', 'article_id': 'ItemID'})\
+                #.unique(['ItemID', 'UserID'])
                 ])\
                 .unique(['ItemID', 'UserID'])\
                 .join(user_id_mapping, on='UserID')\
