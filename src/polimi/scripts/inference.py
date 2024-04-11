@@ -46,14 +46,12 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
     logging.info('Starting inference.')
     
     model = joblib.load(model_path)
-    evaluation_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X)[:, 1]).alias('prediction'))
-    
-    if eval:
-        evaluation_ds_grouped = evaluation_ds.group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
+    evaluation_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X)[:, 1]).alias('prediction'))        
     
     logging.info('Inference completed.')
     
     if eval:
+        evaluation_ds_grouped = evaluation_ds.group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
         met_eval = MetricEvaluator(
             labels=evaluation_ds_grouped['target'].to_list(),
             predictions=evaluation_ds_grouped['prediction'].to_list(),
@@ -65,6 +63,7 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
             ],
         )
         logging.info(f'Evaluation results: {met_eval.evaluate()}')
+        
     if save_results:
         path = Path(os.path.join(output_dir, 'predictions.txt'))
         
@@ -74,6 +73,7 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
             .join(evaluation_ds, left_on='article_ids_inview', right_on='article', how='left') \
             .sort('index').group_by('impression_id').agg(pl.col('prediction'))
         
+        logging.info(f'Saving Results at: {path}')
         write_submission_file(ordered_predictions['impression_id'].to_list(), 
                               ordered_predictions['prediction'].to_list(),
                               path)
@@ -89,7 +89,8 @@ if __name__ == '__main__':
                         help="File path where the model is placed")
     parser.add_argument("-submit", action='store_false', help='Whether to save the predictions or not')
     parser.add_argument("-eval", action='store_false', help='Whether to evaluate the predictions or not')
-    parser.add_argument("")
+    parser.add_argument("-behaviors_path", default=None, 
+                        help="The file path of the reference behaviors ordering. Mandatory to save predictions")
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
@@ -97,9 +98,10 @@ if __name__ == '__main__':
     MODEL_PATH = args.model_path
     SAVE_INFERENCE = args.submit
     EVAL = args.eval
+    BEHAVIORS_PATH = args.behaviors_path
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    model_name = f'Inference_{timestamp}'
+    model_name = f'Inference_Test_{timestamp}' if not eval else f'Inference_Validation_{timestamp}'
     output_dir = os.path.join(OUTPUT_DIR, model_name)
     os.makedirs(output_dir)
     
@@ -112,4 +114,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, MODEL_PATH, SAVE_INFERENCE, EVAL, output_dir)
+    main(DATASET_DIR, MODEL_PATH, SAVE_INFERENCE, EVAL, BEHAVIORS_PATH, output_dir)
