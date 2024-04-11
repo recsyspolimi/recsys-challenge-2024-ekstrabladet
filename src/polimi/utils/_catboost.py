@@ -572,18 +572,15 @@ def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.Da
     ).drop("topics")
 
 
-def _create_URM(history_train, behaviors_train, behaviors_val= None, history_val = None, is_testset= False, create_evaluation=False):
+def _create_URM(history_train, history_val = None, create_evaluation=False):
     """ 
     Helper function to create an URM starting from the dataset. If we want also to create an URM to evaluate on it, we need to pass also
-    behaviors_val and history_val, with evaluate as True.
+    history_val, with evaluate as True.
     We will create an URM with as rows the users, as items the items and 
-    with a 0 if there is no interaction, else 1 if there is a click and -1 if it's viewed but not clicked.
+    with a 0 if there is no interaction, else 1 if there is a click.
     Args:
-        - behaviors: the behaviors dataframe, if the URM is used for train/validation we use also the clicked from behaviors, else we use only the inviews.
-        - history: history dataframe
-        - is_testset: boolean to indicate if we have also the behaviors clicked or not
-        - behaviors_val: the behaviors validation datafram
-        - history_val: the history validation dataframe
+        - history_train: history dataframe
+        - history_val: the history validation
         - create_evaluation: boolean to indicate if we want to create and return also the URM for the validation
     Returns:
         - scipy.sparse.coo_matrix: the created urm
@@ -595,82 +592,50 @@ def _create_URM(history_train, behaviors_train, behaviors_val= None, history_val
     user_id_mapping = history_train.sort('user_id').with_row_index() \
         .select(['index', 'user_id']).rename({'index': 'user_index', 'user_id': 'UserID'})
     
-    if is_testset:
-        item_id_mapping = history_train.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})\
-            .unique(['ItemID'])\
-            .sort('ItemID').with_row_index() \
-            .select(['index', 'ItemID']) \
-            .rename({'index': 'item_index'})
-    else:
-        item_id_mapping = pl.concat([
-            #behaviors_train.select('article_ids_inview').explode('article_ids_inview').unique(['article_ids_inview']).rename({'article_ids_inview': 'ItemID'}),
-            history_train.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})
-            ])\
-            .unique(['ItemID'])\
-            .sort('ItemID').with_row_index() \
-            .select(['index', 'ItemID']) \
-            .rename({'index': 'item_index'})
+    item_id_mapping = history_train.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})\
+        .unique(['ItemID'])\
+        .sort('ItemID').with_row_index() \
+        .select(['index', 'ItemID']) \
+        .rename({'index': 'item_index'})
             
     
-    if is_testset:
-        urm_test = history_train.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
-            .unique(['ItemID','UserID'])\
-            .join(user_id_mapping, on='UserID')\
-            .join(item_id_mapping, on='ItemID')\
-            .select(['UserID', 'user_index', 'ItemID', 'item_index'])\
-            .unique(['user_index', 'item_index'])
+    urm_train = pl.concat([
+        history_train.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
+        .unique(['ItemID','UserID']),
+        ])\
+        .unique(['ItemID', 'UserID'])\
+        .join(user_id_mapping, on='UserID')\
+        .join(item_id_mapping, on='ItemID')\
+        .select(['UserID', 'user_index', 'ItemID', 'item_index'])\
+        .unique(['user_index', 'item_index'])
         
-        URM_test = sps.csr_matrix((np.ones(urm_test.shape[0]),
-                          (urm_test['user_index'].to_numpy(), urm_test['item_index'].to_numpy())),
-                         shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
         
-        return URM_test, item_id_mapping, user_id_mapping,None
+    URM_train = sps.csr_matrix((np.ones(urm_train.shape[0]),
+                (urm_train['user_index'].to_numpy(), urm_train['item_index'].to_numpy())),
+                shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
         
-    else:
-        urm_train = pl.concat([
-            history_train.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
+    if create_evaluation:
+        urm_val = pl.concat([
+            history_val.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
             .unique(['ItemID','UserID']),
-            #behaviors_train.select('user_id', 'article_ids_clicked').explode('article_ids_clicked').rename({'article_ids_clicked': 'ItemID', 'user_id': 'UserID'})\
-            #.unique(['ItemID', 'UserID']),
-            #behaviors_train.select('user_id','article_id').drop_nulls().rename({'user_id': 'UserID', 'article_id': 'ItemID'})\
-            #.unique(['ItemID', 'UserID'])
             ])\
             .unique(['ItemID', 'UserID'])\
             .join(user_id_mapping, on='UserID')\
             .join(item_id_mapping, on='ItemID')\
             .select(['UserID', 'user_index', 'ItemID', 'item_index'])\
             .unique(['user_index', 'item_index'])
-        
-        
-        URM_train = sps.csr_matrix((np.ones(urm_train.shape[0]),
-                          (urm_train['user_index'].to_numpy(), urm_train['item_index'].to_numpy())),
-                         shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
-        
-        if create_evaluation:
-            urm_val = pl.concat([
-                history_val.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
-                .unique(['ItemID','UserID']),
-                #behaviors_val.select('user_id', 'article_ids_clicked').explode('article_ids_clicked').rename({'article_ids_clicked': 'ItemID', 'user_id': 'UserID'})\
-                #.unique(['ItemID', 'UserID']),
-                #behaviors_val.select('user_id','article_id').drop_nulls().rename({'user_id': 'UserID', 'article_id': 'ItemID'})\
-                #.unique(['ItemID', 'UserID'])
-                ])\
-                .unique(['ItemID', 'UserID'])\
-                .join(user_id_mapping, on='UserID')\
-                .join(item_id_mapping, on='ItemID')\
-                .select(['UserID', 'user_index', 'ItemID', 'item_index'])\
-                .unique(['user_index', 'item_index'])
                 
-            URM_val = sps.csr_matrix((np.ones(urm_val.shape[0]),
-                (urm_val['user_index'].to_numpy(), urm_val['item_index'].to_numpy())),
-                shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
-            return URM_train,item_id_mapping, user_id_mapping , URM_val
+        URM_val = sps.csr_matrix((np.ones(urm_val.shape[0]),
+            (urm_val['user_index'].to_numpy(), urm_val['item_index'].to_numpy())),
+            shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
+        
+        return URM_train,item_id_mapping, user_id_mapping , URM_val
                 
 
         
             
-        else:
-            return URM_train,item_id_mapping, user_id_mapping,None
+    else:
+        return URM_train,item_id_mapping, user_id_mapping,None
     
 
 def _train_recsys_algorithms(URM_train, models_to_train,URM_val=None, evaluate=False):
@@ -718,23 +683,23 @@ def get_recommender_scores(user_items_df, recommenders):
     )
     
 
-def add_other_rec_features(ds, history_train,algorithms ,is_testset=True, behaviors_train=None,behaviors_val =None,history_val=None, evaluate=False):
+def add_other_rec_features(ds, history_train,algorithms ,history_val=None, evaluate=False):
     """
     For each impression (user_id, article_id) add a feature that is the prediction computed by the models specified in algorithms
-    trained on the URMs created on behaviors+history if is_testset is false else also the behaviors are used.
+    trained on the URMs created on history.
     
     Args:
         - ds: the dataframe to enrich with one feature for each algorithm
-        - behaviors: the behaviors_dataframe
-        - history: the history dataframe
+        - history_train : the history dataframe
         - algorithms: list of models to train and to compute the predictions
-        - is_testset: boolean, to specify if the ds is test or train/val
+        - history_val: the history on which validate
+        - evaluate: boolean to also evaluate each model trained
         
     Returns:
         pl.DataFrame: the enriched dataframe
     """
     
-    URM_train,item_mapping,user_mapping,URM_val = _create_URM(history_train=history_train,behaviors_train=behaviors_train,behaviors_val=behaviors_val,history_val=history_val,create_evaluation=evaluate, is_testset=is_testset)
+    URM_train,item_mapping,user_mapping,URM_val = _create_URM(history_train=history_train,history_val=history_val,create_evaluation=evaluate)
     
     trained_algorithms = _train_recsys_algorithms(URM_train=URM_train,URM_val=URM_val,models_to_train= algorithms,evaluate=evaluate)
     
