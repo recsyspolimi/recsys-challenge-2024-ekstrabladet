@@ -39,7 +39,7 @@ def main(dataset_path, lgbm_params_path, output_dir):
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id', 'article_id'])
+    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
 
     X = train_ds.drop(columns=['target'])

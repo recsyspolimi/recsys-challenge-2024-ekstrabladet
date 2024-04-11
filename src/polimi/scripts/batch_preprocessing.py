@@ -33,9 +33,12 @@ def main(input_path, output_dir, dataset_type='train'):
     sample = dataset_type == 'train'
     
     dataset_complete = []
+    i = 0
     for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, 
                                                                         test=is_test_data, sample=sample):
         dataset_complete.append(dataset)
+        logging.info(f'Slice {i+1} preprocessed.')
+        i += 1
     dataset_complete = pl.concat(dataset_complete)
     
     categorical_columns = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
