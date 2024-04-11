@@ -7,7 +7,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from typing_extensions import Tuple, List, Dict
 import logging
-import tqdm
+from tqdm import tqdm
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from polimi.utils._custom import ALGORITHMS
 try:
@@ -16,7 +16,7 @@ except ImportError:
     print("polars not available")
 
 from polimi.utils._polars import *
-#from polimi.utils._custom import *
+from polimi.utils._custom import *
 from ebrec.utils._behaviors import (
     create_binary_labels_column,
     sampling_strategy_wu2019,
