@@ -7,7 +7,6 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from typing_extensions import Tuple, List, Dict
 import logging
-from tqdm import tqdm
 from datetime import datetime,time
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from RecSys_Course_AT_PoliMi.Data_manager.split_functions.split_train_validation_random_holdout import split_train_in_two_percentage_global_sample
@@ -716,6 +715,8 @@ def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articl
      - The length of the user history divided for each time window, thanks to window_{index}_history_length features
      - How many articles with at least one of the topics of the candidate article, the user has clicked in that time_window,
         thanks to window_topics_score feature
+    - How many articles with the same category as the candidate article, the user has clicked in that time_window, 
+        thanks to window_category_score feature
 
     Args:
         df_features: The features dataframe to be enriched with the time window features
@@ -724,11 +725,12 @@ def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articl
     Returns:
         pl.DataFrame: The df_features with the new features.
     """
-    windows = [[5,8],[7,10],[9,12],[11,15],[14,18],[17,21],[20,23],[22,5]]
-
+    #windows = [[5,8],[7,10],[9,12],[11,15],[14,18],[17,21],[20,23],[22,5]]
+    #windows = [[5,10],[9,13],[12,15],[14,18],[17,20],[19,23],[22,6]]
+    #windows= [[5,13],[12,19],[18,23],[22,6]]
+    windows=[[5,13],[12,23],[22,6]]
     topics=articles.select("topics").explode("topics").unique()
     topics=[topic for topic in topics["topics"] if topic is not None]
-
 
     user_windows=history.select(["user_id","impression_time_fixed","article_id_fixed"]).explode(['impression_time_fixed','article_id_fixed']) \
     .rename({'impression_time_fixed':'impression_time'}) \
@@ -759,27 +761,44 @@ def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articl
     )
     
     
+    user_category_windows= history.select(["user_id","impression_time_fixed","article_id_fixed"]) \
+    .explode(['impression_time_fixed','article_id_fixed']) \
+        .join(other=articles.select(['article_id','category']),left_on='article_id_fixed',right_on='article_id',how='left') \
+        .rename({'impression_time_fixed':'impression_time'}) \
+        .with_columns(
+            [
+            pl.when(window[0]<window[1]).then(pl.col('impression_time').dt.time().is_between(time(window[0]),time(window[1]),closed='left')).otherwise(
+                pl.col('impression_time').dt.time().ge(time(window[0])).or_(pl.col('impression_time').dt.time().lt(time(window[1])))
+            ).cast(pl.Int8).alias(f'is_inside_window_{index}') for index,window in enumerate(windows)]
+        ).drop(['article_id_fixed','impression_time']) \
+        .group_by(['user_id','category']).agg(
+            [pl.col(f'is_inside_window_{index}').sum().alias(f'window_{index}_score') for index,window in enumerate(windows)]
+        )
+    
     return pl.concat(
             rows.join(other=user_windows,on='user_id',how='left').with_columns(
             [
             pl.when(window[0]<window[1]).then(pl.col('impression_time').dt.time().is_between(time(window[0]),time(window[1]),closed='left')).otherwise(
                 pl.col('impression_time').dt.time().ge(time(window[0])).or_(pl.col('impression_time').dt.time().lt(time(window[1])))
             ).cast(pl.Int8).alias(f'is_inside_window_{index}') for index,window in enumerate(windows)]
-        ).join(other=articles.select(['article_id','topics']),left_on='article',right_on='article_id',how='left') \
+        ).join(other=articles.select(['article_id','topics','category']),left_on='article',right_on='article_id',how='left') \
+        .join(other=user_category_windows, on=['user_id','category'],how='left') \
+        .with_columns(
+            pl.max_horizontal([pl.col(f'window_{index}_score').mul(pl.col(f'is_inside_window_{index}')) for index,window in enumerate(windows)]).alias('score')
+        ).group_by(['impression_id','article','user_id']).agg(
+            pl.exclude(["impression_id","article","user_id","score"]).first(),
+            pl.col('score').sum().alias('window_category_score')
+        ).drop([f'window_{index}_score'for index,window in enumerate(windows)]) \
+        .drop('category') \
         .explode('topics') \
         .join(other=user_topics_windows,on=['user_id','topics'],how='left') \
         .with_columns(
-            pl.sum_horizontal([pl.col(f'window_{index}_score').mul(pl.col(f'is_inside_window_{index}')) for index,window in enumerate(windows)]).alias('score')
+            pl.max_horizontal([pl.col(f'window_{index}_score').mul(pl.col(f'is_inside_window_{index}')) for index,window in enumerate(windows)]).alias('score')
         ).drop([f'window_{index}_score'for index,window in enumerate(windows)]) \
         .drop('topics') \
         .group_by(['impression_id','article','user_id']).agg(
             pl.exclude(["impression_id","article","user_id","score"]).first(),
             pl.col('score').sum().alias('window_topics_score')
-        ).with_columns(
-            pl.sum_horizontal([f'is_inside_window_{index}'for index,window in enumerate(windows)]).alias('len')
-        ).with_columns(
-            pl.col('window_topics_score').truediv(pl.col('len'))
-        ).drop('len')
+        )
         for rows in tqdm(df_features.iter_slices(1000), total=df_features.shape[0] // 1000)
     )
-
