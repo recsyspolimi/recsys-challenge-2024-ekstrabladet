@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 import sys
-sys.path.append('/media/disk1/recsys-challenge-2024/RecSysChallenge2024/src')
+sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
 from polimi.utils._catboost import build_features_iterator
 
@@ -34,12 +34,12 @@ def main(input_path, output_dir, dataset_type='train'):
     
     dataset_complete = []
     i = 0
-    for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, 
-                                                                        test=is_test_data, sample=sample):
+    for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
+                                                                        sample=sample, n_batches=5):
         dataset_complete.append(dataset)
         logging.info(f'Slice {i+1} preprocessed.')
         i += 1
-    dataset_complete = pl.concat(dataset_complete)
+    dataset_complete = pl.concat(dataset_complete, how='vertical_relaxed')
     
     categorical_columns = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',

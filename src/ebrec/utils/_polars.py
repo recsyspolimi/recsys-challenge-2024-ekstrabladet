@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import json
+from typing_extensions import List, Dict
 
 try:
     import polars as pl
@@ -11,7 +12,7 @@ except ImportError:
 from ebrec.utils._python import generate_unique_name
 
 
-def _check_columns_in_df(df: pl.DataFrame, columns: list[str]) -> None:
+def _check_columns_in_df(df: pl.DataFrame, columns: List[str]) -> None:
     """
     Checks whether all specified columns are present in a Polars DataFrame.
     Raises a ValueError if any of the specified columns are not present in the DataFrame.
@@ -86,7 +87,7 @@ def slice_join_dataframes(
     )
 
 
-def rename_columns(df: pl.DataFrame, map_dict: dict[str, str]) -> pl.DataFrame:
+def rename_columns(df: pl.DataFrame, map_dict: Dict[str, str]) -> pl.DataFrame:
     """
     Examples:
         >>> import polars as pl
@@ -119,7 +120,7 @@ def rename_columns(df: pl.DataFrame, map_dict: dict[str, str]) -> pl.DataFrame:
     return df
 
 
-def from_dict_to_polars(dictionary: dict) -> pl.DataFrame:
+def from_dict_to_polars(dictionary: Dict) -> pl.DataFrame:
     """
     When dealing with dictionary with intergers as keys
     Example:
@@ -377,7 +378,7 @@ def drop_nulls_from_list(df: pl.DataFrame, column: str) -> pl.DataFrame:
     return df.with_columns(pl.col(column).list.eval(pl.element().drop_nulls()))
 
 
-def filter_list_elements(df: pl.DataFrame, column: str, ids: list[any]) -> pl.DataFrame:
+def filter_list_elements(df: pl.DataFrame, column: str, ids: List[any]) -> pl.DataFrame:
     """
     Removes list elements from a specified column in a Polars DataFrame that are not found in a given list of identifiers.
 
@@ -421,7 +422,7 @@ def filter_list_elements(df: pl.DataFrame, column: str, ids: list[any]) -> pl.Da
     return df.drop(column).join(df_, on=GROUPBY_COL, how="left").select(COLUMNS)
 
 
-def filter_elements(df: pl.DataFrame, column: str, ids: list[any]) -> pl.DataFrame:
+def filter_elements(df: pl.DataFrame, column: str, ids: List[any]) -> pl.DataFrame:
     """
     Removes elements from a specified column in a Polars DataFrame that are not found in a given list of identifiers.
 
@@ -474,7 +475,7 @@ def filter_elements(df: pl.DataFrame, column: str, ids: list[any]) -> pl.DataFra
     return df.drop(column).join(df_, on=GROUPBY_COL, how="left").select(COLUMNS)
 
 
-def concat_str_columns(df: pl.DataFrame, columns: list[str]) -> pl.DataFrame:
+def concat_str_columns(df: pl.DataFrame, columns: List[str]) -> pl.DataFrame:
     """
     >>> df = pl.DataFrame(
             {
@@ -614,7 +615,7 @@ def shuffle_list_column(
     )
 
 
-def split_df_in_n(df: pl.DataFrame, num_splits: int) -> list[pl.DataFrame]:
+def split_df_in_n(df: pl.DataFrame, num_splits: int) -> List[pl.DataFrame]:
     """
     Split a DataFrame into n equal-sized splits.
 
