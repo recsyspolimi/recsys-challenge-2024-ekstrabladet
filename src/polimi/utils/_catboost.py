@@ -337,7 +337,7 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
                 pl.col('category_right').list.n_unique().alias('NumberDifferentCategories'),
                 list_pct_matches_with_col('category_right', 'category').alias('PctCategoryMatches'),
             ).drop(['topics_idf', 'topics_flatten', 'topics_flatten_tf_idf', 'category_right'])
-        for rows in tqdm(df_features.iter_slices(10000), total=df_features.shape[0] // 10000)
+        for rows in tqdm(df_features.iter_slices(20000), total=df_features.shape[0] // 20000)
     )
     return reduce_polars_df_memory_size(df_features)
 
@@ -454,7 +454,7 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
         pl.col('article_id_fixed').list.tail(1).alias('last_history_article'),
     ).select(['user_id', 'last_history_impression_time', 'last_history_article'])
 
-    last_session_time_df = behaviors.select(['session_id', 'user_id', 'impression_time', 'article_ids_inview', 'article_ids_clicked']) \
+    last_session_time_df = behaviors.select(['session_id', 'user_id', 'impression_time', 'article_ids_inview']) \
         .group_by('session_id').agg(
             pl.col('user_id').first(), 
             pl.col('impression_time').max().alias('session_time'), 

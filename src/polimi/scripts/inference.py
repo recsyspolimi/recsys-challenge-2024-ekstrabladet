@@ -10,6 +10,9 @@ from typing_extensions import List
 import polars as pl
 from pathlib import Path
 
+import sys
+sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
+
 from ebrec.evaluation.metrics_protocols import *
 from ebrec.utils._python import write_submission_file
 
@@ -20,25 +23,26 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 def main(dataset_path, model_path, save_results, eval, behaviors_path, output_dir):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
     
-    train_ds = pd.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
+    dataset_name = 'validation' if eval else 'test'
+    
+    inference_ds = pd.read_parquet(os.path.join(dataset_path, f'{dataset_name}_ds.parquet'))
     with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = train_ds.drop(columns=['article', 'user_id'])
-    train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
+    inference_ds[data_info['categorical_columns']] = inference_ds[data_info['categorical_columns']].astype('category')
 
-    if 'target' not in train_ds.columns and eval:
+    if 'target' not in inference_ds.columns and eval:
         raise ValueError('Target column not found in dataset. Cannot evaluate.')
     
     if eval:
-        evaluation_ds = pl.from_pandas(train_ds[['impression_id', 'article', 'target']])
-        X = train_ds.drop(columns=['impression_id', 'target'])
-        y = train_ds['target']
+        evaluation_ds = pl.from_pandas(inference_ds[['impression_id', 'article', 'target']])
+        X = inference_ds.drop(columns=['impression_id', 'target', 'article', 'user_id'])
+        y = inference_ds['target']
     else:
-        evaluation_ds = pl.from_pandas(train_ds[['impression_id', 'article']])
-        X = train_ds.drop(columns=['impression_id'])
+        evaluation_ds = pl.from_pandas(inference_ds[['impression_id', 'article']])
+        X = inference_ds.drop(columns=['impression_id', 'article', 'user_id'])
     
     logging.info(f'Features ({len(X.columns)}): {np.array(list(X.columns))}')
     logging.info(f'Categorical features: {np.array(data_info["categorical_columns"])}')
@@ -71,7 +75,8 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
         behaviors = pl.read_parquet(behaviors_path , columns=['impression_id', 'article_ids_inview'])
         ordered_predictions = behaviors.explode('article_ids_inview').with_row_index() \
             .join(evaluation_ds, left_on='article_ids_inview', right_on='article', how='left') \
-            .sort('index').group_by('impression_id').agg(pl.col('prediction'))
+            .sort('index').group_by('impression_id').agg(pl.col('prediction')) \
+            .with_columns(pl.col('prediction').list.eval(pl.element().rank()))
         
         logging.info(f'Saving Results at: {path}')
         write_submission_file(ordered_predictions['impression_id'].to_list(), 
@@ -87,8 +92,8 @@ if __name__ == '__main__':
                         help="Directory where the preprocessed dataset is placed")
     parser.add_argument("-model_path", default=None, type=str, required=True,
                         help="File path where the model is placed")
-    parser.add_argument("-submit", action='store_false', help='Whether to save the predictions or not')
-    parser.add_argument("-eval", action='store_false', help='Whether to evaluate the predictions or not')
+    parser.add_argument("--submit", action='store_true', default=False, help='Whether to save the predictions or not')
+    parser.add_argument('--eval', action='store_true', default=False, help='Whether to evaluate the predictions or not')
     parser.add_argument("-behaviors_path", default=None, 
                         help="The file path of the reference behaviors ordering. Mandatory to save predictions")
     
