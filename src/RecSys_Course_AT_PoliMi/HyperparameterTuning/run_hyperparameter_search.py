@@ -1107,8 +1107,8 @@ def read_data_split_and_search():
         - A _best_result_test file which contains a dictionary with the results, on the test set, of the best solution chosen using the validation set
     """
 
-    from RecSys_Course_AT_PoliMi.Data_Manager.Movielens.Movielens1MReader import Movielens1MReader
-    from RecSys_Course_AT_PoliMi.Data_Manager.DataSplitter_Holdout import DataSplitter_Holdout
+    from RecSys_Course_AT_PoliMi.Data_manager.Movielens.Movielens1MReader import Movielens1MReader
+    from RecSys_Course_AT_PoliMi.Data_manager.DataSplitter_Holdout import DataSplitter_Holdout
 
 
     dataset_reader = Movielens1MReader()

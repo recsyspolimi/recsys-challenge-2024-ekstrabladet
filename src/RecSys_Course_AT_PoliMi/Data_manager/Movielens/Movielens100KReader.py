@@ -8,10 +8,10 @@ Created on 14/09/17
 
 
 import zipfile, shutil
-from RecSys_Course_AT_PoliMi.Data_Manager.DatasetMapperManager import DatasetMapperManager
-from RecSys_Course_AT_PoliMi.Data_Manager.DataReader import DataReader
-from RecSys_Course_AT_PoliMi.Data_Manager.DataReader_utils import download_from_URL
-from RecSys_Course_AT_PoliMi.Data_Manager.Movielens._utils_movielens_parser import _loadURM
+from RecSys_Course_AT_PoliMi.Data_manager.DatasetMapperManager import DatasetMapperManager
+from RecSys_Course_AT_PoliMi.Data_manager.DataReader import DataReader
+from RecSys_Course_AT_PoliMi.Data_manager.DataReader_utils import download_from_URL
+from RecSys_Course_AT_PoliMi.Data_manager.Movielens._utils_movielens_parser import _loadURM
 
 
 class Movielens100KReader(DataReader):

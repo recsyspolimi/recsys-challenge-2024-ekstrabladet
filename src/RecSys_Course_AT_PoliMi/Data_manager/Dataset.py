@@ -10,9 +10,9 @@ import numpy as np
 import scipy.sparse as sps
 
 from RecSys_Course_AT_PoliMi.Recommenders.DataIO import DataIO
-from RecSys_Course_AT_PoliMi.Data_Manager.DataReader_utils import reconcile_mapper_with_removed_tokens, remove_features
-from RecSys_Course_AT_PoliMi.Data_Manager.data_consistency_check import assert_URM_ICM_mapper_consistency
-from RecSys_Course_AT_PoliMi.Data_Manager.DataReader_utils import compute_density
+from RecSys_Course_AT_PoliMi.Data_manager.DataReader_utils import reconcile_mapper_with_removed_tokens, remove_features
+from RecSys_Course_AT_PoliMi.Data_manager.data_consistency_check import assert_URM_ICM_mapper_consistency
+from RecSys_Course_AT_PoliMi.Data_manager.DataReader_utils import compute_density
 
 def _clone_dictionary(original_dict):
     clone_dict = {key:value.copy() for key,value in original_dict.items()}

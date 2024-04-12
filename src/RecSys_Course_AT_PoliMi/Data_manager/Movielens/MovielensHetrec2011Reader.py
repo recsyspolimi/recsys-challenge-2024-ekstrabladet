@@ -10,10 +10,10 @@ Created on 19/02/2019
 
 import zipfile, shutil
 import pandas as pd
-from RecSys_Course_AT_PoliMi.Data_Manager.DatasetMapperManager import DatasetMapperManager
-from RecSys_Course_AT_PoliMi.Data_Manager.Dataset import Dataset
-from RecSys_Course_AT_PoliMi.Data_Manager.DataReader import DataReader
-from RecSys_Course_AT_PoliMi.Data_Manager.DataReader_utils import download_from_URL, load_CSV_into_SparseBuilder
+from RecSys_Course_AT_PoliMi.Data_manager.DatasetMapperManager import DatasetMapperManager
+from RecSys_Course_AT_PoliMi.Data_manager.Dataset import Dataset
+from RecSys_Course_AT_PoliMi.Data_manager.DataReader import DataReader
+from RecSys_Course_AT_PoliMi.Data_manager.DataReader_utils import download_from_URL, load_CSV_into_SparseBuilder
 
 
 class MovielensHetrec2011Reader(DataReader):
