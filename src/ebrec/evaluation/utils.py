@@ -121,8 +121,8 @@ def compute_item_popularity_scores(R: Iterable[np.ndarray]) -> Dict[str, float]:
 
 
 def compute_normalized_distribution(
-    R: np.ndarray[str],
-    weights: np.ndarray[float] = None,
+    R: np.ndarray,
+    weights: np.ndarray = None,
     distribution: Dict[str, float] = None,
 ) -> Dict[str, float]:
     """

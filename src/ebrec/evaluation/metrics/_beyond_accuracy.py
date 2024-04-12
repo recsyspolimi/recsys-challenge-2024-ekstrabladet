@@ -1,4 +1,4 @@
-from typing import Callable
+from typing_extensions import Callable, List
 
 from sklearn.metrics.pairwise import cosine_distances
 from collections import Counter
@@ -6,7 +6,7 @@ import numpy as np
 
 
 def intralist_diversity(
-    R: np.ndarray[np.ndarray],
+    R: np.ndarray,
     pairwise_distance_function: Callable = cosine_distances,
 ) -> float:
     """Calculate the intra-list diversity of a recommendation list.
@@ -55,8 +55,8 @@ def intralist_diversity(
 
 
 def serendipity(
-    R: np.ndarray[np.ndarray],
-    H: np.ndarray[np.ndarray],
+    R: np.ndarray,
+    H: np.ndarray,
     pairwise_distance_function: Callable = cosine_distances,
 ) -> float:
     """Calculate the serendipity score between a set of recommendations and user's reading history.
@@ -136,7 +136,7 @@ def coverage_fraction(R: np.ndarray, C: np.ndarray) -> float:
     return np.unique(R).size / np.unique(C).size
 
 
-def novelty(R: np.ndarray[float]) -> float:
+def novelty(R: np.ndarray) -> float:
     """Calculate the novelty score of recommendations based on their popularity.
 
     This function computes the novelty score for a set of recommendations by applying the self-information popularity metric.
@@ -167,7 +167,7 @@ def novelty(R: np.ndarray[float]) -> float:
     return np.mean(-np.log2(R))
 
 
-def index_of_dispersion(x: list[int]) -> float:
+def index_of_dispersion(x: List[int]) -> float:
     """
     Computes the Index of Dispersion (variance-to-mean ratio) for a given dataset of nominal variables.
 
