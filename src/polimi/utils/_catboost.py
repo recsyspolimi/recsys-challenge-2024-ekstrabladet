@@ -769,7 +769,7 @@ def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articl
         .explode('topics') \
         .join(other=user_topics_windows,on=['user_id','topics'],how='left') \
         .with_columns(
-            pl.sum_horizontal([pl.col(f'window_{index}_score')for index,window in enumerate(windows)]).alias('score')
+            pl.sum_horizontal([pl.col(f'window_{index}_score').mul(pl.col(f'is_inside_window_{index}')) for index,window in enumerate(windows)]).alias('score')
         ).drop([f'window_{index}_score'for index,window in enumerate(windows)]) \
         .drop('topics') \
         .group_by(['impression_id','article','user_id']).agg(
