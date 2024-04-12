@@ -11,8 +11,8 @@ import traceback, os, shutil
 from RecSys_Course_AT_PoliMi.Recommenders.BaseCBFRecommender import BaseItemCBFRecommender, BaseUserCBFRecommender
 
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout, EvaluatorNegativeItemSample
-from RecSys_Course_AT_PoliMi.Data_Manager.Movielens.Movielens1MReader import Movielens1MReader
-from RecSys_Course_AT_PoliMi.Data_Manager.DataSplitter_leave_k_out import DataSplitter_leave_k_out
+from RecSys_Course_AT_PoliMi.Data_manager.Movielens.Movielens1MReader import Movielens1MReader
+from RecSys_Course_AT_PoliMi.Data_manager.DataSplitter_leave_k_out import DataSplitter_leave_k_out
 from RecSys_Course_AT_PoliMi.Recommenders.Incremental_Training_Early_Stopping import Incremental_Training_Early_Stopping
 
 

@@ -4,8 +4,8 @@ Created on 19/06/2020
 @author: Maurizio Ferrari Dacrema
 """
 
-from RecSys_Course_AT_PoliMi.Data_Manager.Dataset import Dataset
-from RecSys_Course_AT_PoliMi.Data_Manager.IncrementalSparseMatrix import IncrementalSparseMatrix_FilterIDs
+from RecSys_Course_AT_PoliMi.Data_manager.Dataset import Dataset
+from RecSys_Course_AT_PoliMi.Data_manager.IncrementalSparseMatrix import IncrementalSparseMatrix_FilterIDs
 from pandas.api.types import is_string_dtype
 import pandas as pd
 

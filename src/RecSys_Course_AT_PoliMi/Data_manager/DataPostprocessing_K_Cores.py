@@ -8,8 +8,8 @@ Created on 13/01/2018
 
 from RecSys_Course_AT_PoliMi.Recommenders.Recommender_utils import check_matrix
 
-from RecSys_Course_AT_PoliMi.Data_Manager.DataPostprocessing import DataPostprocessing
-from RecSys_Course_AT_PoliMi.Data_Manager.DataReader_utils import remove_empty_rows_and_cols
+from RecSys_Course_AT_PoliMi.Data_manager.DataPostprocessing import DataPostprocessing
+from RecSys_Course_AT_PoliMi.Data_manager.DataReader_utils import remove_empty_rows_and_cols
 import numpy as np
 
 
