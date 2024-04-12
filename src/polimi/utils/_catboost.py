@@ -9,6 +9,7 @@ from typing_extensions import Tuple, List, Dict
 import logging
 from tqdm import tqdm
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
+from RecSys_Course_AT_PoliMi.Data_manager.split_functions.split_train_validation_random_holdout import split_train_in_two_percentage_global_sample
 from polimi.utils._custom import ALGORITHMS
 try:
     import polars as pl
