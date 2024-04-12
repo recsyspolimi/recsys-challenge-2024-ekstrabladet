@@ -572,16 +572,13 @@ def add_history_trendiness_scores_feature(df_features:pl.DataFrame,history:pl.Da
     ).drop("topics")
 
 
-def _create_URM(history_train, history_val = None, create_evaluation=False):
+def _create_URM(history):
     """ 
-    Helper function to create an URM starting from the dataset. If we want also to create an URM to evaluate on it, we need to pass also
-    history_val, with evaluate as True.
+    Helper function to create an URM starting from the dataset.
     We will create an URM with as rows the users, as items the items and 
     with a 0 if there is no interaction, else 1 if there is a click.
     Args:
         - history_train: history dataframe
-        - history_val: the history validation
-        - create_evaluation: boolean to indicate if we want to create and return also the URM for the validation
     Returns:
         - scipy.sparse.coo_matrix: the created urm
         - df: item_mapping
@@ -589,56 +586,34 @@ def _create_URM(history_train, history_val = None, create_evaluation=False):
     """
     
     
-    user_id_mapping = history_train.sort('user_id').with_row_index() \
+    user_id_mapping = history.sort('user_id').with_row_index() \
         .select(['index', 'user_id']).rename({'index': 'user_index', 'user_id': 'UserID'})
     
-    item_id_mapping = history_train.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})\
+    item_id_mapping = history.select('article_id_fixed').explode('article_id_fixed').unique(['article_id_fixed']).rename({'article_id_fixed': 'ItemID'})\
         .unique(['ItemID'])\
         .sort('ItemID').with_row_index() \
         .select(['index', 'ItemID']) \
         .rename({'index': 'item_index'})
             
     
-    urm_train = pl.concat([
-        history_train.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
-        .unique(['ItemID','UserID']),
-        ])\
-        .unique(['ItemID', 'UserID'])\
+    urm_all_interactions = history.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
+        .unique(['ItemID','UserID'])\
         .join(user_id_mapping, on='UserID')\
         .join(item_id_mapping, on='ItemID')\
         .select(['UserID', 'user_index', 'ItemID', 'item_index'])\
         .unique(['user_index', 'item_index'])
         
         
-    URM_train = sps.csr_matrix((np.ones(urm_train.shape[0]),
-                (urm_train['user_index'].to_numpy(), urm_train['item_index'].to_numpy())),
+    URM_all = sps.csr_matrix((np.ones(urm_all_interactions.shape[0]),
+                (urm_all_interactions['user_index'].to_numpy(), urm_all_interactions['item_index'].to_numpy())),
                 shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
+    
+    
         
-    if create_evaluation:
-        urm_val = pl.concat([
-            history_val.select('user_id','article_id_fixed').explode(['article_id_fixed']).rename({'article_id_fixed': 'ItemID', 'user_id': 'UserID'})\
-            .unique(['ItemID','UserID']),
-            ])\
-            .unique(['ItemID', 'UserID'])\
-            .join(user_id_mapping, on='UserID')\
-            .join(item_id_mapping, on='ItemID')\
-            .select(['UserID', 'user_index', 'ItemID', 'item_index'])\
-            .unique(['user_index', 'item_index'])
-                
-        URM_val = sps.csr_matrix((np.ones(urm_val.shape[0]),
-            (urm_val['user_index'].to_numpy(), urm_val['item_index'].to_numpy())),
-            shape=(user_id_mapping.shape[0], item_id_mapping.shape[0]))
-        
-        return URM_train,item_id_mapping, user_id_mapping , URM_val
-                
-
-        
-            
-    else:
-        return URM_train,item_id_mapping, user_id_mapping,None
+    return URM_all,item_id_mapping, user_id_mapping
     
 
-def _train_recsys_algorithms(URM_train, models_to_train,URM_val=None, evaluate=False):
+def _train_recsys_algorithms(URM_train, models_to_train, URM_val=None, evaluate=False):
     """
         Function used to fit recsys models specified in models_to_train,
         with URM_train.
@@ -656,15 +631,26 @@ def _train_recsys_algorithms(URM_train, models_to_train,URM_val=None, evaluate=F
     """
     trained_algorithms = {}
     for model in models_to_train:
-        rec_instance = ALGORITHMS[model][0](URM_train)
-        print("Training {} ...".format(model))
-        rec_instance.fit()
-        trained_algorithms[model] = rec_instance
-        if evaluate:
+        if evaluate and URM_val!=None:
+            rec_instance = ALGORITHMS[model][0](URM_train)
+            print("Training {} ...".format(model))
+            rec_instance.fit()
             print("Evaluating {}".format(model))
             evaluator = EvaluatorHoldout(URM_val, cutoff_list=[10], exclude_seen=False)
             result_df, _ = evaluator.evaluateRecommender(rec_instance)
             print(result_df.loc[10]["MAP"])
+            print("Retraining on all the URM...")
+            rec_instance = ALGORITHMS[model][0](URM_train+URM_val)
+            print("Training {} ...".format(model))
+            rec_instance.fit()
+            trained_algorithms[model] = rec_instance
+        else:
+            rec_instance = ALGORITHMS[model][0](URM_train)
+            print("Training {} ...".format(model))
+            rec_instance.fit()
+            trained_algorithms[model] = rec_instance
+
+
                
     return trained_algorithms
 
@@ -683,26 +669,32 @@ def get_recommender_scores(user_items_df, recommenders):
     )
     
 
-def add_other_rec_features(ds, history_train,algorithms ,history_val=None, evaluate=False):
+def add_other_rec_features(ds, history, algorithms, evaluate=False):
     """
     For each impression (user_id, article_id) add a feature that is the prediction computed by the models specified in algorithms
     trained on the URMs created on history.
     
     Args:
         - ds: the dataframe to enrich with one feature for each algorithm
-        - history_train : the history dataframe
+        - history : the history dataframe
         - algorithms: list of models to train and to compute the predictions
-        - history_val: the history on which validate
         - evaluate: boolean to also evaluate each model trained
         
     Returns:
         pl.DataFrame: the enriched dataframe
     """
+   
+        
+
     
-    URM_train,item_mapping,user_mapping,URM_val = _create_URM(history_train=history_train,history_val=history_val,create_evaluation=evaluate)
-    
-    trained_algorithms = _train_recsys_algorithms(URM_train=URM_train,URM_val=URM_val,models_to_train= algorithms,evaluate=evaluate)
-    
+    URM_all,item_mapping,user_mapping = _create_URM(history)
+
+    if evaluate:
+        URM_train,URM_val = split_train_in_two_percentage_global_sample(URM_all, train_percentage = 0.80)
+        trained_algorithms = _train_recsys_algorithms(URM_train=URM_train,URM_val=URM_val,models_to_train= algorithms,evaluate=evaluate)
+    else:
+        trained_algorithms = _train_recsys_algorithms(URM_train=URM_all,models_to_train= algorithms)
+
   
     ds = ds.join(item_mapping, left_on='article', right_on='ItemID')\
             .join(user_mapping, left_on='user_id', right_on='UserID')\
