@@ -112,9 +112,12 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
 
 def _build_features_behaviors(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                               cols_explode: List[str], rename_columns: Dict[str, str], unique_entities: List[str]):  
-    return behaviors.select(['impression_id', 'article_ids_inview', 'impression_time', 'labels', 
-                                    'device_type', 'read_time', 'scroll_percentage', 'user_id', 'is_sso_user', 'gender',
-                                    'age', 'is_subscriber', 'session_id']) \
+    select_columns = ['impression_id', 'article_ids_inview', 'impression_time', 'device_type', 'read_time', 
+                      'scroll_percentage', 'user_id', 'is_sso_user', 'gender', 'age', 'is_subscriber', 'session_id']
+    if 'labels' in behaviors.columns:
+        select_columns += ['labels']
+        
+    return behaviors.select(select_columns) \
         .with_columns(pl.col('gender').fill_null(2)) \
         .explode(cols_explode) \
         .rename(rename_columns) \

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 import sys
-sys.path.append('/media/disk1/recsys-challenge-2024/RecSysChallenge2024/src')
+sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
 from polimi.utils._catboost import build_features
 

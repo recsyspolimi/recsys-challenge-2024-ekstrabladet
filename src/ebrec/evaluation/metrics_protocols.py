@@ -1,5 +1,5 @@
 from itertools import compress
-from typing import Iterable
+from typing_extensions import Iterable, List
 import numpy as np
 import json
 
@@ -22,7 +22,7 @@ class AccuracyScore(Metric):
         self.threshold = threshold
         self.name = "accuracy"
 
-    def calculate(self, y_true: list[np.ndarray], y_pred: list[np.ndarray]) -> float:
+    def calculate(self, y_true: List[np.ndarray], y_pred: List[np.ndarray]) -> float:
         res = np.mean(
             [
                 accuracy_score(
@@ -39,7 +39,7 @@ class F1Score(Metric):
         self.threshold = threshold
         self.name = "f1"
 
-    def calculate(self, y_true: list[np.ndarray], y_pred: list[np.ndarray]) -> float:
+    def calculate(self, y_true: List[np.ndarray], y_pred: List[np.ndarray]) -> float:
         res = np.mean(
             [
                 f1_score(each_labels, convert_to_binary(each_preds, self.threshold))
@@ -53,7 +53,7 @@ class RootMeanSquaredError(Metric):
     def __init__(self):
         self.name = "rmse"
 
-    def calculate(self, y_true: list[np.ndarray], y_pred: list[np.ndarray]) -> float:
+    def calculate(self, y_true: List[np.ndarray], y_pred: List[np.ndarray]) -> float:
         res = np.mean(
             [
                 np.sqrt(mean_squared_error(each_labels, each_preds))
@@ -67,7 +67,7 @@ class AucScore(Metric):
     def __init__(self):
         self.name = "auc"
 
-    def calculate(self, y_true: list[np.ndarray], y_pred: list[np.ndarray]) -> float:
+    def calculate(self, y_true: List[np.ndarray], y_pred: List[np.ndarray]) -> float:
         res = np.mean(
             [
                 roc_auc_score(each_labels, each_preds)
@@ -81,7 +81,7 @@ class LogLossScore(Metric):
     def __init__(self):
         self.name = "logloss"
 
-    def calculate(self, y_true: list[np.ndarray], y_pred: list[np.ndarray]) -> float:
+    def calculate(self, y_true: List[np.ndarray], y_pred: List[np.ndarray]) -> float:
         res = np.mean(
             [
                 log_loss(
@@ -98,7 +98,7 @@ class MrrScore(Metric):
     def __init__(self) -> Metric:
         self.name = "mrr"
 
-    def calculate(self, y_true: list[np.ndarray], y_pred: list[np.ndarray]) -> float:
+    def calculate(self, y_true: List[np.ndarray], y_pred: List[np.ndarray]) -> float:
         mean_mrr = np.mean(
             [
                 mrr_score(each_labels, each_preds)
@@ -113,7 +113,7 @@ class NdcgScore(Metric):
         self.k = k
         self.name = f"ndcg@{k}"
 
-    def calculate(self, y_true: list[np.ndarray], y_pred: list[np.ndarray]) -> float:
+    def calculate(self, y_true: List[np.ndarray], y_pred: List[np.ndarray]) -> float:
         res = np.mean(
             [
                 ndcg_score(each_labels, each_preds, self.k)
@@ -157,9 +157,9 @@ class MetricEvaluator:
 
     def __init__(
         self,
-        labels: list[np.ndarray],
-        predictions: list[np.ndarray],
-        metric_functions: list[Metric],
+        labels: List[np.ndarray],
+        predictions: List[np.ndarray],
+        metric_functions: List[Metric],
     ):
         self.labels = labels
         self.predictions = predictions
