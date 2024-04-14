@@ -78,7 +78,7 @@ def write_submission_file(
     """
     path = Path(path)
     with open(path, "w") as f:
-        for impr_index, preds in tqdm(zip(impression_ids, prediction_scores)):
+        for impr_index, preds in tqdm.tqdm(zip(impression_ids, prediction_scores)):
             preds = "[" + ",".join([str(i) for i in preds]) + "]"
             f.write(" ".join([str(impr_index), preds]) + "\n")
     # =>

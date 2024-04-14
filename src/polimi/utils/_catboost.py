@@ -123,7 +123,7 @@ def _build_features_behaviors(behaviors: pl.DataFrame, history: pl.DataFrame, ar
         .rename(rename_columns) \
         .with_columns(pl.col('article').cast(pl.Int32)) \
         .pipe(add_trendiness_feature, articles=articles, period='3d') \
-        .unique(['impression_id', 'article']) \
+        .unique(['impression_id', 'article', 'user_id']) \
         .with_columns(
             pl.col('impression_time').dt.weekday().alias('weekday'),
             pl.col('impression_time').dt.hour().alias('hour'),
@@ -319,7 +319,7 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
                 )).alias("JS"),
                 pl.col('entity_groups').list.set_intersection(pl.col('entity_groups_history')).list.len().alias('common_entities'),
             ).drop(['entity_groups_history', 'entity_groups', 'topics', 'topics_history']) \
-            .group_by(['impression_id', 'article']).agg(
+            .group_by(['impression_id', 'article', 'user_id']).agg(
                 pl.col(prev_train_columns).first(),
                 pl.col('topics_idf').first(),
                 pl.col('common_entities').mean().alias('MeanCommonEntities'),

@@ -19,7 +19,7 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
 def main(input_path, output_dir, dataset_type='train'):
-    logging.info("Starting to build the training dataset")
+    logging.info("Starting to build the dataset")
     logging.info(f"Dataset path: {input_path}")
     
     articles = pl.read_parquet(os.path.join(input_path, 'articles.parquet'))
@@ -35,7 +35,7 @@ def main(input_path, output_dir, dataset_type='train'):
     dataset_complete = []
     i = 0
     for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
-                                                                        sample=sample, n_batches=5):
+                                                                        sample=sample, n_batches=8):
         dataset_complete.append(dataset)
         logging.info(f'Slice {i+1} preprocessed.')
         i += 1
