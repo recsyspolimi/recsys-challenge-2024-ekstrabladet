@@ -356,7 +356,7 @@ def add_trendiness_feature(df_features: pl.DataFrame ,articles: pl.DataFrame ,pe
             (ex. 1ns, 1us, 1s, 1m, 1h, 1d, 1w,.. or combinations like "3d12h4m25s". See doc for polars.DataFrame.rolling for more details)
 
     Returns:
-        pl.DataFrame: The training dataset enriched with a new column, containing the trendiness_score. Can be 
+        pl.DataFrame: The training dataset enriched with a new column, containing the trendiness_score.
     """
     
         
@@ -815,4 +815,54 @@ def build_target_encoder_features(df_features: pl.DataFrame, behaviors: pl.DataF
     df_features = df_features.with_columns(pl.Series(X_enc[:, i]).alias(f'{col}_target_encoded') for i, col in enumerate(cols))
     
     return df_features, encoder
+    
+
+def add_trendiness_feature_categories(df_features: pl.DataFrame ,articles: pl.DataFrame ,period:str="3d")->pl.DataFrame:
+    """
+    Adds a new feature "trendiness_score_category" to each impression.
+    The trendiness score by category for an article is computed as the number of the times that category has happeared in some article
+    published in the previous <period> before the impression.
+
+    Args:
+        df_features: The dataset to be enriched with the new feature. It MUST contain the "impression_time" and the "category"
+        articles: The articles dataset with the topics of the articles and their publication time.
+        period: The window size for the computation of the scores, in string encoding 
+            (ex. 1ns, 1us, 1s, 1m, 1h, 1d, 1w,.. or combinations like "3d12h4m25s". See doc for polars.DataFrame.rolling for more details)
+
+    Returns:
+        pl.DataFrame: The training dataset enriched with a new column, containing the trendiness_score by category.
+    """
+    
+        
+    categories=articles.select("category").unique()
+    categories=[category for category in categories["category"] if category is not None]
+
+    categories_popularity = articles.select(["published_time","category"]).with_columns(
+        pl.col("published_time").dt.date().alias("published_date")
+    ).drop("published_time").group_by("published_date").agg(
+        pl.col("category").alias("categories")
+    ).sort("published_date").set_sorted("published_date").upsample(time_column="published_date",every="1d") \
+        .rolling(index_column="published_date",period=period).agg(
+         [pl.col("categories").list.count_matches(category).sum().alias(f'{category}_matches') for category in categories]
+    )
+    
+    
+    
+    return df_features.with_columns(
+        pl.col("impression_time").dt.date().alias("impression_date")
+    ).with_columns(
+        [pl.col("category").eq(category).cast(pl.Int8).alias(f"{category}_present") for category in categories]
+    ).join(other=categories_popularity,left_on=pl.col("impression_date"),right_on=(pl.col("published_date")+pl.duration(days=1)),how="left") \
+    .with_columns(
+        [pl.col(f"{category}_present").mul(pl.col(f"{category}_matches")).alias(f"trendiness_score_{category}") for category in categories]
+    ).with_columns(
+        pl.sum_horizontal( [pl.col(f"trendiness_score_{category}") for category in categories] ).alias("trendiness_score_category"),
+    ).drop(
+        [f"trendiness_score_{category}" for category in categories]
+    ).drop(
+        [f"{category}_matches" for category in categories]
+    ).drop(
+        [f"{category}_present" for category in categories]
+    ).drop("impression_date")
+    
     
