@@ -87,23 +87,16 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
         logging.info(f'Evaluation results: {met_eval.evaluate()}')
         
     if save_results:
+        evaluation_ds.write_parquet(os.path.join(output_dir, f'predictions.parquet'))
         path = Path(os.path.join(output_dir, 'predictions.txt'))
         
         # need to maintain the same order of the inview list
         behaviors = pl.read_parquet(behaviors_path , columns=['impression_id', 'article_ids_inview', 'user_id'])
-        # ordered_predictions = pl.concat(
-        #     rows.explode('article_ids_inview').with_row_index() \
-        #         .join(evaluation_ds, left_on=['impression_id', 'article_ids_inview', 'user_id'], 
-        #               right_on=['impression_id', 'article', 'user_id'], how='left') \
-        #         .sort('index').group_by('impression_id').agg(pl.col('prediction'), pl.col('article_ids_inview')) \
-        #         .with_columns(pl.col('prediction').list.eval(pl.element().rank(descending=True)))
-        #     for rows in tqdm.tqdm(behaviors.iter_slices(10000), total=behaviors.shape[0] // 10000)
-        # )
         ordered_predictions = behaviors.explode('article_ids_inview').with_row_index() \
             .join(evaluation_ds, left_on=['impression_id', 'article_ids_inview', 'user_id'], 
                   right_on=['impression_id', 'article', 'user_id'], how='left') \
-            .sort('index').group_by('impression_id').agg(pl.col('prediction'), pl.col('article_ids_inview')) \
-            .with_columns(pl.col('prediction').list.eval(pl.element().rank(descending=True)))
+            .sort('index').group_by(['impression_id', 'user_id'], maintain_order=True).agg(pl.col('prediction'), pl.col('article_ids_inview')) \
+            .with_columns(pl.col('prediction').list.eval(pl.element().rank(descending=True)).cast(pl.List(pl.Int16)))
            
         logging.info('Debugging predictions') 
         logging.info(behaviors.filter(pl.col('impression_id') == max_impression).select(['impression_id', 'article_ids_inview']).explode('article_ids_inview'))

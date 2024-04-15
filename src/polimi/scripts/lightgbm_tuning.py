@@ -9,7 +9,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from typing_extensions import List
+from typing_extensions import List, Tuple, Dict
 import optuna
 import polars as pl
 
@@ -23,7 +23,7 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
 def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.DataFrame, evaluation_ds: pl.DataFrame, 
-                        study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None):
+                        study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None) -> Tuple[Dict, pd.DataFrame]:
     
     def objective_function(trial: optuna.Trial):
         params = {
@@ -57,7 +57,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         
     study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)
     study.optimize(objective_function, n_trials=n_trials, n_jobs=-1)
-    return study.best_params
+    return study.best_params, study.trials_dataframe()
     
 
 def load_datasets(train_dataset_path, validation_dataset_path):
@@ -95,13 +95,17 @@ def main(train_dataset_path: str, validation_dataset_path: str, output_dir: str,
     optuna.logging.enable_propagation()  # Propagate logs to the root logger
     optuna.logging.disable_default_handler() # Stop showing logs in sys.stderr (prevents double logs)
 
-    best_params = optimize_parameters(X_train, y_train, X_val, evaluation_ds, study_name, n_trials, storage)
+    best_params, trials_df = optimize_parameters(X_train, y_train, X_val, evaluation_ds, study_name, n_trials, storage)
     
     params_file_path = os.path.join(output_dir, 'lightgbm_best_params.json')
     logging.info(f'Best parameters: {best_params}')
-    logging.info(f'Saving the best parameters at')
+    logging.info(f'Saving the best parameters at: {params_file_path}')
     with open(params_file_path, 'w') as params_file:
         json.dump(best_params, params_file)    
+        
+    trials_file_path = os.path.join(output_dir, 'trials_dataframe.csv')
+    logging.info(f'Saving the trials dataframe at: {trials_file_path}')
+    trials_df.to_csv(trials_file_path)
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Training script for catboost")

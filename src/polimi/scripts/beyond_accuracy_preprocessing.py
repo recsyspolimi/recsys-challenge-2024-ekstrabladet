@@ -32,7 +32,7 @@ def main(input_path, output_dir, preprocessing_path):
     previous_test_ds = pl.read_parquet(preprocessing_path).filter(pl.col('impression_id') != 0)
     
     dataset, tf_idf_vectorizer, unique_entities = build_features(behaviors, history, articles, test=True, sample=False)
-    dataset = pl.concat([dataset, previous_test_ds], how='vertical_relaxed')
+    dataset = pl.concat([dataset.select(previous_test_ds.columns), previous_test_ds], how='vertical_relaxed')
     
     categorical_columns = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
