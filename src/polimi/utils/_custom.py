@@ -4,6 +4,9 @@ from typing_extensions import List
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCFRecommender import ItemKNNCFRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
+from os import getpid
+from psutil import Process
+from colorama import Fore, Style
 
 
 ALGORITHMS = {
@@ -68,3 +71,13 @@ def cosine_similarity(x: List[float], y: List[float]):
     return np.dot(x, y) / normalization if normalization > 0 else 0
 
 
+
+
+def PrintColor(text:str, color = Fore.BLUE, style = Style.BRIGHT):
+    print(style + color + text + Style.RESET_ALL)
+    
+def GetMemUsage():   
+    pid = getpid()
+    py = Process(pid)
+    memory_use = py.memory_info()[0] / 2. ** 30
+    return f"RAM memory GB usage = {memory_use :.4}"
