@@ -7,7 +7,9 @@ from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender
 from os import getpid
 from psutil import Process
 from colorama import Fore, Style
-
+from pathlib import Path
+import numpy as np
+import scipy.sparse as sps
 
 ALGORITHMS = {
     'RP3betaRecommender': [
@@ -81,3 +83,23 @@ def GetMemUsage():
     py = Process(pid)
     memory_use = py.memory_info()[0] / 2. ** 30
     return f"RAM memory GB usage = {memory_use :.4}"
+
+
+
+
+def save_sparse_csr(path: Path, array: sps.csr_matrix):
+    directory_path = path.parents[0]    
+    directory_path.mkdir(parents=True, exist_ok=True)
+    
+    np.savez(path, data=array.data, indices=array.indices,
+             indptr=array.indptr, shape=array.shape)
+    print('File saved at:', path)
+
+def load_sparse_csr(path: Path) -> sps.csr_matrix:
+    if not path.exists():
+        raise FileNotFoundError(f"File {path} does not exist.")
+    
+    loader = np.load(path)
+    print('File loaded at:', path)
+    return sps.csr_matrix((loader['data'], loader['indices'], loader['indptr']),
+                      shape=loader['shape'])
