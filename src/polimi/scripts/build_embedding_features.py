@@ -1,11 +1,11 @@
 import os
 import logging
-import sys
 from datetime import datetime
 import argparse
 import polars as pl
 
-sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
+import sys
+#sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
 from polimi.utils._embeddings import build_embeddings_similarity
 
