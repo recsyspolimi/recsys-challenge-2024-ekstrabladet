@@ -40,7 +40,7 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path = None)
         
         dataset_complete = []
         i = 0          
-        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=10):
+        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=100):
             dataset_complete.append(dataset)
             logging.info(f'Slice {i+1} preprocessed.')
             i += 1
@@ -50,16 +50,14 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path = None)
         ds = ds.join(dataset_complete, on=['user_id','article'], how='left').fill_null(value=0)
         ds.write_parquet( os.path.join(output_dir, data_type + '.parquet'))
         
-        del behaviors
-        del history
-        del embeddings
-        del dataset_complete
-        del ds
-        del users_embeddings
+        del behaviors, history, embeddings, dataset_complete, ds, users_embeddings
         gc.collect()
 
     
     if not test_path is None:
+        logging.info(f"Dataset path: {test_path}")
+        logging.info(f"Loading Test")
+        test_path = test_path + '/test'
         behaviors = pl.read_parquet(os.path.join(test_path, 'behaviors.parquet'))
         history = pl.read_parquet(os.path.join(test_path, 'history.parquet'))
         embeddings = pl.read_parquet(embedding_file)
@@ -78,7 +76,7 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path = None)
         
         dataset_complete = []
         i = 0          
-        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=10):
+        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=100):
             dataset_complete.append(dataset)
             logging.info(f'Slice {i+1} preprocessed.')
             i += 1
@@ -88,12 +86,7 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path = None)
         ds = ds.join(dataset_complete, on=['user_id','article'], how='left').fill_null(value=0)
         ds.write_parquet( os.path.join(output_dir, 'test.parquet'))
         
-        del behaviors
-        del history
-        del embeddings
-        del dataset_complete
-        del ds
-        del users_embeddings
+        del behaviors, history, embeddings, dataset_complete, ds, users_embeddings
         gc.collect()
         
     return

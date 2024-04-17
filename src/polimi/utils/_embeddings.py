@@ -13,7 +13,7 @@ def _build_embeddings_similarity(df, embeddings, users_embeddings, new_column_na
                 .join(users_embeddings, on = 'user_id')\
                 .with_columns(
                      pl.struct(['user_embedding', 'item_embedding']).map_elements(
-                                        lambda x: fast_distance(x['user_embedding'], x['item_embedding']), return_dtype=pl.Float64).cast(pl.Float64).alias(new_column_name)
+                                        lambda x: fast_distance(x['user_embedding'], x['item_embedding']), return_dtype=pl.Float32).cast(pl.Float32).alias(new_column_name)
                 )\
                 .select(['user_id', 'article', new_column_name])
 
@@ -26,7 +26,7 @@ def build_user_embeddings(df, embeddings) -> pl.DataFrame:
                     rows.select('user_id','article_id_fixed').explode('article_id_fixed').rename({'article_id_fixed':'article_id'}).join(embeddings,on='article_id')\
                         .with_columns(pl.col("item_embedding").list.to_struct()).unnest("item_embedding")\
                             .group_by('user_id').agg(
-                                            [pl.col(f'field_{i}').mean() for i in range(embedding_len)])\
+                                            [pl.col(f'field_{i}').mean().cast(pl.Float32) for i in range(embedding_len)])\
                             .with_columns(
                                             pl.concat_list([f"field_{i}" for i in range(embedding_len)]).alias('user_embedding')
                                             )\
