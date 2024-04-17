@@ -29,7 +29,7 @@ def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, outp
         user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
         ap = build_articles_with_processed_ner(articles)
         ner_mapping = build_ner_mapping(ap)
-        output_file_path = output_dir.joinpath(f'URM_ner_{urm_split}')
+        output_file_path = output_dir.joinpath(f'URM_{urm_split}')
         if urm_split == 'train':
             URM_ner = build_ner_urm(history_train, ap, user_id_mapping, ner_mapping, 'article_id_fixed')
         elif urm_split == 'validation':

@@ -11,29 +11,19 @@ from pathlib import Path
 import numpy as np
 import scipy.sparse as sps
 import json
+import optuna
 
 
 ALGORITHMS = {
     'RP3betaRecommender': [
         RP3betaRecommender,
-        {
-
-        }
     ],
     'ItemKNNCFRecommender': [
         ItemKNNCFRecommender,
-        {
-            
-        }
     ],
     'PureSVDRecommender': [
         PureSVDRecommender,
-        {
-            
-        }
     ]
-
-
 }
 _PARQUET_TYPE = 'parquet'
 
@@ -121,3 +111,7 @@ def read_json(file_path: Path):
     except FileNotFoundError:
         pass
     return res
+
+def save_json(data: dict, file_path: Path):
+    with open(file_path, 'w') as file:
+        json.dump(data, file)
