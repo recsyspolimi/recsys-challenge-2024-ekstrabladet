@@ -44,25 +44,23 @@ def _build_implicit_urm(df: pl.DataFrame, x_col: str, y_col: str, x_mapping: pl.
 def build_user_id_mapping(history: pl.DataFrame):
     return history.select('user_id')\
         .unique('user_id') \
+        .cast(pl.UInt32)\
         .drop_nulls() \
         .sort('user_id') \
         .with_row_index() \
         .select(['index', 'user_id'])\
-        .rename({'index': 'user_index'})
-        
+        .rename({'index': 'user_index'})        
         
 def build_ner_mapping(articles: pl.DataFrame):
     return articles\
-        .select('article_id', 'ner_clusters')\
+        .select('ner_clusters')\
         .explode('ner_clusters') \
         .rename({'ner_clusters': 'ner'})\
         .unique('ner')\
         .drop_nulls()\
         .sort('ner')\
         .with_row_index()\
-        .drop('article_id')\
-        .rename({'index': 'ner_index'})
-     
+        .rename({'index': 'ner_index'})     
      
 def _build_batch_ner_interactions(df: pl.DataFrame, 
                   articles: pl.DataFrame, 
@@ -72,20 +70,21 @@ def _build_batch_ner_interactions(df: pl.DataFrame,
                   batch_size=_BATCH_SIZE):
     
     articles_ner_index = articles\
-        .with_columns(pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index']).cast(pl.Int32)))
+        .with_columns(pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index']).cast(pl.UInt32)))
 
     df = pl.concat([
         slice_df.select('user_id', articles_id_col)\
             .group_by('user_id')\
             .agg(pl.col(articles_id_col).flatten())\
             .with_columns(
-                pl.col(articles_id_col).list.eval(pl.element().replace(articles_ner_index['article_id'], articles_ner_index['ner_clusters']).cast(pl.List(pl.Int32)))\
+                pl.col(articles_id_col).list.eval(pl.element().replace(articles_ner_index['article_id'], articles_ner_index['ner_clusters']).cast(pl.List(pl.UInt32)))\
                     .list.eval(pl.element().flatten())\
                     .list.drop_nulls()\
                     .list.unique()\
                     .list.sort()\
             ).rename({articles_id_col: 'ner_index'})\
-            .with_columns(pl.col('user_id').replace(user_id_mapping['user_id'], user_id_mapping['user_index']).cast(pl.Int32))\
+            .filter(pl.col('ner_index').list.len() > 0)\
+            .with_columns(pl.col('user_id').replace(user_id_mapping['user_id'], user_id_mapping['user_index']).cast(pl.UInt32))\
             .rename({'user_id': 'user_index'})\
         for slice_df in tqdm(df.iter_slices(batch_size), total=df.shape[0]//batch_size)
         ]).sort('user_index').explode('ner_index')
