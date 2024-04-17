@@ -3,11 +3,13 @@ import logging
 from datetime import datetime
 import argparse
 import polars as pl
+import gc
 
 import sys
-#sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
+sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
-from polimi.utils._embeddings import build_embeddings_similarity
+from polimi.utils._embeddings import iterator_build_embeddings_similarity
+from polimi.utils._embeddings import build_user_embeddings
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -15,33 +17,84 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path = None)
     logging.info("Starting to build the dataset")
     logging.info(f"Dataset path: {input_path}")
     
-    dataset_types = ['train','test']
+    dataset_types = ['train','validation']
     
-    for dataset_type in dataset_types:
-        files_path = os.path.join(input_path, dataset_type)
+    for data_type in dataset_types:
+  
+        logging.info(f"Loading {data_type}")
+        files_path = os.path.join(input_path, data_type)
         behaviors = pl.read_parquet(os.path.join(files_path, 'behaviors.parquet'))
         history = pl.read_parquet(os.path.join(files_path, 'history.parquet'))
         
         embeddings = pl.read_parquet(embedding_file)
         
+        embeddings = embeddings.rename({embeddings.columns[0] : 'article_id', embeddings.columns[1]: 'item_embedding'})
+        
         ds = behaviors.select(['impression_id','user_id','article_ids_inview'])\
                     .explode('article_ids_inview')\
                     .rename({'article_ids_inview': 'article'})
                     
-        ds = build_embeddings_similarity(ds, history, embeddings, feature_name)
-        ds.write_parquet( os.path.join(output_dir, dataset_types +'.parquet'))
+        logging.info(f"Building similarities for {data_type}") 
         
+        users_embeddings = build_user_embeddings(history, embeddings)
+        
+        dataset_complete = []
+        i = 0          
+        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=10):
+            dataset_complete.append(dataset)
+            logging.info(f'Slice {i+1} preprocessed.')
+            i += 1
+        
+        dataset_complete = pl.concat(dataset_complete, how='vertical_relaxed')
+        dataset_complete = dataset_complete.unique(subset=['user_id','article'])
+        ds = ds.join(dataset_complete, on=['user_id','article'], how='left').fill_null(value=0)
+        ds.write_parquet( os.path.join(output_dir, data_type + '.parquet'))
+        
+        del behaviors
+        del history
+        del embeddings
+        del dataset_complete
+        del ds
+        del users_embeddings
+        gc.collect()
+
+    
     if not test_path is None:
         behaviors = pl.read_parquet(os.path.join(test_path, 'behaviors.parquet'))
         history = pl.read_parquet(os.path.join(test_path, 'history.parquet'))
         embeddings = pl.read_parquet(embedding_file)
         
+        embeddings = pl.read_parquet(embedding_file)
+        
+        embeddings = embeddings.rename({embeddings.columns[0] : 'article_id', embeddings.columns[1]: 'item_embedding'})
+        
         ds = behaviors.select(['impression_id','user_id','article_ids_inview'])\
                     .explode('article_ids_inview')\
                     .rename({'article_ids_inview': 'article'})
                     
-        ds = build_embeddings_similarity(ds, history, embeddings, feature_name)
+        logging.info(f"Building similarities for Test") 
+        
+        users_embeddings = build_user_embeddings(history, embeddings)
+        
+        dataset_complete = []
+        i = 0          
+        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=10):
+            dataset_complete.append(dataset)
+            logging.info(f'Slice {i+1} preprocessed.')
+            i += 1
+        
+        dataset_complete = pl.concat(dataset_complete, how='vertical_relaxed')
+        dataset_complete = dataset_complete.unique(subset=['user_id','article'])
+        ds = ds.join(dataset_complete, on=['user_id','article'], how='left').fill_null(value=0)
         ds.write_parquet( os.path.join(output_dir, 'test.parquet'))
+        
+        del behaviors
+        del history
+        del embeddings
+        del dataset_complete
+        del ds
+        del users_embeddings
+        gc.collect()
         
     return
 
