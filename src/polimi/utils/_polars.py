@@ -254,3 +254,12 @@ def get_unique_list_exploded_feature_function(df: pl.DataFrame, index_feature: s
             .select(pl.col(f_name).list.unique()).explode(f_name)[f_name].to_list()
         return feature_values
     return get_feature
+
+def list_pct_matches_with_constant(a, value) -> pl.Expr:
+    '''
+    Returns an expression to count the percentage of matching element in a list with a constant value.
+    The polars function count_matches cannot be used since it wants only a single element, 
+    variable element from row to row.
+    '''
+    return pl.when(pl.col(a).list.len() == 0).then(0.0) \
+        .otherwise(pl.col(a).list.count_matches(value) / pl.col(a).list.len())
