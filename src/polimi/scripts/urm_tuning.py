@@ -106,21 +106,21 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
         rec_instance = model(URM_train)
         rec_instance.fit(**params)
         result_df, _ = evaluator.evaluateRecommender(rec_instance)    
-        return result_df.loc[cutoff][metric]
+        return result_df.loc[cutoff][metric.upper()]
 
     study = optuna.create_study(direction='maximize', 
                                 study_name=study_name, 
                                 storage=storage, 
                                 sampler=get_sampler_from_name(sampler),
                                 load_if_exists=True)
-    study.optimize(objective_function, n_trials=n_trials, n_jobs=1)
+    study.optimize(objective_function, n_trials=n_trials, n_jobs=-1)
     return study.best_params, study.trials_dataframe()
     
 
 def main(urm_folder: Path, output_dir: Path,
          model_name:str, study_name: str, 
          n_trials: int, storage: str,
-         sampler: str):
+         sampler: str, metric: str):
     
     urm_train_path = urm_folder.joinpath('URM_train.npz')
     urm_val_path = urm_folder.joinpath('URM_validation.npz')    
@@ -130,11 +130,12 @@ def main(urm_folder: Path, output_dir: Path,
     URM_train = load_sparse_csr(urm_train_path, logger=logging)
     URM_val =  load_sparse_csr(urm_val_path, logger=logging)
     best_params, trials_df = optimize_parameters(URM_train, URM_val,
-                                                 metric='MAP',
                                                  model_name=model_name,
                                                  study_name=study_name, 
                                                  n_trials=n_trials, 
                                                  storage=storage,
+                                                 cutoff=10,
+                                                 metric=metric,
                                                  sampler=sampler)
     
     
@@ -153,7 +154,7 @@ if __name__ == '__main__':
                         help="The directory where the models will be placed")
     parser.add_argument("-urm_folder", default=None, type=str, required=True,
                         help="Folder where URM sps.csr_matrix are placed")
-    parser.add_argument("-model_name", default='ItemKNNCFRecommender', type=str, required=True,
+    parser.add_argument("-model_name", type=str, required=True,
                         help="Folder where URM sps.csr_matrix are placed")
     parser.add_argument("-n_trials", default=100, type=int, required=False,
                         help="Number of optuna trials to perform")
@@ -161,15 +162,16 @@ if __name__ == '__main__':
                         help="Optional name of the study. Should be used if a storage is provided")
     parser.add_argument("-storage", default=None, type=str, required=False,
                         help="Optional storage url for saving the trials")
-    
-    parser.add_argument("-sampler", choices=['TPESampler', 'RandomSampler'], default='TPESampler', type=str, required=True,
+    parser.add_argument("-sampler", choices=['TPESampler', 'RandomSampler'], default='TPESampler', type=str, required=False,
                         help="Optuna sampler")
-    
+    parser.add_argument("-metric", choices=['NDCG', 'MAP'], default='NDCG', type=str, required=True,
+                        help="Optimization metric")
     
     
     args = parser.parse_args()
     OUTPUT_DIR = Path(args.output_dir)
     URM_FOLDER = Path(args.urm_folder)
+    METRIC = args.metric
     MODEL_NAME = args.model_name
     N_TRIALS = args.n_trials
     STUDY_NAME = args.study_name
@@ -191,5 +193,6 @@ if __name__ == '__main__':
     
     main(URM_FOLDER, output_dir, 
          model_name=MODEL_NAME, study_name=STUDY_NAME, 
-         n_trials=N_TRIALS, storage=STORAGE, 
+         n_trials=N_TRIALS, storage=STORAGE,
+         metric=METRIC,
          sampler=SAMPLER)
