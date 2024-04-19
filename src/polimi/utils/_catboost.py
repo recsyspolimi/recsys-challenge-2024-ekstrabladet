@@ -992,3 +992,27 @@ def build_last_n_topics_distances(history, articles, df, vectorizer, last_n) -> 
         del last_n_tf_idf
 
     return df.join(last_n_topics_cosine, on=['impression_id', 'user_id', 'article'], how='left')
+
+
+def add_article_endorsement_feature(df_features:pl.DataFrame, period:str="10h")-> pl.DataFrame:
+    """
+    Adds a feature which is a count of how many times that article has been proposed to a user in the last <period> hours.
+    Args:
+        df_features: The dataframe to be enriched with the new feature.
+        period: The window size for the computation of the scores, in string encoding 
+            (ex. 1ns, 1us, 1s, 1m, 1h, 1d, 1w,.. or combinations like "3d12h4m25s". See doc for polars.DataFrame.rolling for more details)
+    Returns:
+        pl.DataFrame: The dataframe with the new feature added
+
+    """
+    endorsement = df_features.select(['impression_time','article']) \
+    .sort('impression_time') \
+    .set_sorted('impression_time') \
+    .with_columns(
+        pl.lit(1).alias(f'endorsement_{period}')
+    ).rolling(index_column='impression_time',period=period,by='article') \
+    .agg(
+        pl.col(f'endorsement_{period}').count()
+    ).unique()
+    
+    return df_features.join(other=endorsement,on=['impression_time','article'],how='left')
