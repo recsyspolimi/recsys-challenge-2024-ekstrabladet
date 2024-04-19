@@ -336,6 +336,13 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
     Returns:
         pl.DataFrame: a dataframe with the added features
     '''
+    unique_categories_df = articles.select(
+        ['category', 'category_str']).unique('category').drop_nulls('category')
+    unique_categories = {
+        row['category']: row['category_str'] for row in unique_categories_df.iter_rows(named=True)
+    }
+
+    del unique_categories_df
 
     prev_train_columns = [
         c for c in df_features.columns if c not in ['impression_id', 'article']]
@@ -367,7 +374,7 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
         ).join(history.drop(['article_id_fixed', 'impression_time_fixed']), on='user_id', how='left')
         .with_columns(
             pl.struct(['topics_idf', 'topics_flatten_tf_idf']).map_elements(
-                lambda x: cosine_similarity(x['topics_idf'], x['topics_flatten_tf_idf']), return_dtype=pl.Float64
+                lambda x: fast_distance(x['topics_idf'], x['topics_flatten_tf_idf']), return_dtype=pl.Float64
             ).cast(pl.Float32).alias('topics_cosine'),
             (pl.col('category') == pl.col('MostFrequentCategory')).alias(
                 'IsFavouriteCategory'),
@@ -375,7 +382,11 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
                 'NumberDifferentCategories'),
             list_pct_matches_with_col(
                 'category_right', 'category').alias('PctCategoryMatches'),
-        ).drop(['topics_idf', 'topics_flatten', 'topics_flatten_tf_idf', 'category_right'])
+        )
+        .with_columns(
+            [list_pct_matches_with_constant('category_right', c).alias(f'Category_{c_str}_Pct')
+             for c, c_str in unique_categories.items()])
+        .drop(['topics_idf', 'topics_flatten', 'topics_flatten_tf_idf', 'category_right'])
         for rows in tqdm(df_features.iter_slices(20000), total=df_features.shape[0] // 20000)
     )
     return reduce_polars_df_memory_size(df_features)
@@ -461,7 +472,7 @@ def add_category_popularity(df_features: pl.DataFrame, articles: pl.DataFrame) -
 
     df_features = df_features.join(published_category_popularity, how='left', right_on=['published_date', 'category'],
                                    left_on=[pl.col('impression_time').dt.date() - pl.duration(days=1), 'category']) \
-        .rename({'category_daily_pct': 'yesterday_category_daily_pct'}).drop(['impression_time']) \
+        .rename({'category_daily_pct': 'yesterday_category_daily_pct'})\
         .with_columns(pl.col('yesterday_category_daily_pct').fill_null(0))
     return reduce_polars_df_memory_size(df_features)
 
@@ -994,7 +1005,7 @@ def build_last_n_topics_distances(history, articles, df, vectorizer, last_n) -> 
     return df.join(last_n_topics_cosine, on=['impression_id', 'user_id', 'article'], how='left')
 
 
-def add_article_endorsement_feature(df_features:pl.DataFrame, period:str="10h")-> pl.DataFrame:
+def add_article_endorsement_feature(df_features: pl.DataFrame, period: str = "10h") -> pl.DataFrame:
     """
     Adds a feature which is a count of how many times that article has been proposed to a user in the last <period> hours.
     Args:
@@ -1005,14 +1016,14 @@ def add_article_endorsement_feature(df_features:pl.DataFrame, period:str="10h")-
         pl.DataFrame: The dataframe with the new feature added
 
     """
-    endorsement = df_features.select(['impression_time','article']) \
-    .sort('impression_time') \
-    .set_sorted('impression_time') \
-    .with_columns(
+    endorsement = df_features.select(['impression_time', 'article']) \
+        .sort('impression_time') \
+        .set_sorted('impression_time') \
+        .with_columns(
         pl.lit(1).alias(f'endorsement_{period}')
-    ).rolling(index_column='impression_time',period=period,by='article') \
-    .agg(
+    ).rolling(index_column='impression_time', period=period, by='article') \
+        .agg(
         pl.col(f'endorsement_{period}').count()
     ).unique()
-    
-    return df_features.join(other=endorsement,on=['impression_time','article'],how='left')
+
+    return df_features.join(other=endorsement, on=['impression_time', 'article'], how='left')
