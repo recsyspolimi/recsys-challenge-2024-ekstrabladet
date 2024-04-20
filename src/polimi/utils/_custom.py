@@ -2,7 +2,9 @@ import polars as pl
 import numpy as np
 from typing_extensions import List
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCFRecommender import ItemKNNCFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKNNCFRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
 from os import getpid
 from psutil import Process
@@ -18,8 +20,14 @@ ALGORITHMS = {
     'RP3betaRecommender': [
         RP3betaRecommender,
     ],
+    'RP3betaRecommender': [
+        RP3betaRecommender,
+    ],
     'ItemKNNCFRecommender': [
         ItemKNNCFRecommender,
+    ],
+    'UserKNNCFRecommender': [
+        UserKNNCFRecommender,
     ],
     'PureSVDRecommender': [
         PureSVDRecommender,

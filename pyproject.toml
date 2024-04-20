@@ -49,4 +49,6 @@ dependencies = [
     "PyMySQL==1.1.0",
     "Cython==0.29.23",
     "optuna-dashboard==0.15.1",
+    "jupyter",
+    "ipywidgets",
 ]
