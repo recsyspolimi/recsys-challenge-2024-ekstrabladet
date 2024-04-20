@@ -1,5 +1,3 @@
-from polimi.utils._embeddings import _build_user_embeddings
-from polimi.utils._embeddings import iterator_build_embeddings_similarity
 import os
 import logging
 from datetime import datetime
@@ -9,7 +7,8 @@ import gc
 
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
-
+from polimi.utils._embeddings import _build_user_embeddings
+from polimi.utils._embeddings import iterator_build_embeddings_similarity
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
