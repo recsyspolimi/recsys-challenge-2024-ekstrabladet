@@ -40,7 +40,7 @@ def add_topic_model_features(df, history, articles, topic_model_columns, n_compo
     prev_train_columns = [c for c in df.columns if c not in [
         'impression_id', 'article', 'impression_time']]
 
-    df = pl.concat(
+    return pl.concat(
         rows.join(history.select(
             ['user_id', 'article_id_fixed', 'impression_time_fixed']), on='user_id', how='left')
         .join(articles.select(['article_id', 'topics', 'entity_groups', 'topics_idf'] + topic_model_columns),
@@ -98,6 +98,5 @@ def add_topic_model_features(df, history, articles, topic_model_columns, n_compo
             *[pl.col(f'{x}_history').mean().alias(f'lda_{i}_history_mean')
               for i, x in enumerate(topic_model_columns)],
             *[pl.col(f'{x}_history_weighted').sum().alias(f'lda_{i}_history_weighted_mean') for i, x in enumerate(topic_model_columns)]
-        ).join(history.drop(['article_id_fixed', 'impression_time_fixed']), on='user_id', how='left') \
-        .drop(['topics_idf', 'topics_flatten', 'topics_flatten_tf_idf', 'category_right'])
+        ).drop(['topics_idf', 'topics_flatten', 'topics_flatten_tf_idf', 'category_right'])
         for rows in tqdm.tqdm(df.iter_slices(10000), total=df.shape[0] // 10000))

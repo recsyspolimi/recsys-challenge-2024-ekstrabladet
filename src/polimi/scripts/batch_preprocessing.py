@@ -12,13 +12,22 @@ import seaborn as sns
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
-from polimi.utils._catboost import build_features_iterator
+from polimi.preprocessing_pipelines.pre_115f import build_features_iterator as build_features_iterator_115f
+from polimi.preprocessing_pipelines.pre_94f import build_features_iterator as build_features_iterator_94f
+from polimi.preprocessing_pipelines.pre_68f import build_features_iterator as build_features_iterator_68f
 
+from polimi.preprocessing_pipelines.categorical_dict import get_categorical_columns
+PREPROCESSING = {
+    '68f': build_features_iterator_68f,
+    '94f': build_features_iterator_94f,
+    '121f': build_features_iterator_115f,
+    'latest': build_features_iterator_115f
+}
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
-def main(input_path, output_dir, dataset_type='train'):
+def main(input_path, output_dir, dataset_type='train',preprocessing_version='latest'):
     logging.info("Starting to build the dataset")
     logging.info(f"Dataset path: {input_path}")
     
@@ -32,6 +41,8 @@ def main(input_path, output_dir, dataset_type='train'):
     is_test_data = dataset_type == 'test'
     sample = dataset_type == 'train'
     
+    build_features_iterator = PREPROCESSING[preprocessing_version]
+    
     dataset_complete = []
     i = 0
     for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
@@ -39,11 +50,11 @@ def main(input_path, output_dir, dataset_type='train'):
         dataset_complete.append(dataset)
         logging.info(f'Slice {i+1} preprocessed.')
         i += 1
+        
     dataset_complete = pl.concat(dataset_complete, how='vertical_relaxed')
     
-    categorical_columns = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
-                           'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
-                           'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory']
+    categorical_columns = get_categorical_columns(preprocessing_version)
+    
     categorical_columns += [f'Entity_{entity}_Present' for entity in unique_entities]
     
     dataset_complete.write_parquet(os.path.join(output_dir, f'{dataset_type}_ds.parquet'))
@@ -73,11 +84,14 @@ if __name__ == '__main__':
                         help="Directory where the dataset is placed")
     parser.add_argument("-dataset_type", choices=['train', 'validation', 'test'], default='train', type=str,
                         help="Specify the type of dataset: ['train', 'validation', 'test']")
+    parser.add_argument("-preprocessing_version", choices=['68f', '94f', '115f', 'latest'], default='latest', type=str,
+                        help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','latest']")
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
     DATASET_DIR = args.dataset_path
     DATASET_TYPE = args.dataset_type
+    PREPROCESSING_VERSION = args.preprocessing_version
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     experiment_name = f'preprocessing_{DATASET_TYPE}_{timestamp}'
@@ -93,4 +107,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, output_dir, DATASET_TYPE)
+    main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION)
