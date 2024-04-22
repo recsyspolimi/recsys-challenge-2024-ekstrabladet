@@ -113,7 +113,8 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
 
 
 def _build_features_behaviors(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
-                              cols_explode: List[str], rename_columns: Dict[str, str], unique_entities: List[str]):
+                              cols_explode: List[str], rename_columns: Dict[str, str], unique_entities: List[str],
+                              unique_categories: dict):
     select_columns = ['impression_id', 'article_ids_inview', 'impression_time', 'device_type', 'read_time',
                       'scroll_percentage', 'user_id', 'is_sso_user', 'gender', 'age', 'is_subscriber', 'session_id']
     if 'labels' in behaviors.columns:
@@ -146,7 +147,7 @@ def _build_features_behaviors(behaviors: pl.DataFrame, history: pl.DataFrame, ar
     ).drop('entity_groups') \
         .pipe(add_session_features, history=history, behaviors=behaviors, articles=articles) \
         .pipe(add_category_popularity, articles=articles) \
-        .pipe(_join_history, history=history, articles=articles)
+        .pipe(_join_history, history=history, articles=articles, unique_categories = unique_categories)
 
 
 def _preprocessing(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
@@ -323,7 +324,7 @@ def _build_history_features(history: pl.DataFrame, articles: pl.DataFrame, uniqu
     return reduce_polars_df_memory_size(history)
 
 
-def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame):
+def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, unique_categories: dict):
     '''
     Join the dataframe with the current features with the history dataframe, also adding the jaccard similarity features, the 
     entity features, the tf-idf cosine and the category features.
@@ -336,14 +337,7 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
     Returns:
         pl.DataFrame: a dataframe with the added features
     '''
-    unique_categories_df = articles.select(
-        ['category', 'category_str']).unique('category').drop_nulls('category')
-    unique_categories = {
-        row['category']: row['category_str'] for row in unique_categories_df.iter_rows(named=True)
-    }
-
-    del unique_categories_df
-
+ 
     prev_train_columns = [
         c for c in df_features.columns if c not in ['impression_id', 'article']]
 
@@ -1028,3 +1022,23 @@ def add_article_endorsement_feature(df_features: pl.DataFrame, period: str = "10
     ).unique()
 
     return df_features.join(other=endorsement, on=['impression_time', 'article'], how='left')
+
+
+def get_unique_categories(articles: pl.DataFrame):
+    '''
+    The function returns a dictionary containing the entities of the articles
+    
+    Args:
+        articles: the articles dataframe
+    
+    Returns:
+        dict: the dictionary containing the entities of the articles
+    '''
+    unique_categories_df = articles.select(
+        ['category', 'category_str']).unique('category').drop_nulls('category')
+    unique_categories = {
+        row['category']: row['category_str'] for row in unique_categories_df.iter_rows(named=True)
+    }
+    del unique_categories_df
+    
+    return unique_categories

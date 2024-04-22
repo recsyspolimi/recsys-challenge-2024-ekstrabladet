@@ -2,7 +2,7 @@ import polars as pl
 from sklearn.feature_extraction.text import TfidfVectorizer
 from polimi.utils._catboost import _preprocessing
 from polimi.utils._catboost import _build_features_behaviors
-
+from polimi.utils._catboost import get_unique_categories
 
 '''
 In this preprocessing version, differently from the starting one (68 features), there are 25 new features belonging
@@ -39,10 +39,14 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
         behaviors, history, articles, test, sample, npratio
     )
+    
+    unique_categories = get_unique_categories(articles)
+
 
     for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
         slice_features = sliced_df.pipe(_build_features_behaviors, history=history, articles=articles,
-                                        cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities)
+                                        cols_explode=cols_explode, rename_columns=rename_cols,
+                                        unique_entities=unique_entities, unique_categories=unique_categories)
         yield slice_features, vectorizer, unique_entities
 
 
@@ -90,7 +94,10 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         behaviors, history, articles, test, sample, npratio
     )
 
+    unique_categories = get_unique_categories(articles)
+
     df_features = behaviors.pipe(_build_features_behaviors, history=history, articles=articles,
-                                 cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities)
+                                 cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities,
+                                 unique_categories=unique_categories)
 
     return df_features, vectorizer, unique_entities
