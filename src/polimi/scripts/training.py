@@ -26,7 +26,7 @@ def save_feature_importances_plot(X, y, model, output_dir, categorical_columns):
     plt.xlabel('Feature Importance')
     plt.ylabel('Feature Name')
     plt.title('Catboost Feature Importances')
-    plt.savefig(output_path)
+    plt.savefig(output_path, bbox_inches='tight')
     plt.close()
 
 
@@ -39,7 +39,7 @@ def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity):
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id', 'article_id'])
+    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
 
     X = train_ds.drop(columns=['target'])

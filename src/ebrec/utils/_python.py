@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing_extensions import Iterable, List, Dict, Tuple
 from pathlib import Path
 import polars as pl
 import numpy as np
@@ -17,18 +17,18 @@ def read_json_file(file_path: str) -> dict:
         return json.load(file)
 
 
-def write_json_file(dictionary: dict, path: str) -> None:
+def write_json_file(dictionary: Dict, path: str) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as file:
         json.dump(dictionary, file)
 
 
-def read_yaml_file(path: str) -> dict:
+def read_yaml_file(path: str) -> Dict:
     with open(path, "r") as file:
         return yaml.safe_load(file)
 
 
-def write_yaml_file(dictionary: dict, path: str) -> None:
+def write_yaml_file(dictionary: Dict, path: str) -> None:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as file:
         yaml.dump(dictionary, file, default_flow_style=False)
@@ -36,7 +36,7 @@ def write_yaml_file(dictionary: dict, path: str) -> None:
 
 def rank_predictions_by_score(
     arr: Iterable[float],
-) -> list[np.ndarray]:
+) -> List[np.ndarray]:
     """
     Converts the prediction scores based on their ranking (1 for highest score,
     2 for second highest, etc.), effectively ranking prediction scores for each row.
@@ -78,14 +78,14 @@ def write_submission_file(
     """
     path = Path(path)
     with open(path, "w") as f:
-        for impr_index, preds in tqdm(zip(impression_ids, prediction_scores)):
+        for impr_index, preds in tqdm.tqdm(zip(impression_ids, prediction_scores)):
             preds = "[" + ",".join([str(i) for i in preds]) + "]"
             f.write(" ".join([str(impr_index), preds]) + "\n")
     # =>
     zip_submission_file(path=path, rm_file=rm_file)
 
 
-def read_submission_file(path: Path) -> tuple[int, any]:
+def read_submission_file(path: Path) -> Tuple[int, any]:
     """
     >>> impression_ids = [237, 291, 320]
     >>> prediction_scores = [[0.2, 0.1, 0.3], [0.1, 0.2], [0.4, 0.2, 0.1, 0.3]]
@@ -137,7 +137,7 @@ def zip_submission_file(
         path.unlink()
 
 
-def parse_line(l) -> tuple[str, list[float]]:
+def parse_line(l) -> Tuple[str, List[float]]:
     """
     Parses a single line of text into an identifier and a list of ranks.
     """
@@ -201,7 +201,7 @@ def df_shape_time_it(enable=True):
     return decorator
 
 
-def generate_unique_name(existing_names: list[str], base_name: str = "new_name"):
+def generate_unique_name(existing_names: List[str], base_name: str = "new_name"):
     """
     Generate a unique name based on a list of existing names.
 
@@ -260,7 +260,7 @@ def str_datetime_now():
     return datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
 
-def get_object_variables(object_: object) -> dict:
+def get_object_variables(object_: object) -> Dict:
     """
     Example:
     >>> class example:
@@ -301,7 +301,7 @@ def batch_items_generator(items: Iterable[any], batch_size: int):
         yield items[i : i + batch_size]
 
 
-def unnest_dictionary(dictionary, parent_key="") -> dict:
+def unnest_dictionary(dictionary, parent_key="") -> Dict:
     """
     Unnests a dictionary by adding the key to the nested names.
 
@@ -377,7 +377,7 @@ def repeat_by_list_values_from_matrix(
     return np.repeat(matrix[input_array], repeats=repeats, axis=0)
 
 
-def create_lookup_dict(df: pl.DataFrame, key: str, value: str) -> dict:
+def create_lookup_dict(df: pl.DataFrame, key: str, value: str) -> Dict:
     """
     Creates a dictionary lookup table from a Pandas-like DataFrame.
 
@@ -399,8 +399,8 @@ def create_lookup_dict(df: pl.DataFrame, key: str, value: str) -> dict:
 
 
 def make_lookup_objects(
-    lookup_dictionary: dict[int, np.array], unknown_representation: str
-) -> tuple[dict[int, pl.Series], np.array]:
+    lookup_dictionary: Dict[int, np.array], unknown_representation: str
+) -> Tuple[Dict[int, pl.Series], np.array]:
     """Creates lookup objects for efficient data retrieval.
 
     This function generates a dictionary of indexes and a matrix from the given lookup dictionary.

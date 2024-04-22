@@ -1,4 +1,4 @@
-from typing import Iterable, Callable
+from typing_extensions import Iterable, Callable, Dict
 
 from sklearn.metrics.pairwise import cosine_distances
 from itertools import combinations, chain
@@ -54,11 +54,11 @@ class IntralistDiversity:
 
     def __call__(
         self,
-        R: np.ndarray[np.ndarray[str]],
-        lookup_dict: dict[str, dict[str, any]],
+        R: np.ndarray,
+        lookup_dict: Dict[str, Dict[str, any]],
         lookup_key: str,
         pairwise_distance_function: Callable = cosine_distances,
-    ) -> np.ndarray[float]:
+    ) -> np.ndarray:
         """
         Calculates the diversity score for each subset of recommendations in `R` using the provided `lookup_dict`
         to find the document vectors and a `pairwise_distance_function` to calculate the diversity. The diversity is
@@ -97,9 +97,9 @@ class IntralistDiversity:
 
     def _candidate_diversity(
         self,
-        R: np.ndarray[str],
+        R: np.ndarray,
         n_recommendations: int,
-        lookup_dict: dict[str, dict[str, any]],
+        lookup_dict: Dict[str, Dict[str, any]],
         lookup_key: str,
         pairwise_distance_function: Callable = cosine_distances,
         max_number_combinations: int = 20000,
@@ -178,10 +178,10 @@ class Distribution:
 
     def __call__(
         self,
-        R: np.ndarray[np.ndarray[str]],
-        lookup_dict: dict[str, dict[str, any]],
+        R: np.ndarray,
+        lookup_dict: Dict[str, Dict[str, any]],
         lookup_key: str,
-    ) -> dict[str, float]:
+    ) -> Dict[str, float]:
         """
         Args:
             R (np.ndarray[np.ndarray[str]]): A 2D numpy array of item IDs, where each sub-array represents a
@@ -237,8 +237,8 @@ class Coverage:
 
     def __call__(
         self,
-        R: np.ndarray[np.ndarray[any]],
-        C: np.ndarray[any] = [],
+        R: np.ndarray,
+        C: np.ndarray = [],
     ):
         coverage_c = coverage_count(R)
         coverage_f = coverage_fraction(R, C) if len(C) > 0 else -np.inf
@@ -279,9 +279,9 @@ class Serendipity:
 
     def __call__(
         self,
-        R: Iterable[np.ndarray[str]],
-        H: Iterable[np.ndarray[str]],
-        lookup_dict: dict[str, any],
+        R: Iterable[np.ndarray],
+        H: Iterable[np.ndarray],
+        lookup_dict: Dict[str, any],
         lookup_key: str,
         pairwise_distance_function: Callable = cosine_distances,
     ):
@@ -368,8 +368,8 @@ class Novelty:
 
     def __call__(
         self,
-        R: np.ndarray[np.ndarray[str]],
-        lookup_dict: dict[str, any],
+        R: np.ndarray,
+        lookup_dict: Dict[str, any],
         lookup_key: str,
     ):
         """
@@ -396,9 +396,9 @@ class Novelty:
 
     def _candidate_novelty(
         self,
-        R: np.ndarray[str],
+        R: np.ndarray,
         n_recommendations: int,
-        lookup_dict: dict[str, dict[str, any]],
+        lookup_dict: Dict[str, Dict[str, any]],
         lookup_key: str,
     ):
         """

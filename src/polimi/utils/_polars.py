@@ -6,13 +6,12 @@ import gc
 
 
 def reduce_polars_df_memory_size(df: pl.DataFrame):
-
     start_mem = df.estimated_size('mb')
     print('Memory usage of dataframe is {:.2f} MB'.format(start_mem))
     
     for col in df.columns:
         col_type = df[col].dtype
-        
+        # Integer types
         if col_type in [pl.Int16, pl.Int32, pl.Int64]:
             c_min = df[col].fill_null(0).min()
             c_max = df[col].fill_null(0).max()
@@ -31,11 +30,31 @@ def reduce_polars_df_memory_size(df: pl.DataFrame):
                 df = df.with_columns(pl.col(col).cast(pl.UInt16))
             elif c_min > np.iinfo(np.uint32).min and c_max < np.iinfo(np.uint32).max:
                 df = df.with_columns(pl.col(col).cast(pl.UInt32))
+        # Float types
         elif col_type == pl.Float64:
             c_min = df[col].fill_null(0).min()
             c_max = df[col].fill_null(0).max()
             if c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
                 df = df.with_columns(pl.col(col).cast(pl.Float32))
+        # List types
+        elif col_type in [pl.List(pl.Int16), pl.List(pl.Int32), pl.List(pl.Int64)]:
+            c_min = df[col].list.min().min()
+            c_max = df[col].list.max().max()
+            if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+                df = df.with_columns(pl.col(col).cast(pl.List(pl.Int8)))
+            elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+                df = df.with_columns(pl.col(col).cast(pl.List(pl.Int16)))
+            elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+                df = df.with_columns(pl.col(col).cast(pl.List(pl.Int32)))
+        elif col_type in [pl.List(pl.UInt16), pl.List(pl.UInt32), pl.List(pl.UInt64)]:
+            c_min = df[col].list.min().min()
+            c_max = df[col].list.max().max()
+            if c_min > np.iinfo(np.uint8).min and c_max < np.iinfo(np.uint8).max:
+                df = df.with_columns(pl.col(col).cast(pl.List(pl.UInt8)))
+            elif c_min > np.iinfo(np.uint16).min and c_max < np.iinfo(np.uint16).max:
+                df = df.with_columns(pl.col(col).cast(pl.List(pl.UInt16)))
+            elif c_min > np.iinfo(np.uint32).min and c_max < np.iinfo(np.uint32).max:
+                df = df.with_columns(pl.col(col).cast(pl.List(pl.UInt32)))
 
     gc.collect()
     end_mem = df.estimated_size('mb')
@@ -235,3 +254,12 @@ def get_unique_list_exploded_feature_function(df: pl.DataFrame, index_feature: s
             .select(pl.col(f_name).list.unique()).explode(f_name)[f_name].to_list()
         return feature_values
     return get_feature
+
+def list_pct_matches_with_constant(a, value) -> pl.Expr:
+    '''
+    Returns an expression to count the percentage of matching element in a list with a constant value.
+    The polars function count_matches cannot be used since it wants only a single element, 
+    variable element from row to row.
+    '''
+    return pl.when(pl.col(a).list.len() == 0).then(0.0) \
+        .otherwise(pl.col(a).list.count_matches(value) / pl.col(a).list.len())

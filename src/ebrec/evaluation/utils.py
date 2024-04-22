@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import Iterable
+from typing_extensions import Iterable, List, Dict, Tuple
 import numpy as np
 
 
@@ -82,7 +82,7 @@ def scale_range(
 
 
 # utils for
-def compute_item_popularity_scores(R: Iterable[np.ndarray]) -> dict[str, float]:
+def compute_item_popularity_scores(R: Iterable[np.ndarray]) -> Dict[str, float]:
     """Compute popularity scores for items based on their occurrence in user interactions.
 
     This function calculates the popularity score of each item as the fraction of users who have interacted with that item.
@@ -121,10 +121,10 @@ def compute_item_popularity_scores(R: Iterable[np.ndarray]) -> dict[str, float]:
 
 
 def compute_normalized_distribution(
-    R: np.ndarray[str],
-    weights: np.ndarray[float] = None,
-    distribution: dict[str, float] = None,
-) -> dict[str, float]:
+    R: np.ndarray,
+    weights: np.ndarray = None,
+    distribution: Dict[str, float] = None,
+) -> Dict[str, float]:
     """
     Compute a normalized weigted distribution for a list of items that each can have a single representation assigned.
 
@@ -152,7 +152,7 @@ def compute_normalized_distribution(
     return distr
 
 
-def get_keys_in_dict(id_list: any, dictionary: dict) -> list[any]:
+def get_keys_in_dict(id_list: any, dictionary: Dict) -> List[any]:
     """
     Returns a list of IDs from id_list that are keys in the dictionary.
     Args:
@@ -169,7 +169,7 @@ def get_keys_in_dict(id_list: any, dictionary: dict) -> list[any]:
     return [id_ for id_ in id_list if id_ in dictionary]
 
 
-def check_key_in_all_nested_dicts(dictionary: dict, key: str) -> None:
+def check_key_in_all_nested_dicts(dictionary: Dict, key: str) -> None:
     """
     Checks if the given key is present in all nested dictionaries within the main dictionary.
     Raises a ValueError if the key is not found in any of the nested dictionaries.

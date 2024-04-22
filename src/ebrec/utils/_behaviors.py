@@ -1,4 +1,4 @@
-from typing import Any, Iterable
+from typing_extensions import Any, Iterable, List, Dict
 from pathlib import Path
 from tqdm import tqdm
 import warnings
@@ -836,7 +836,7 @@ def create_fixed_history_aggr_columns(
     df: pl.DataFrame,
     dt_cutoff: datetime,
     history_size: int = None,
-    columns: list[str] = [],
+    columns: List[str] = [],
     suffix: str = "_fixed",
     user_col: str = DEFAULT_USER_COL,
     item_col: str = DEFAULT_ARTICLE_ID_COL,
@@ -997,7 +997,7 @@ def create_fixed_history_aggr_columns(
 def add_session_id_and_next_items(
     df: pl.DataFrame,
     session_length: datetime.timedelta = datetime.timedelta(minutes=30),
-    shift_columns: list[str] = [],
+    shift_columns: List[str] = [],
     prefix: str = "next_",
     session_col: str = "session_id",
     user_col: str = DEFAULT_USER_COL,
