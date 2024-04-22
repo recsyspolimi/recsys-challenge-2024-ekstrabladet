@@ -3,10 +3,13 @@ from tqdm import tqdm
 from sklearn.feature_extraction.text import TfidfVectorizer
 from polimi.utils._catboost import _preprocessing
 from polimi.utils._catboost import _build_features_behaviors
+from polimi.utils._catboost import _preprocessing_history_trendiness_scores
 from polimi.utils._catboost import add_history_trendiness_scores_feature
+from polimi.utils._catboost import _preprocessing_mean_delay_features
 from polimi.utils._catboost import add_mean_delays_features
 from polimi.utils._topic_model import _compute_topic_model, add_topic_model_features
 from polimi.utils._polars import reduce_polars_df_memory_size
+
 '''
 New features:
     - trendiness scores for history
@@ -46,19 +49,32 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     print('Building Topic Model Representation')
     articles, topic_model_columns, n_components = _compute_topic_model(articles)
     print('Topic Model Representation done')
+
+    print("Building topics list")
+    topics = articles.select("topics").explode("topics").unique()
+    topics = [topic for topic in topics["topics"] if topic is not None]
+    print("Topics list built")
+
+    print("History trendiness scores preprocessing")
+    users_mean_trendiness_scores, topics_mean_trendiness_scores = _preprocessing_history_trendiness_scores(history=history, articles=articles)
+    print("History trendiness scores preprocessing done")
+
+    print("Mean delays preprocessing")
+    topic_mean_delays, user_mean_delays = _preprocessing_mean_delay_features(articles=articles,history=history)
+    print("Mean delays preprocessing done")
     
     for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
         slice_features = sliced_df.pipe(_build_features_behaviors, history=history, articles=articles,
                                         cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities)
         print('Adding history trendiness features')
         slice_features = pl.concat( 
-                        rows.pipe(add_history_trendiness_scores_feature, history=history, articles=articles)
+                        rows.pipe(add_history_trendiness_scores_feature, articles=articles, users_mean_trendiness_scores= users_mean_trendiness_scores, topics_mean_trendiness_scores= topics_mean_trendiness_scores, topics = topics)
                         for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0] // 20000))
         slice_features = reduce_polars_df_memory_size(slice_features)
         
         print('Adding mean delays features')
         slice_features = pl.concat( 
-                        rows.pipe(add_mean_delays_features, articles=articles, history=history)
+                        rows.pipe(add_mean_delays_features, articles=articles, topic_mean_delays=topic_mean_delays, user_mean_delays=user_mean_delays)
                         for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0] // 20000))
         slice_features = reduce_polars_df_memory_size(slice_features)
         
