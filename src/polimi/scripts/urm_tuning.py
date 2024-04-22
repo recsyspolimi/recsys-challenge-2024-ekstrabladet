@@ -27,7 +27,8 @@ from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCFRecommender import ItemKN
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKNNCFRecommender
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
-from RecSys_Course_AT_PoliMi.Recommenders.GraphBased import P3alphaRecommender, RP3betaRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
 from polimi.utils._custom import ALGORITHMS
 from polimi.utils._custom import load_sparse_csr, save_json
 
@@ -68,16 +69,16 @@ def get_params(trial: optuna.Trial, model: BaseRecommender):
         }
     elif model == P3alphaRecommender:
         params = {
-            "topK": trial.suggest_int("topK", 20, 100),
+            "topK": trial.suggest_int("topK", 5, 100),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
-            'alpha': trial.suggest_float("alpha", 0.05, 0.5),
+            'alpha': trial.suggest_float("alpha", 0, 2),
         }   
     elif model == RP3betaRecommender:
         params = {
             "topK": trial.suggest_int("topK", 20, 100),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
-            'alpha': trial.suggest_float("alpha", 0.05, 0.5),
-            'beta': trial.suggest_float("beta", 0.05, 0.5),
+            'alpha': trial.suggest_float("alpha", 0, 2),
+            'beta': trial.suggest_float("beta", 0, 2),
         }  
     else:
         raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
