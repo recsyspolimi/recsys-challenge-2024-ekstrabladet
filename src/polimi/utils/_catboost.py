@@ -605,14 +605,28 @@ def _preprocessing_history_trendiness_scores(history,articles):
     )
     
     
+    # topics_mean_trendiness_scores =pl.concat(
+    #     rows.select("article", "trendiness_score") \
+    #     .join(other=articles.select(["article_id", "topics"]), left_on="article", right_on="article_id", how="left") \
+    #     .explode("topics").group_by("topics").agg(
+    #     pl.col("trendiness_score").mean().alias("mean_topic_trendiness_score")
+    #     )
+    # for rows in tqdm(history_trendiness_scores.iter_slices(1000), total=history_trendiness_scores.shape[0] // 1000)
+    # )
+
     topics_mean_trendiness_scores =pl.concat(
         rows.select("article", "trendiness_score") \
         .join(other=articles.select(["article_id", "topics"]), left_on="article", right_on="article_id", how="left") \
         .explode("topics").group_by("topics").agg(
-        pl.col("trendiness_score").mean().alias("mean_topic_trendiness_score")
+        pl.col("trendiness_score").sum().alias("sum_topic_trendiness_score"),
+        pl.col("trendiness_score").count().alias("len")
         )
     for rows in tqdm(history_trendiness_scores.iter_slices(1000), total=history_trendiness_scores.shape[0] // 1000)
     )
+
+    topics_mean_trendiness_scores = topics_mean_trendiness_scores.group_by("topics").agg(
+        pl.col("sum_topic_trendiness_score").sum().truediv(pl.col("len").sum()).alias("mean_topic_trendiness_score")
+    ).drop(["sum_topic_trendiness_score","len"])
     
 
     return users_mean_trendiness_scores, topics_mean_trendiness_scores
