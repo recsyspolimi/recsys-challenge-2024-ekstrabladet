@@ -793,7 +793,8 @@ def add_other_rec_features(ds, history, algorithms, evaluate=False):
     return ds
 
 
-def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
+
+def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,topics) -> pl.DataFrame:
     """
     Given each impression with its timestamp, it assigns to it:
      - Its time_window, thanks to the is_inside_window_{index} features
@@ -814,8 +815,6 @@ def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articl
     # windows = [[5,10],[9,13],[12,15],[14,18],[17,20],[19,23],[22,6]]
     # windows= [[5,13],[12,19],[18,23],[22,6]]
     windows = [[5, 13], [12, 23], [22, 6]]
-    topics = articles.select("topics").explode("topics").unique()
-    topics = [topic for topic in topics["topics"] if topic is not None]
 
     user_windows = history.select(["user_id", "impression_time_fixed", "article_id_fixed"]).explode(['impression_time_fixed', 'article_id_fixed']) \
         .rename({'impression_time_fixed': 'impression_time'}) \
