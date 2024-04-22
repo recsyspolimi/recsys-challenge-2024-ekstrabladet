@@ -1,11 +1,12 @@
 import polars as pl
+from tqdm import tqdm
 from sklearn.feature_extraction.text import TfidfVectorizer
 from polimi.utils._catboost import _preprocessing
 from polimi.utils._catboost import _build_features_behaviors
 from polimi.utils._catboost import add_history_trendiness_scores_feature
 from polimi.utils._catboost import add_mean_delays_features
 from polimi.utils._topic_model import _compute_topic_model, add_topic_model_features
-
+from polimi.utils._polars import reduce_polars_df_memory_size
 '''
 New features:
     - trendiness scores for history
@@ -42,14 +43,28 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
         behaviors, history, articles, test, sample, npratio
     )
+    print('Building Topic Model Representation')
     articles, topic_model_columns, n_components = _compute_topic_model(articles)
+    print('Topic Model Representation done')
     
     for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
         slice_features = sliced_df.pipe(_build_features_behaviors, history=history, articles=articles,
-                                        cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities)\
-                                    .pipe(add_history_trendiness_scores_feature, history=history, articles=articles) \
-                                    .pipe(add_mean_delays_features, articles=articles, history=history)\
-                                    .pipe(add_topic_model_features, history=history, articles=articles,topic_model_columns=topic_model_columns,n_components=n_components)
+                                        cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities)
+        print('Adding history trendiness features')
+        slice_features = pl.concat( 
+                        rows.pipe(add_history_trendiness_scores_feature, history=history, articles=articles)
+                        for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0] // 20000))
+        slice_features = reduce_polars_df_memory_size(slice_features)
+        
+        print('Adding mean delays features')
+        slice_features = pl.concat( 
+                        rows.pipe(add_mean_delays_features, articles=articles, history=history)
+                        for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0] // 20000))
+        slice_features = reduce_polars_df_memory_size(slice_features)
+        
+        print('Adding topic model features')
+        slice_features = slice_features.pipe(add_topic_model_features, history=history, articles=articles,topic_model_columns=topic_model_columns,n_components=n_components)
+    
         yield slice_features, vectorizer, unique_entities
 
 
@@ -99,9 +114,14 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     articles, topic_model_columns, n_components = _compute_topic_model(articles)
     
     df_features = behaviors.pipe(_build_features_behaviors, history=history, articles=articles,
-                                 cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities)\
-                            .pipe(add_history_trendiness_scores_feature, history=history, articles=articles) \
-                            .pipe(add_mean_delays_features, articles=articles, history=history)\
-                            .pipe(add_topic_model_features, history=history, articles=articles,topic_model_columns=topic_model_columns,n_components=n_components)
-
+                                 cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities)
+    
+    print('Adding history trendiness and mean delay features')
+    df_features =  pl.concat( 
+                        rows.pipe(add_history_trendiness_scores_feature, history=history, articles=articles) \
+                            .pipe(add_mean_delays_features, articles=articles, history=history)
+                        for rows in tqdm(df_features.iter_slices(20000), total=df_features.shape[0] // 20000))
+    
+    df_features = df_features.pipe(add_topic_model_features, history=history, articles=articles,topic_model_columns=topic_model_columns,n_components=n_components)
+    
     return df_features, vectorizer, unique_entities

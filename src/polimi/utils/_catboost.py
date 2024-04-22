@@ -555,6 +555,7 @@ def add_mean_delays_features(df_features: pl.DataFrame, articles: pl.DataFrame, 
     Returns:
         pl.DataFrame: df_features enriched with the new features.
     """
+    
     topic_mean_delays = history.select(["impression_time_fixed", "article_id_fixed"]).explode(["impression_time_fixed", "article_id_fixed"]) \
         .join(other=articles.select(["article_id", "topics", "published_time"]), left_on="article_id_fixed", right_on="article_id", how="left") \
         .drop("article_id_fixed").with_columns(

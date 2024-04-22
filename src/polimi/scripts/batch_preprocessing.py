@@ -28,6 +28,7 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
 def main(input_path, output_dir, dataset_type='train',preprocessing_version='latest'):
+    logging.info(f"Preprocessing version: ----{preprocessing_version}----")
     logging.info("Starting to build the dataset")
     logging.info(f"Dataset path: {input_path}")
     
@@ -39,14 +40,15 @@ def main(input_path, output_dir, dataset_type='train',preprocessing_version='lat
     logging.info('Finished to build parquet files. Starting feature engineering')
     
     is_test_data = dataset_type == 'test'
-    sample = dataset_type == 'train'
+    #sample = dataset_type == 'train'
+    sample = False
     
     build_features_iterator = PREPROCESSING[preprocessing_version]
     
     dataset_complete = []
     i = 0
     for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
-                                                                        sample=sample, n_batches=8):
+                                                                        sample=sample, n_batches=100):
         dataset_complete.append(dataset)
         logging.info(f'Slice {i+1} preprocessed.')
         i += 1

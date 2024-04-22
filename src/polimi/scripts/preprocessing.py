@@ -43,7 +43,8 @@ def main(input_path, output_dir, dataset_type='train', preprocessing_version='la
         'Finished to build parquet files. Starting feature engineering')
 
     is_test_data = dataset_type == 'test'
-    sample = dataset_type == 'train'
+    #sample = dataset_type == 'train'
+    sample = False
 
     dataset, tf_idf_vectorizer, unique_entities = PREPROCESSING[preprocessing_version](
         behaviors, history, articles, test=is_test_data, sample=sample)
