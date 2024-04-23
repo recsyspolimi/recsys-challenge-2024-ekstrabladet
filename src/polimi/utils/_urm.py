@@ -22,6 +22,7 @@ def build_articles_with_processed_ner(articles: pl.DataFrame):
             .with_columns(pl.col('ner_clusters').list.drop_nulls())\
             .with_columns(pl.col('ner_clusters').list.unique())\
             .with_columns(pl.col('ner_clusters').list.sort())\
+            .filter(pl.col('ner_clusters').list.len() > 0)\
             .sort('article_id')\
             .set_sorted('article_id')
 

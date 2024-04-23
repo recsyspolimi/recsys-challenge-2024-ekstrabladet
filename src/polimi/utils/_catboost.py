@@ -787,7 +787,8 @@ def add_other_rec_features(ds, history, algorithms, evaluate=False):
     return ds
 
 
-def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
+
+def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,topics) -> pl.DataFrame:
     """
     Given each impression with its timestamp, it assigns to it:
      - Its time_window, thanks to the is_inside_window_{index} features
@@ -806,10 +807,8 @@ def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articl
     """
     # windows = [[5,8],[7,10],[9,12],[11,15],[14,18],[17,21],[20,23],[22,5]]
     # windows = [[5,10],[9,13],[12,15],[14,18],[17,20],[19,23],[22,6]]
-    # windows= [[5,13],[12,19],[18,23],[22,6]]
-    windows = [[5, 13], [12, 23], [22, 6]]
-    topics = articles.select("topics").explode("topics").unique()
-    topics = [topic for topic in topics["topics"] if topic is not None]
+    windows = [[5,13],[12,19],[18,23],[22,6]]
+    # windows = [[5, 13], [12, 23], [22, 6]]
 
     user_windows = history.select(["user_id", "impression_time_fixed", "article_id_fixed"]).explode(['impression_time_fixed', 'article_id_fixed']) \
         .rename({'impression_time_fixed': 'impression_time'}) \
@@ -866,7 +865,7 @@ def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articl
                     pl.col('impression_time').dt.time().ge(time(window[0])).or_(
                         pl.col('impression_time').dt.time().lt(time(window[1])))
                 ).cast(pl.Int8).alias(f'is_inside_window_{index}') for index, window in enumerate(windows)]
-        ).join(other=articles.select(['article_id', 'topics', 'category']), left_on='article', right_on='article_id', how='left')
+        ).join(other=articles.select(['article_id', 'topics']), left_on='article', right_on='article_id', how='left')
         .join(other=user_category_windows, on=['user_id', 'category'], how='left')
         .with_columns(
             pl.max_horizontal([pl.col(f'window_{index}_score').mul(pl.col(
@@ -876,7 +875,6 @@ def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articl
                        "user_id", "score"]).first(),
             pl.col('score').sum().alias('window_category_score')
         ).drop([f'window_{index}_score'for index, window in enumerate(windows)])
-        .drop('category')
         .explode('topics')
         .join(other=user_topics_windows, on=['user_id', 'topics'], how='left')
         .with_columns(
@@ -923,25 +921,28 @@ def add_trendiness_feature_categories(df_features: pl.DataFrame, articles: pl.Da
             f'{category}_matches') for category in categories]
     )
 
-    return df_features.with_columns(
-        pl.col("impression_time").dt.date().alias("impression_date")
-    ).with_columns(
-        [pl.col("category").eq(category).cast(pl.Int8).alias(
-            f"{category}_present") for category in categories]
-    ).join(other=categories_popularity, left_on=pl.col("impression_date"), right_on=(pl.col("published_date")+pl.duration(days=1)), how="left") \
-        .with_columns(
-        [pl.col(f"{category}_present").mul(pl.col(f"{category}_matches")).alias(
-            f"trendiness_score_{category}") for category in categories]
-    ).with_columns(
-        pl.sum_horizontal([pl.col(f"trendiness_score_{category}") for category in categories]).alias(
-            "trendiness_score_category"),
-    ).drop(
-        [f"trendiness_score_{category}" for category in categories]
-    ).drop(
-        [f"{category}_matches" for category in categories]
-    ).drop(
-        [f"{category}_present" for category in categories]
-    ).drop("impression_date")
+    return pl.concat(
+        rows.with_columns(
+            pl.col("impression_time").dt.date().alias("impression_date")
+        ).with_columns(
+            [pl.col("category").eq(category).cast(pl.Int8).alias(
+                f"{category}_present") for category in categories]
+        ).join(other=categories_popularity, left_on=pl.col("impression_date"), right_on=(pl.col("published_date")+pl.duration(days=1)), how="left") \
+            .with_columns(
+            [pl.col(f"{category}_present").mul(pl.col(f"{category}_matches")).alias(
+                f"trendiness_score_{category}") for category in categories]
+        ).with_columns(
+            pl.sum_horizontal([pl.col(f"trendiness_score_{category}") for category in categories]).alias(
+                "trendiness_score_category"),
+        ).drop(
+            [f"trendiness_score_{category}" for category in categories]
+        ).drop(
+            [f"{category}_matches" for category in categories]
+        ).drop(
+            [f"{category}_present" for category in categories]
+        ).drop("impression_date")
+        for rows in tqdm(df_features.iter_slices(1000), total=df_features.shape[0] // 1000)
+    )
 
 
 def _build_last_n_topics_tf_idf(history, articles, vectorizer, last_n=5) -> pl.DataFrame:
