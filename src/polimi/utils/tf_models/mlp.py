@@ -4,7 +4,7 @@ import tensorflow.keras.layers as tfkl
 from base_model import TabularNNModel
 
 
-class WideDeepNetwork(TabularNNModel):
+class MLP(TabularNNModel):
     
     def __init__(
         self, 
@@ -28,11 +28,11 @@ class WideDeepNetwork(TabularNNModel):
         activation: str = 'relu',
         **kwargs
     ):
-        super(WideDeepNetwork, self).__init__(categorical_features=categorical_features, numerical_features=numerical_features,
-                                              categorical_transform=categorical_transform, categories=categories,
-                                              numerical_transform=numerical_transform, use_gaussian_noise=use_gaussian_noise,
-                                              gaussian_noise_std=gaussian_noise_std, max_categorical_embedding_dim=max_categorical_embedding_dim,
-                                              verbose=verbose, model_name=model_name, random_seed=random_seed, **kwargs)
+        super(MLP, self).__init__(categorical_features=categorical_features, numerical_features=numerical_features,
+                                  categorical_transform=categorical_transform, categories=categories,
+                                  numerical_transform=numerical_transform, use_gaussian_noise=use_gaussian_noise,
+                                  gaussian_noise_std=gaussian_noise_std, max_categorical_embedding_dim=max_categorical_embedding_dim,
+                                  verbose=verbose, model_name=model_name, random_seed=random_seed, **kwargs)
         self.n_layers = n_layers
         self.start_units = start_units
         self.units_decay = units_decay
