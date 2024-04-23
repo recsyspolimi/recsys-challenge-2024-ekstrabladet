@@ -7,7 +7,6 @@ python ~/RecSysChallenge2024/src/polimi/scripts/create_urm.py \
 
 wait 10
 
-
 python ~/RecSysChallenge2024/src/polimi/scripts/create_urm.py \
     -output_dir /mnt/ebs_volume/recsys2024/urm \
     -dataset_type large \
@@ -25,4 +24,3 @@ python ~/RecSysChallenge2024/src/polimi/scripts/create_urm.py \
     -urm_type ner
 
 wait 10
-

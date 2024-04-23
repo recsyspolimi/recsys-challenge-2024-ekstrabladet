@@ -14,14 +14,8 @@ import optuna
 import polars as pl
 import scipy.sparse as sps
 
-import sys
-
-
-
-sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
-
 from ebrec.evaluation.metrics_protocols import *
-from RecSys_Course_AT_PoliMi.Recommenders.SLIM.SLIMElasticNetRecommender import SLIMElasticNetRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.SLIM.SLIMElasticNetRecommender import SLIMElasticNetRecommender, MultiThreadSLIM_SLIMElasticNetRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCFRecommender import ItemKNNCFRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
@@ -30,59 +24,9 @@ from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
 from polimi.utils._custom import ALGORITHMS
-from polimi.utils._custom import load_sparse_csr, save_json
+from polimi.utils._custom import load_sparse_csr, save_json, get_algo_params
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
-
-
-def get_params(trial: optuna.Trial, model: BaseRecommender):
-    if model in [ItemKNNCFRecommender, UserKNNCFRecommender]:
-        params = {
-            "similarity": trial.suggest_categorical("similarity", ['cosine', 'dice', 'jaccard', 'asymmetric', 'tversky', 'euclidean']),
-            "topK": trial.suggest_int("topK", 5, 1000),
-            "shrink": trial.suggest_int("shrink", 0, 1000),
-        }
-        if params['similarity'] == "asymmetric":
-            params["asymmetric_alpha"] = trial.suggest_float("asymmetric_alpha", 0, 2, log=False)
-            params["normalize"] = True     
-
-        elif params['similarity'] == "tversky":
-            params["tversky_alpha"] = trial.suggest_float("tversky_alpha", 0, 2, log=False)
-            params["tversky_beta"] = trial.suggest_float("tversky_beta", 0, 2, log=False)
-            params["normalize"] = True 
-
-        elif params['similarity'] == "euclidean":
-            params["normalize_avg_row"] = trial.suggest_categorical("normalize_avg_row", [True, False])
-            params["similarity_from_distance_mode"] = trial.suggest_categorical("similarity_from_distance_mode", ["lin", "log", "exp"])
-            params["normalize"] = trial.suggest_categorical("normalize", [True, False])
-        
-    elif model == SLIMElasticNetRecommender:
-        params = {
-            "alpha": trial.suggest_float("alpha", 1e-5, 1e-1, log=True),
-            "l1_ratio": trial.suggest_float("l1_ratio", 1e-5, 1e-1, log=True),
-            "positive_only": True,
-            "topK": trial.suggest_int("topK", 5, 100),
-        }
-    elif model == PureSVDRecommender:
-        params = {
-            "num_factors": trial.suggest_int("num_factors", 1, 100),
-        }
-    elif model == P3alphaRecommender:
-        params = {
-            "topK": trial.suggest_int("topK", 5, 100),
-            'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
-            'alpha': trial.suggest_float("alpha", 0, 2),
-        }   
-    elif model == RP3betaRecommender:
-        params = {
-            "topK": trial.suggest_int("topK", 20, 100),
-            'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
-            'alpha': trial.suggest_float("alpha", 0, 2),
-            'beta': trial.suggest_float("beta", 0, 2),
-        }  
-    else:
-        raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
-    return params
 
 def get_sampler_from_name(sampler_name: str):
     if sampler_name == 'RandomSampler':
@@ -103,7 +47,7 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
     evaluator = EvaluatorHoldout(URM_val, cutoff_list=[cutoff], exclude_seen=False)
 
     def objective_function(trial: optuna.Trial):
-        params = get_params(trial, model)
+        params = get_algo_params(trial, model)
         rec_instance = model(URM_train)
         rec_instance.fit(**params)
         result_df, _ = evaluator.evaluateRecommender(rec_instance)    
