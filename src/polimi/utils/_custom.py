@@ -110,29 +110,12 @@ def save_json(data: dict, file_path: Path):
         json.dump(data, file)
         
         
-ALGORITHMS = {
-    'RP3betaRecommender': [
-        RP3betaRecommender,
-    ],
-    'P3alphaRecommender': [
-        P3alphaRecommender,
-    ],
-    'ItemKNNCFRecommender': [
-        ItemKNNCFRecommender,
-    ],
-    'UserKNNCFRecommender': [
-        UserKNNCFRecommender,
-    ],
-    'PureSVDRecommender': [
-        PureSVDRecommender,
-    ],
-    'MultiThreadSLIM_SLIMElasticNetRecommender': [
-        MultiThreadSLIM_SLIMElasticNetRecommender
-    ],
-    'SLIMElasticNetRecommender': [
-        SLIMElasticNetRecommender
-    ]
-}
+ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
+      PureSVDRecommender, MultiThreadSLIM_SLIMElasticNetRecommender, SLIMElasticNetRecommender, 
+      MatrixFactorization_AsySVD_Cython, MatrixFactorization_BPR_Cython, MultVAERecommender]
+
+ALGORITHMS = {algo.RECOMMENDER_NAME: [algo] for algo in ALGORITHMS_LIST}
+
         
 def get_algo_params(trial: optuna.Trial, model: BaseRecommender):
     if model in [ItemKNNCFRecommender, UserKNNCFRecommender]:

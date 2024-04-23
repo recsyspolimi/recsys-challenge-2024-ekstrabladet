@@ -32,7 +32,7 @@ def get_sampler_from_name(sampler_name: str):
     if sampler_name == 'RandomSampler':
         return optuna.samplers.RandomSampler()
     elif sampler_name == 'TPESampler':
-        return optuna.samplers.TPESampler()
+        return optuna.samplers.TPESampler(constant_liar=True)
     else:
         raise ValueError(f"Sampler {sampler_name} not recognized")
 
@@ -41,7 +41,7 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
                         model_name: str, metric: str, 
                         cutoff:int, study_name: str, 
                         n_trials: int, storage: str, 
-                        sampler:str) -> Tuple[Dict, pd.DataFrame]:
+                        sampler:str, jobs:int) -> Tuple[Dict, pd.DataFrame]:
     
     model = ALGORITHMS[model_name][0]
     evaluator = EvaluatorHoldout(URM_val, cutoff_list=[cutoff], exclude_seen=False)
@@ -50,7 +50,7 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
         params = get_algo_params(trial, model)
         rec_instance = model(URM_train)
         rec_instance.fit(**params)
-        result_df, _ = evaluator.evaluateRecommender(rec_instance)    
+        result_df, _ = evaluator.evaluateRecommender(rec_instance)
         return result_df.loc[cutoff][metric.upper()]
 
     study = optuna.create_study(direction='maximize', 
@@ -58,14 +58,14 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
                                 storage=storage, 
                                 sampler=get_sampler_from_name(sampler),
                                 load_if_exists=True)
-    study.optimize(objective_function, n_trials=n_trials, n_jobs=-1)
+    study.optimize(objective_function, n_trials=n_trials, n_jobs=jobs)
     return study.best_params, study.trials_dataframe()
     
 
 def main(urm_folder: Path, output_dir: Path,
          model_name:str, study_name: str, 
          n_trials: int, storage: str,
-         sampler: str, metric: str):
+         sampler: str, metric: str, jobs: int):
     
     urm_train_path = urm_folder.joinpath('URM_train.npz')
     urm_val_path = urm_folder.joinpath('URM_validation.npz')    
@@ -74,14 +74,16 @@ def main(urm_folder: Path, output_dir: Path,
     
     URM_train = load_sparse_csr(urm_train_path, logger=logging)
     URM_val =  load_sparse_csr(urm_val_path, logger=logging)
-    best_params, trials_df = optimize_parameters(URM_train, URM_val,
+    best_params, trials_df = optimize_parameters(URM_train=URM_train,
+                                                 URM_val=URM_val,
                                                  model_name=model_name,
                                                  study_name=study_name, 
                                                  n_trials=n_trials, 
                                                  storage=storage,
                                                  cutoff=10,
                                                  metric=metric,
-                                                 sampler=sampler)
+                                                 sampler=sampler, 
+                                                 jobs=jobs)
     
     
     params_file_path = output_dir.joinpath(f'{study_name}_best_params.json')
@@ -111,6 +113,8 @@ if __name__ == '__main__':
                         help="Optuna sampler")
     parser.add_argument("-metric", choices=['NDCG', 'MAP'], default='NDCG', type=str, required=True,
                         help="Optimization metric")
+    parser.add_argument("-n_jobs", default=1, type=int, required=False,
+                        help="Optimization jobs")
     
     
     args = parser.parse_args()
@@ -122,9 +126,10 @@ if __name__ == '__main__':
     STUDY_NAME = args.study_name
     STORAGE = args.storage
     SAMPLER = args.sampler
+    JOBS = args.n_jobs
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    output_dir = OUTPUT_DIR.joinpath(f'urm_tuning_{MODEL_NAME}_{timestamp}')
+    output_dir = OUTPUT_DIR.joinpath(f'{STUDY_NAME}_{timestamp}')
     output_dir.mkdir(parents=True, exist_ok=True)
     
     log_path = output_dir.joinpath('log.txt')    
@@ -140,4 +145,5 @@ if __name__ == '__main__':
          model_name=MODEL_NAME, study_name=STUDY_NAME, 
          n_trials=N_TRIALS, storage=STORAGE,
          metric=METRIC,
-         sampler=SAMPLER)
+         sampler=SAMPLER, 
+         jobs=JOBS)
