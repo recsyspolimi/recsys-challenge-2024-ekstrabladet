@@ -12,7 +12,7 @@ from polimi.utils._catboost import reduce_polars_df_memory_size
 """
 Utils for building URM tables.
 """ 
-BATCH_SIZE=100000
+BATCH_SIZE=70000
 def build_articles_with_processed_ner(articles: pl.DataFrame):        
         return articles.select('article_id', 'ner_clusters')\
             .with_columns(pl.col('ner_clusters').list.eval(pl.element().str.strip_chars_start('\"')))\
