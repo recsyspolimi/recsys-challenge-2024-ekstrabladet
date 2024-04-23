@@ -51,4 +51,5 @@ dependencies = [
     "optuna-dashboard==0.15.1",
     "jupyter",
     "ipywidgets",
+    "tensorflow>=2.15.0",
 ]
