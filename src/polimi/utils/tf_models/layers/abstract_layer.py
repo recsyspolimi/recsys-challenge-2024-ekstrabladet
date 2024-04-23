@@ -4,9 +4,29 @@ import tensorflow.keras.layers as tfkl
 from .entmax15 import entmax15
 
 
+
+
 #@tf.keras.saving.register_keras_serializable(package="MyLayers", name="AbstractLayer")
 class AbstractLayer(tfkl.Layer):
-    def __init__(self, k, d, kernel_regularizer=None, use_bias=True, **kwargs):
+    '''
+    Abstract Layer implementation for DANet (https://arxiv.org/abs/2112.02962), inspired by pytorch-tabular implementation.
+    '''
+    
+    def __init__(
+        self, 
+        k: int, 
+        d: int, 
+        kernel_regularizer: tf.keras.regularizers.Regularizer = None, 
+        use_bias: bool = True, 
+        **kwargs
+    ):
+        '''
+        Args:
+            k (int): the number of feature abstractions
+            d (int): the output feature dimension
+            use_bias (bool): if True, uses the bias in the fully convolutional layer
+            kernel_regularizer (tf.keras.regularizers.Regularizer): the regularizer for the weights of the layer
+        '''
         super(AbstractLayer, self).__init__(**kwargs)
         self.k = k
         self.d = d

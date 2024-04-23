@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow.keras as tfk
 import tensorflow.keras.layers as tfkl
 import os
-from typing_extensions import Union, Tuple
+from typing_extensions import Union, Tuple, List
 import pandas as pd
 from sklearn.preprocessing import (
     QuantileTransformer,
@@ -20,16 +20,19 @@ import optuna
 
 
 class TabularNNModel(ABC):
+    '''
+    The base class for each tabular neural network model.
+    '''
     
     CATEGORICAL_TRANSFORMS = ['embeddings', 'one-hot-encoding', 'target-encoding']
     NUMERICAL_TRANSOFORMS = [None, 'min-max', 'standard', 'quantile-normal', 'quantile-normal', 'max-abs', 'box-cox', 'yeo-johnson']
     
     def __init__(
         self, 
-        categorical_features: list[str] = None,
-        numerical_features: list[str] = None,
+        categorical_features: List[str] = None,
+        numerical_features: List[str] = None,
         categorical_transform: str = 'embeddings',
-        categories: list[list[str]] = None,
+        categories: List[List[str]] = None,
         numerical_transform: str = 'quantile-normal',
         use_gaussian_noise: bool = False,
         gaussian_noise_std: float = 0.01,
@@ -39,6 +42,23 @@ class TabularNNModel(ABC):
         random_seed: int = 42, 
         **kwargs
     ):
+        '''
+        Args:
+            categorical_features (List[str]): the list of categorical features
+            numerical_features (List[str]): the list of numerical features
+            categorical_transform (str): the type of categorical encoder, can be one-hot-encoding, target-encoding
+                or embeddings (in this case the categorical variables will go through a learnable embedding layer)
+            categories (List[List[str]]): a list containing the categories for each categorical feature
+            numerical_transform (str): the type of numerical preprocessing. Can be any between: "yeo-johnson", "standard", 
+                "quantile-normal", "quantile-normal", "max-abs", "box-cox", "yeo-johnson". If None, no preprocessing is done
+            use_gaussian_noise (bool): if True, applies a gaussian noise to the input
+            gaussian_noise_std (float): the standard deviation of the gaussian noise
+            max_categorical_embedding_dim (int): the maximum size of a categorical embedding. The actual size will be
+                computed as min(max_categorical_embedding_dim, (vocabulary_size + 1) // 2) for each category separately
+            verbose (bool)
+            model_name (str)
+            random_seed (int)
+        '''
         super(TabularNNModel, self).__init__(verbose=verbose, **kwargs)
         
         if numerical_transform not in self.NUMERICAL_TRANSOFORMS:

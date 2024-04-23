@@ -7,6 +7,9 @@ from optuna import Trial
 
 
 class DeepAbstractNetwork(TabularNNModel):
+    '''
+    https://arxiv.org/abs/2112.02962
+    '''
     
     def __init__(
         self, 

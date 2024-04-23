@@ -6,6 +6,12 @@ from base_model import TabularNNModel
 
 
 class DeepCrossNetwork(TabularNNModel):
+    '''
+    Deep and Cross (DCN) combines a MLP (the Deep part) and a feature interaction branch (the Cross part). The Cross brach
+    models high order interactions between the features, similarly to what a factorization machine does.
+    Original paper: https://arxiv.org/abs/1708.05123
+    Here, a variant of the Cross branch is implemented (DCNv2): https://arxiv.org/abs/2008.13535
+    '''
     
     def __init__(
         self, 
@@ -29,6 +35,16 @@ class DeepCrossNetwork(TabularNNModel):
         activation: str = 'relu',
         **kwargs
     ):
+        '''
+        Args:
+            n_layers (int): the number of both deep and cross layers
+            start_units (int): the number of hidden units in the first deep layer
+            units_decay (int): the decay to decrease the number of hidden units at each deep layer
+            dropout_rate (float): the dropout rate
+            l1_lambda (float): l1 regularization coefficient
+            l2_lambda (float): l2 regularization coefficient
+            activation (str): the activation function of the hidden layers in the deep part
+        '''
         super(DeepCrossNetwork, self).__init__(categorical_features=categorical_features, numerical_features=numerical_features,
                                                categorical_transform=categorical_transform, categories=categories,
                                                numerical_transform=numerical_transform, use_gaussian_noise=use_gaussian_noise,

@@ -6,6 +6,11 @@ from optuna import Trial
 
 
 class WideDeepNetwork(TabularNNModel):
+    '''
+    Wide and Deep combines a linear model (the Wide part) and a MLP (the Deep part). 
+    The two branches are concatenated before the last layer of the model.
+    https://arxiv.org/abs/1606.07792
+    '''
     
     def __init__(
         self, 
@@ -29,6 +34,16 @@ class WideDeepNetwork(TabularNNModel):
         activation: str = 'relu',
         **kwargs
     ):
+        '''
+        Args:
+            n_layers (int): the number of deep layers
+            start_units (int): the number of hidden units in the first deep layer
+            units_decay (int): the decay to decrease the number of hidden units at each layer
+            dropout_rate (float): the dropout rate
+            l1_lambda (float): l1 regularization coefficient
+            l2_lambda (float): l2 regularization coefficient
+            activation (str): the activation function of the hidden layers
+        '''
         super(WideDeepNetwork, self).__init__(categorical_features=categorical_features, numerical_features=numerical_features,
                                               categorical_transform=categorical_transform, categories=categories,
                                               numerical_transform=numerical_transform, use_gaussian_noise=use_gaussian_noise,
