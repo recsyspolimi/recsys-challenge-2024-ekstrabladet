@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow.keras as tfk
 import tensorflow.keras.layers as tfkl
 from base_model import TabularNNModel
+from optuna import Trial
 
 
 class WideDeepNetwork(TabularNNModel):
@@ -67,3 +68,16 @@ class WideDeepNetwork(TabularNNModel):
             activation='sigmoid'
         )(merged)
         self.model = tfk.Model(inputs=inputs, outputs=outputs)
+        
+    @classmethod
+    def get_optuna_trial(cls, trial: Trial):
+        params = {
+            'n_layers': trial.suggest_int('n_layers', 1, 6),
+            'start_units': trial.suggest_int('start_units', 64, 1024, log=True),
+            'units_decay': trial.suggest_categorical('units_decay', [1, 1.5, 2, 2.5, 3, 3.5, 4]),
+            'dropout_rate': trial.suggest_float('dropout_rate', 0.01, 0.4),
+            'l1_lambda': trial.suggest_float('l1_lambda', 1e-5, 1e-2, log=True),
+            'l2_lambda': trial.suggest_float('l2_lambda', 1e-5, 1e-2, log=True),
+            'activation': trial.suggest_categorical('activation', ['relu', 'sigmoid', 'tanh', 'swish'])
+        }
+        return params

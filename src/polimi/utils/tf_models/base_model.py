@@ -16,6 +16,7 @@ from sklearn.preprocessing import (
 )
 from abc import ABC, abstractmethod
 import joblib
+import optuna
 
 
 class TabularNNModel(ABC):
@@ -164,6 +165,11 @@ class TabularNNModel(ABC):
     @abstractmethod
     def build(self):
         raise NotImplementedError('Method build not implemented')
+    
+    @abstractmethod
+    @classmethod
+    def get_optuna_trial(cls, trial: optuna.Trial):
+        raise NotImplementedError('Method get_optuna_trial not implemented')   
         
     def _transform_test_data(self, X: pd.DataFrame):
         inputs = []
