@@ -7,8 +7,11 @@ from polimi.utils._catboost import _preprocessing_history_trendiness_scores
 from polimi.utils._catboost import add_history_trendiness_scores_feature
 from polimi.utils._catboost import _preprocessing_mean_delay_features
 from polimi.utils._catboost import add_mean_delays_features
+from polimi.utils._catboost import _preprocessing_window_features
 from polimi.utils._catboost import add_window_features
 from polimi.utils._catboost import add_trendiness_feature_categories
+from polimi.utils._catboost import _preprocessing_article_endorsement_feature
+from polimi.utils._catboost import add_article_endorsement_feature
 from polimi.utils._topic_model import _compute_topic_model, add_topic_model_features
 from polimi.utils._polars import reduce_polars_df_memory_size
 
@@ -65,13 +68,14 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     topic_mean_delays, user_mean_delays = _preprocessing_mean_delay_features(articles=articles,history=history)
     print("Mean delays preprocessing done")
 
-    print("Adding window features")
-    behaviors = add_window_features(df_features=behaviors, history=history,articles=articles, topics=topics)
-    print("Window features done")
+    print("Preprocessing window features")
+    windows, user_windows, user_topics_windows, user_category_windows = add_window_features(df_features=behaviors, history=history,articles=articles, topics=topics)
+    print("preprocessing window features done")
 
-    print("Adding category trendiness score feature")
-    behaviors = add_trendiness_feature_categories(df_features=behaviors, articles=articles)
-    print("Category trendiness feature done")
+    print("Computing articles endorsement")
+    articles_endorsement = _preprocessing_article_endorsement_feature(behaviors=behaviors, period="10h")
+    print("Articles endorsement computed")
+
 
     
     for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
@@ -87,6 +91,24 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         slice_features = pl.concat( 
                         rows.pipe(add_mean_delays_features, articles=articles, topic_mean_delays=topic_mean_delays, user_mean_delays=user_mean_delays)
                         for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0] // 20000))
+        slice_features = reduce_polars_df_memory_size(slice_features)
+
+        print("Adding window features")
+        slice_features = pl.concat(
+                        rows.pipe(add_window_features(articles=articles, user_windows=user_windows,user_category_windows=user_category_windows,user_topics_windows=user_topics_windows,windows=windows))
+                        for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0]//20000))
+        slice_features = reduce_polars_df_memory_size(slice_features)
+
+        print("Adding category trendiness features")
+        slice_features = pl.concat(
+                        rows.pipe(add_trendiness_feature_categories(articles=articles))
+                        for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0]//20000))
+        slice_features = reduce_polars_df_memory_size(slice_features)
+
+        print("Adding endorsement feature")
+        slice_features = pl.concat(
+                        rows.pipe(add_article_endorsement_feature(articles_endorsement=articles_endorsement))
+                        for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0]//20000))
         slice_features = reduce_polars_df_memory_size(slice_features)
         
         print('Adding topic model features')
