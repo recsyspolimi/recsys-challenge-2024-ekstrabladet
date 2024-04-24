@@ -101,3 +101,17 @@ def build_ner_urm(history: pl.DataFrame,
         
     ner_interactions = _build_batch_ner_interactions(history, articles, user_id_mapping, ner_mapping, articles_id_col, batch_size=batch_size)
     return _build_implicit_urm(ner_interactions, 'user_index', 'ner_index', user_id_mapping, ner_mapping)
+
+
+
+
+
+
+def build_recsys_urm(history: pl.Dataframe,
+                     user_id_mapping: pl.DataFrame,
+                     item_mapping: pl.DataFrame
+                    ):
+    interactions = reduce_polars_df_memory_size(history.select('user_id','article_id_fixed').explode('article_id_fixed').unique().join(user_id_mapping,on='user_id').join(item_mapping,left_on='article_id_fixed',right_on='article_id').unique(['user_index','item_index']).rename({'article_id_fixed':'article_id'}))
+    return sps.csr_matrix((np.ones(interactions.shape[0]),
+                          (interactions['user_index'].to_numpy(), interactions['item_index'].to_numpy())),
+                         shape=(user_id_mapping.shape[0], item_mapping.shape[0]))
