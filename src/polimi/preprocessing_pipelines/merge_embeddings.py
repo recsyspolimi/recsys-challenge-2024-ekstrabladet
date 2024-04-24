@@ -1,6 +1,7 @@
 import polars as pl
 
 from polimi.utils._polars import reduce_polars_df_memory_size
+from polimi.utils._embeddings import _add_normalized_features_emb
 
 def explode_ds(df):
     return df.select('impression_id','user_id','article_ids_inview').explode('article_ids_inview')\
@@ -8,8 +9,9 @@ def explode_ds(df):
 
 if __name__ == "__main__":
        
-    embeddings = ['emotions','w2v','contrastive','roberta',]
+    embeddings = ['emotions','w2v','contrastive','roberta','distil']
     datasets = ['train.parquet','validation.parquet','test.parquet']
+    types = ['train','validation','test']
     ds = []
     ds.append(pl.read_parquet('/home/ubuntu/dataset/ebnerd_large/train/behaviors.parquet'))
     ds.append(pl.read_parquet('/home/ubuntu/dataset/ebnerd_large/validation/behaviors.parquet'))
@@ -29,9 +31,10 @@ if __name__ == "__main__":
             print(path)
             merged = merged.join(pl.read_parquet(path), 
                                 on = ['impression_id','user_id','article'])
-            
-        print(merged.head())
+    
         merged = reduce_polars_df_memory_size(merged)
-        
-        assert merged.shape[0] == original.shape[0]
-        
+
+        assert merged.shape[0] == original.shape[0]        
+        merged = _add_normalized_features_emb(df = merged)
+        print(merged.head())
+        merged.write_parquet(f'~/tmp/{types[i]}_user_item_emb_dist.parquet')
