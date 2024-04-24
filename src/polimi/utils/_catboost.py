@@ -1052,21 +1052,19 @@ def add_article_endorsement_feature(df_features: pl.DataFrame, period: str = "10
 """
 
 def _preprocessing_article_endorsement_feature(behaviors,period):
+    
     df1 = behaviors.select(["impression_time","article_ids_inview"]) \
     .sort("impression_time").set_sorted("impression_time") \
-    .rolling(index_column="impression_time",period=period).agg(
-        pl.col("article_ids_inview").flatten()
+    .rolling(index_column="impression_time",period="10h").agg(
+        pl.col("article_ids_inview").flatten().value_counts()
     ).unique("impression_time")
     
-    articles_endorsement = pl.concat(
-        rows.explode("article_ids_inview") \
-        .group_by(["impression_time","article_ids_inview"]).len() \
-        .rename({"article_ids_inview":"article","len":f"endorsement_{period}"})
-        for rows in tqdm.tqdm(df1.iter_slices(100), total=df1.shape[0] // 100)
-    )
     
-    return articles_endorsement
-
+    return pl.concat(
+        rows.explode("article_ids_inview").unnest("article_ids_inview") \
+    .rename({"article_ids_inview":"article","count":f"endorsement_{period}"})
+    for rows in tqdm.tqdm(df1.iter_slices(10), total=df1.shape[0] // 10)
+    )
 
 def add_article_endorsement_feature(df_features, articles_endorsement):
     return df_features.join(other = articles_endorsement, on =["article","impression_time"],how="left")
