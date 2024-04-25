@@ -21,7 +21,7 @@ from polimi.preprocessing_pipelines.categorical_dict import get_categorical_colu
 PREPROCESSING = {
     '68f': build_features_68f,
     '94f': build_features_94f,
-    '121f': build_features_115f,
+    '115f': build_features_115f,
     'latest': build_features_115f
 }
 

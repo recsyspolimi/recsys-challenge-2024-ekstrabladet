@@ -153,14 +153,14 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender):
         params = {
             "topK": trial.suggest_int("topK", 20, 100),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
-            'alpha': trial.suggest_float("alpha", 0.05, 0.5),
+            'alpha': trial.suggest_float("alpha", 0, 2),
         }   
     elif model == RP3betaRecommender:
         params = {
             "topK": trial.suggest_int("topK", 20, 100),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
-            'alpha': trial.suggest_float("alpha", 0.05, 0.5),
-            'beta': trial.suggest_float("beta", 0.05, 0.5),
+            'alpha': trial.suggest_float("alpha", 0, 2),
+            'beta': trial.suggest_float("beta", 0, 2),
         }  
     elif model == MatrixFactorization_AsySVD_Cython:
         params = {

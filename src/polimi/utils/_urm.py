@@ -22,7 +22,6 @@ def build_articles_with_processed_ner(articles: pl.DataFrame):
             .with_columns(pl.col('ner_clusters').list.drop_nulls())\
             .with_columns(pl.col('ner_clusters').list.unique())\
             .with_columns(pl.col('ner_clusters').list.sort())\
-            .filter(pl.col('ner_clusters').list.len() > 0)\
             .sort('article_id')\
             .set_sorted('article_id')
 
@@ -67,7 +66,7 @@ def _build_batch_ner_interactions(df: pl.DataFrame,
                   batch_size=BATCH_SIZE):
     
     articles_ner_index = articles\
-        .with_columns(pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index']).cast(pl.UInt32)))
+        .with_columns(pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None).cast(pl.UInt32)).list.drop_nulls())
     
     df = df.select('user_id', articles_id_col)\
         .group_by('user_id')\
@@ -75,7 +74,7 @@ def _build_batch_ner_interactions(df: pl.DataFrame,
         
     df = pl.concat([
         slice.with_columns(
-            pl.col(articles_id_col).list.eval(pl.element().replace(articles_ner_index['article_id'], articles_ner_index['ner_clusters']).cast(pl.List(pl.UInt32)))\
+            pl.col(articles_id_col).list.eval(pl.element().replace(articles_ner_index['article_id'], articles_ner_index['ner_clusters'], default=None).cast(pl.List(pl.UInt32)))\
                 .list.eval(pl.element().flatten())\
                 .list.drop_nulls()\
                 .list.unique()\
@@ -101,3 +100,17 @@ def build_ner_urm(history: pl.DataFrame,
         
     ner_interactions = _build_batch_ner_interactions(history, articles, user_id_mapping, ner_mapping, articles_id_col, batch_size=batch_size)
     return _build_implicit_urm(ner_interactions, 'user_index', 'ner_index', user_id_mapping, ner_mapping)
+
+
+
+
+
+
+def build_recsys_urm(history: pl.DataFrame,
+                     user_id_mapping: pl.DataFrame,
+                     item_mapping: pl.DataFrame
+                    ):
+    interactions = reduce_polars_df_memory_size(history.select('user_id','article_id_fixed').explode('article_id_fixed').unique().join(user_id_mapping,on='user_id').join(item_mapping,left_on='article_id_fixed',right_on='article_id').unique(['user_index','item_index']).rename({'article_id_fixed':'article_id'}))
+    return sps.csr_matrix((np.ones(interactions.shape[0]),
+                          (interactions['user_index'].to_numpy(), interactions['item_index'].to_numpy())),
+                         shape=(user_id_mapping.shape[0], item_mapping.shape[0]))

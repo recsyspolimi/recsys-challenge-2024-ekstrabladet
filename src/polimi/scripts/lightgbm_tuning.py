@@ -17,7 +17,7 @@ import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
 from ebrec.evaluation.metrics_protocols import *
-
+from polimi.preprocessing_pipelines.pre_68f import strip_new_features
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -70,8 +70,12 @@ def load_datasets(train_dataset_path, validation_dataset_path):
     logging.info(f'Data info: {data_info}')
     
     train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
+    
+    # Delete cateegories percentage columns
+    train_ds = strip_new_features(train_ds)
+    train_ds = train_ds.drop(columns = 'impression_time')
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
-
+    
     X_train = train_ds.drop(columns=['target'])
     y_train = train_ds['target']
     
@@ -81,6 +85,9 @@ def load_datasets(train_dataset_path, validation_dataset_path):
     logging.info(f"Loading the validation dataset from {validation_dataset_path}")
     
     val_ds = pd.read_parquet(os.path.join(validation_dataset_path, 'validation_ds.parquet'))
+    
+    val_ds = strip_new_features(val_ds)
+    val_ds = val_ds.drop(columns = 'impression_time')
     val_ds[data_info['categorical_columns']] = val_ds[data_info['categorical_columns']].astype('category')
 
     X_val = val_ds[X_train.columns]
@@ -109,7 +116,7 @@ def main(train_dataset_path: str, validation_dataset_path: str, output_dir: str,
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Training script for catboost")
-    parser.add_argument("-output_dir", default="../../experiments/", type=str,
+    parser.add_argument("-output_dir", default="/home/ubuntu/experiments/", type=str,
                         help="The directory where the models will be placed")
     parser.add_argument("-training_dataset_path", default=None, type=str, required=True,
                         help="Parquet file where the training dataset is placed")
