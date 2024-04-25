@@ -4,8 +4,6 @@ import tensorflow.keras.layers as tfkl
 from .entmax15 import entmax15
 
 
-
-
 #@tf.keras.saving.register_keras_serializable(package="MyLayers", name="AbstractLayer")
 class AbstractLayer(tfkl.Layer):
     '''
