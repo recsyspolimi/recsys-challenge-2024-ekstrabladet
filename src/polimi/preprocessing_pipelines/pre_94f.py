@@ -15,7 +15,7 @@ CATEGORICAL_COLUMNS = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 
 
 def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                             test: bool = False, sample: bool = True, npratio: int = 2,
-                            tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10):
+                            tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10, previous_version = None):
     '''
     Generator function to build the features from blocks of the behaviors. It returns an iterable of slices of the 
     dataframe with the features. See build_features for a description of the features.
@@ -52,7 +52,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
 
 def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                    test: bool = False, sample: bool = True, npratio: int = 2,
-                   tf_idf_vectorizer: TfidfVectorizer = None) -> pl.DataFrame:
+                   tf_idf_vectorizer: TfidfVectorizer = None, previous_version = None) -> pl.DataFrame:
     '''
     Builds the training/evaluation features dataframe. Each row of the resulting dataframe will be an article
     in the article_ids_inview list (that will be exploded), if sampling is performed only some negative articles

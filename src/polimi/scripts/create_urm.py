@@ -41,14 +41,13 @@ def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, outp
         save_sparse_csr(output_file_path, URM_ner, logger=logging)
     
     if urm_type == 'recsys':
-        user_id_mapping_train = history_train.select('user_id').sort('user_id').unique().with_row_index().rename({'index': 'user_index'})
-        user_id_mapping_val = history_val.select('user_id').sort('user_id').unique().with_row_index().rename({'index': 'user_index'})
-        item_mapping = articles.select('article_id').sort('article_id').unique().with_row_index().rename({'index': 'item_index'})
+        user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
+        item_mapping = articles.select('article_id').unique().sort('article_id').with_row_index().rename({'index': 'item_index'})
         output_file_path = output_dir.joinpath(f'URM_{urm_split}')
         if urm_split == 'train':
-            URM_recsys = build_recsys_urm(history_train, user_id_mapping_train, item_mapping)
+            URM_recsys = build_recsys_urm(history_train, user_id_mapping, item_mapping)
         elif urm_split == 'validation':
-            URM_recsys = build_recsys_urm(history_val, user_id_mapping_val, item_mapping)
+            URM_recsys = build_recsys_urm(history_val, user_id_mapping, item_mapping)
         
         logging.info(f'Sparsity ratio of the URM: {compute_sparsity_ratio(URM_recsys)}')
         save_sparse_csr(output_file_path, URM_recsys, logger=logging)

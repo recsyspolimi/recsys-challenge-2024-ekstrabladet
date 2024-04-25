@@ -39,7 +39,6 @@ def _compute_topic_model(articles, n_components=5):
 
 def add_topic_model_features(df, history, articles, topic_model_columns, n_components):
     
-    print('Adding topic model features')
     prev_train_columns = [c for c in df.columns if c not in [
         'impression_id', 'article', 'impression_time']]
 

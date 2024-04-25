@@ -1,0 +1,24 @@
+HOW TO USE PREPROCESSING
+
+For preprocessing the dataset you could use:
+    - batch_preprocessing.py
+    - preprocessing.py
+
+parameters to pass are
+    -output_dir                 "The directory where the models will be placed"
+                                default="../../experiments/"
+                
+    -dataset_path               "Directory where the dataset is placed"
+
+    -dataset_type               "Specify the type of dataset: ['train', 'validation', 'test']"
+                                
+    -preprocessing_version      "Specifiy the preprocessing version to use. Default is 'latest' valuses are 
+                                ['68f', '94f', '115f','127f','latest']"
+
+    -previous_version           "Specify the path of a previous version of the dataset to use as a reference 
+                                for the new one. Default is None.
+                                YOU MUST GUARANTEE THE COMPATIBILITY BETWEEN VERSIONS."
+                            
+previous_version parameter is ignored when we use preprocessing.py script since it's expected behaviour is to compute
+the preprocessing from scratches. Up to now only 127f version implements previous_version behaviour and it requires a 
+dataset with the 94f version

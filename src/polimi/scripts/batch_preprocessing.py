@@ -29,7 +29,7 @@ PREPROCESSING = {
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
-def main(input_path, output_dir, dataset_type='train',preprocessing_version='latest'):
+def main(input_path, output_dir, dataset_type='train',preprocessing_version='latest',previous_version = None):
     logging.info(f"Preprocessing version: ----{preprocessing_version}----")
     logging.info("Starting to build the dataset")
     logging.info(f"Dataset path: {input_path}")
@@ -51,7 +51,7 @@ def main(input_path, output_dir, dataset_type='train',preprocessing_version='lat
     dataset_complete = []
     i = 0
     for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
-                                                                        sample=sample, n_batches=100):
+                                                                        sample=sample, n_batches=100 ,previous_version = previous_version):
         dataset.write_parquet(os.path.join(slices_dir, f'{dataset_type}_slice_{i}.parquet'))
         dataset_complete.append(dataset)
         logging.info(f'Slice {i+1} preprocessed.')
@@ -92,12 +92,15 @@ if __name__ == '__main__':
                         help="Specify the type of dataset: ['train', 'validation', 'test']")
     parser.add_argument("-preprocessing_version", choices=['68f', '94f', '115f','127f', 'latest'], default='latest', type=str,
                         help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','127f','latest']")
+    parser.add_argument("-previous_version", default = None, type=str,
+                        help="Specify the path of a previous version of the dataset to use as a reference for the new one. Default is None.\n YOU MUST GUARANTEE THE COMPATIBILITY BETWEEN VERSIONS. ")
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
     DATASET_DIR = args.dataset_path
     DATASET_TYPE = args.dataset_type
     PREPROCESSING_VERSION = args.preprocessing_version
+    PREVIOUS_VERSION = args.previous_version
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     experiment_name = f'preprocessing_{DATASET_TYPE}_{timestamp}'
@@ -114,4 +117,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION)
+    main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION, PREVIOUS_VERSION)
