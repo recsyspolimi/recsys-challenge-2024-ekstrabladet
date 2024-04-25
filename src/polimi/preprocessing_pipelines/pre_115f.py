@@ -70,7 +70,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
         slice_features = sliced_df.pipe(_build_features_behaviors, history=history, articles=articles,
                                         cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities,
-                                         unique_categories=unique_categories)
+                                        unique_categories=unique_categories)
         
         print('Adding history trendiness features')
         slice_features = pl.concat( 

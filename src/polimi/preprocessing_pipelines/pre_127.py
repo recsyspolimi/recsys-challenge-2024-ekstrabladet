@@ -109,11 +109,11 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
                         for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0]//20000))
         slice_features = reduce_polars_df_memory_size(slice_features)
         
-        # print("Adding endorsement feature")
-        # slice_features = pl.concat(
-        #                 rows.pipe(add_article_endorsement_feature(articles_endorsement=articles_endorsement))
-        #                 for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0]//20000))
-        # slice_features = reduce_polars_df_memory_size(slice_features)
+        print("Adding endorsement feature")
+        slice_features = pl.concat(
+                        rows.pipe(add_article_endorsement_feature, articles_endorsement=articles_endorsement)
+                        for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0]//20000))
+        slice_features = reduce_polars_df_memory_size(slice_features)
         
         print('Adding topic model features')
         slice_features = slice_features.pipe(add_topic_model_features, history=history, articles=articles,topic_model_columns=topic_model_columns,n_components=n_components)
