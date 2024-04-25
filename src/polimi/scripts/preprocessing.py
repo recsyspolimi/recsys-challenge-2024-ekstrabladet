@@ -15,6 +15,7 @@ sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 from polimi.preprocessing_pipelines.pre_115f import build_features as build_features_115f
 from polimi.preprocessing_pipelines.pre_94f import build_features as build_features_94f
 from polimi.preprocessing_pipelines.pre_68f import build_features as build_features_68f
+from polimi.preprocessing_pipelines.pre_127 import build_features as build_features_127f
 
 from polimi.preprocessing_pipelines.categorical_dict import get_categorical_columns
 
@@ -22,14 +23,15 @@ PREPROCESSING = {
     '68f': build_features_68f,
     '94f': build_features_94f,
     '115f': build_features_115f,
-    'latest': build_features_115f
+    '127f': build_features_127f,
+    'latest': build_features_127f
 }
 
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
-def main(input_path, output_dir, dataset_type='train', preprocessing_version='latest'):
+def main(input_path, output_dir, dataset_type='train', preprocessing_version='latest', previous_version=None):
     logging.info(f"Preprocessing version: ----{preprocessing_version}----")
     logging.info("Starting to build the dataset")
     logging.info(f"Dataset path: {input_path}")
@@ -47,7 +49,7 @@ def main(input_path, output_dir, dataset_type='train', preprocessing_version='la
     sample = False
 
     dataset, tf_idf_vectorizer, unique_entities = PREPROCESSING[preprocessing_version](
-        behaviors, history, articles, test=is_test_data, sample=sample)
+        behaviors, history, articles, test=is_test_data, sample=sample, previous_version= previous_version)
 
     categorical_columns = get_categorical_columns(preprocessing_version)
     
@@ -86,12 +88,15 @@ if __name__ == '__main__':
                         help="Specify the type of dataset: ['train', 'validation', 'test']")
     parser.add_argument("-preprocessing_version", choices=['68f', '94f', '115f', 'latest'], default='latest', type=str,
                         help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','latest']")
-
+    parser.add_argument("-previous_version", default = None, type=str,
+                        help="Specify the path of a previous version of the dataset to use as a reference for the new one. Default is None.\n YOU MUST GUARANTEE THE COMPATIBILITY BETWEEN VERSIONS. ")
+    
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
     DATASET_DIR = args.dataset_path
     DATASET_TYPE = args.dataset_type
     PREPROCESSING_VERSION = args.preprocessing_version
+    PREVIOUS_VERSION = args.previous_version
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     experiment_name = f'preprocessing_{DATASET_TYPE}_{timestamp}'
@@ -108,4 +113,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
 
-    main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION)
+    main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION, PREVIOUS_VERSION)
