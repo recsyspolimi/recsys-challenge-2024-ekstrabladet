@@ -22,7 +22,6 @@ def build_articles_with_processed_ner(articles: pl.DataFrame):
             .with_columns(pl.col('ner_clusters').list.drop_nulls())\
             .with_columns(pl.col('ner_clusters').list.unique())\
             .with_columns(pl.col('ner_clusters').list.sort())\
-            .filter(pl.col('ner_clusters').list.len() > 0)\
             .sort('article_id')\
             .set_sorted('article_id')
 
@@ -67,7 +66,7 @@ def _build_batch_ner_interactions(df: pl.DataFrame,
                   batch_size=BATCH_SIZE):
     
     articles_ner_index = articles\
-        .with_columns(pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index']).cast(pl.UInt32)))
+        .with_columns(pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None).cast(pl.UInt32)).list.drop_nulls())
     
     df = df.select('user_id', articles_id_col)\
         .group_by('user_id')\
@@ -75,7 +74,7 @@ def _build_batch_ner_interactions(df: pl.DataFrame,
         
     df = pl.concat([
         slice.with_columns(
-            pl.col(articles_id_col).list.eval(pl.element().replace(articles_ner_index['article_id'], articles_ner_index['ner_clusters']).cast(pl.List(pl.UInt32)))\
+            pl.col(articles_id_col).list.eval(pl.element().replace(articles_ner_index['article_id'], articles_ner_index['ner_clusters'], default=None).cast(pl.List(pl.UInt32)))\
                 .list.eval(pl.element().flatten())\
                 .list.drop_nulls()\
                 .list.unique()\
@@ -107,7 +106,7 @@ def build_ner_urm(history: pl.DataFrame,
 
 
 
-def build_recsys_urm(history: pl.Dataframe,
+def build_recsys_urm(history: pl.DataFrame,
                      user_id_mapping: pl.DataFrame,
                      item_mapping: pl.DataFrame
                     ):
