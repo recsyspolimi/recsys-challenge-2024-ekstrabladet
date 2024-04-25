@@ -28,11 +28,11 @@ from polimi.utils._custom import load_sparse_csr, save_json, get_algo_params
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
-def get_sampler_from_name(sampler_name: str):
+def get_sampler_from_name(sampler_name: str, constant_liar: bool = False):
     if sampler_name == 'RandomSampler':
         return optuna.samplers.RandomSampler()
     elif sampler_name == 'TPESampler':
-        return optuna.samplers.TPESampler(constant_liar=True)
+        return optuna.samplers.TPESampler(constant_liar=constant_liar)
     else:
         raise ValueError(f"Sampler {sampler_name} not recognized")
 
@@ -65,7 +65,7 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
 def main(urm_folder: Path, output_dir: Path,
          model_name:str, study_name: str, 
          n_trials: int, storage: str,
-         sampler: str, metric: str, jobs: int):
+         sampler: str, metric: str, jobs: int, cutoff:int):
     
     urm_train_path = urm_folder.joinpath('URM_train.npz')
     urm_val_path = urm_folder.joinpath('URM_validation.npz')    
@@ -80,7 +80,7 @@ def main(urm_folder: Path, output_dir: Path,
                                                  study_name=study_name, 
                                                  n_trials=n_trials, 
                                                  storage=storage,
-                                                 cutoff=10,
+                                                 cutoff=cutoff,
                                                  metric=metric,
                                                  sampler=sampler, 
                                                  jobs=jobs)
@@ -115,6 +115,8 @@ if __name__ == '__main__':
                         help="Optimization metric")
     parser.add_argument("-n_jobs", default=1, type=int, required=False,
                         help="Optimization jobs")
+    parser.add_argument("-cutoff", default=10, type=int, required=False,
+                        help="Cutoff for the evaluation metric")
     
     
     args = parser.parse_args()
@@ -127,6 +129,7 @@ if __name__ == '__main__':
     STORAGE = args.storage
     SAMPLER = args.sampler
     JOBS = args.n_jobs
+    CUTOFF = args.cutoff
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_dir = OUTPUT_DIR.joinpath(f'{STUDY_NAME}_{timestamp}')
@@ -146,4 +149,5 @@ if __name__ == '__main__':
          n_trials=N_TRIALS, storage=STORAGE,
          metric=METRIC,
          sampler=SAMPLER, 
-         jobs=JOBS)
+         jobs=JOBS, 
+         cutoff=CUTOFF)
