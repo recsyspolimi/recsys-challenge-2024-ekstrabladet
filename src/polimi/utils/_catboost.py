@@ -1073,6 +1073,8 @@ def _preprocessing_article_endorsement_feature(behaviors, period):
     diff = max_article_id - min_article_id
 
     n_batch = diff // batch_dim
+    if diff % batch_dim != 0:  # If there are remaining items
+        n_batch += 1 
     return pl.concat(
         exploded_behaviors.filter(
             pl.col("article_ids_inview").ge(min_article_id + i * batch_dim)
@@ -1081,9 +1083,9 @@ def _preprocessing_article_endorsement_feature(behaviors, period):
         .with_columns(
             pl.lit(1).alias(f'endorsement_{period}'))
         .rename({'article_ids_inview': 'article'})
-        .rolling(index_column="impression_time", period="10h", by='article').agg(
+        .rolling(index_column="impression_time", period=period, by='article').agg(
             pl.col(f'endorsement_{period}').count()
-        ).unique("impression_time")
+        ).unique(["article","impression_time"])
         for i in tqdm(range(n_batch))
     )
     
