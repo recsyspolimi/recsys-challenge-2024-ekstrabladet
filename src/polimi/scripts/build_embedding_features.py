@@ -18,7 +18,7 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path=None):
     logging.info(f"Dataset path: {input_path}")
 
     dataset_types = ['train', 'validation']
-
+    
     for data_type in dataset_types:
 
         logging.info(f"Loading {data_type}")
@@ -28,7 +28,10 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path=None):
         history = pl.read_parquet(os.path.join(files_path, 'history.parquet'))
 
         embeddings = pl.read_parquet(embedding_file)
-
+        
+        if feature_name == 'distil_user_item_distance':
+            embeddings = embeddings.select(['article_id','title_embedding'])
+            
         embeddings = embeddings.rename(
             {embeddings.columns[0]: 'article_id', embeddings.columns[1]: 'item_embedding'})
 
@@ -42,7 +45,8 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path=None):
 
         dataset_complete = []
         i = 0
-        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=100):
+        
+        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=200):
             dataset_complete.append(dataset)
             logging.info(f'Slice {i+1} preprocessed.')
             i += 1
@@ -57,6 +61,7 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path=None):
         del behaviors, history, embeddings, dataset_complete, ds, users_embeddings
         gc.collect()
 
+
     if not test_path is None:
         logging.info(f"Dataset path: {test_path}")
         logging.info(f"Loading Test")
@@ -64,9 +69,11 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path=None):
         behaviors = pl.read_parquet(
             os.path.join(test_path, 'behaviors.parquet'))
         history = pl.read_parquet(os.path.join(test_path, 'history.parquet'))
+        
         embeddings = pl.read_parquet(embedding_file)
 
-        embeddings = pl.read_parquet(embedding_file)
+        if feature_name == 'distil_user_item_distance':
+            embeddings = embeddings.select(['article_id','title_embedding'])
 
         embeddings = embeddings.rename(
             {embeddings.columns[0]: 'article_id', embeddings.columns[1]: 'item_embedding'})
@@ -77,11 +84,12 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path=None):
 
         logging.info(f"Building similarities for Test")
 
-        users_embeddings = build_user_embeddings(history, embeddings)
+        users_embeddings = _build_user_embeddings(history, embeddings)
 
         dataset_complete = []
         i = 0
-        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=100):
+        
+        for dataset in iterator_build_embeddings_similarity(ds, users_embeddings, embeddings, feature_name, n_batches=200):
             dataset_complete.append(dataset)
             logging.info(f'Slice {i+1} preprocessed.')
             i += 1
@@ -95,12 +103,10 @@ def main(input_path, output_dir, embedding_file, feature_name, test_path=None):
 
         del behaviors, history, embeddings, dataset_complete, ds, users_embeddings
         gc.collect()
-
+    
     return
 
-
 if __name__ == '__main__':
-    print('here')
     parser = argparse.ArgumentParser(
         description="Training script for catboost")
 

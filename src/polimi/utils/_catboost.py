@@ -147,7 +147,7 @@ def _build_features_behaviors(behaviors: pl.DataFrame, history: pl.DataFrame, ar
     ).drop('entity_groups') \
         .pipe(add_session_features, history=history, behaviors=behaviors, articles=articles) \
         .pipe(add_category_popularity, articles=articles) \
-        .pipe(_join_history, history=history, articles=articles, unique_categories = unique_categories)
+        .pipe(_join_history, history=history, articles=articles, unique_categories=unique_categories)
 
 
 def _preprocessing(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
@@ -337,7 +337,7 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
     Returns:
         pl.DataFrame: a dataframe with the added features
     '''
- 
+
     prev_train_columns = [
         c for c in df_features.columns if c not in ['impression_id', 'article']]
 
@@ -464,9 +464,12 @@ def add_category_popularity(df_features: pl.DataFrame, articles: pl.DataFrame) -
         .with_columns((pl.col('category_daily_articles') / pl.col('daily_articles')).alias('category_daily_pct')) \
         .drop(['category_daily_articles', 'daily_articles'])
 
-    df_features = df_features.join(published_category_popularity, how='left', right_on=['published_date', 'category'],
-                                   left_on=[pl.col('impression_time').dt.date() - pl.duration(days=1), 'category']) \
-        .rename({'category_daily_pct': 'yesterday_category_daily_pct'})\
+    df_features = df_features.with_columns(
+        pl.col('impression_time').dt.date().alias('drop_me')) \
+        .join(published_category_popularity, how='left', right_on=['published_date', 'category'],
+              left_on=[pl.col('drop_me')- pl.duration(days=1), 'category']) \
+        .rename({'category_daily_pct': 'yesterday_category_daily_pct'}) \
+        .drop('drop_me') \
         .with_columns(pl.col('yesterday_category_daily_pct').fill_null(0))
     return reduce_polars_df_memory_size(df_features)
 
@@ -534,7 +537,45 @@ def add_session_features(df_features: pl.DataFrame, history: pl.DataFrame, behav
     return reduce_polars_df_memory_size(df_features)
 
 
-def add_mean_delays_features(df_features: pl.DataFrame, articles: pl.DataFrame, history: pl.DataFrame) -> pl.DataFrame:
+def _preprocessing_mean_delay_features(articles, history):
+    topic_mean_delays = pl.concat(
+        rows.select(["impression_time_fixed", "article_id_fixed"]).explode(
+            ["impression_time_fixed", "article_id_fixed"])
+        .join(other=articles.select(["article_id", "topics", "published_time"]), left_on="article_id_fixed", right_on="article_id", how="left")
+        .drop("article_id_fixed").with_columns(
+            (pl.col('impression_time_fixed') - pl.col('published_time')
+             ).dt.total_days().alias('article_delay_days'),
+            (pl.col('impression_time_fixed') - pl.col('published_time')
+             ).dt.total_hours().alias('article_delay_hours')
+        ).explode("topics").group_by("topics").agg(
+            pl.col("article_delay_days").sum().alias("topic_sum_delay_days"),
+            pl.col("article_delay_hours").sum().alias("topic_sum_delay_hours"),
+            pl.col("article_delay_days").count().alias("len")
+        )
+        for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+    ).group_by("topics").agg(
+        pl.col("topic_sum_delay_days").sum().truediv(
+            pl.col("len").sum()).alias("topic_mean_delay_days"),
+        pl.col("topic_sum_delay_hours").sum().truediv(
+            pl.col("len").sum()).alias("topic_mean_delay_hours")
+    ).drop(["topic_sum_delay_days", "topic_sum_delay_hours", "len"])
+
+    user_mean_delays = history.select(["user_id", "impression_time_fixed", "article_id_fixed"]).explode(["impression_time_fixed", "article_id_fixed"]) \
+        .join(other=articles.select(["article_id", "published_time"]), left_on="article_id_fixed", right_on="article_id", how="left") \
+        .drop("article_id_fixed").with_columns(
+        (pl.col('impression_time_fixed') - pl.col('published_time')
+         ).dt.total_days().alias('article_delay_days'),
+        (pl.col('impression_time_fixed') - pl.col('published_time')
+         ).dt.total_hours().alias('article_delay_hours')
+    ).group_by("user_id").agg(
+        pl.col("article_delay_days").mean().alias("user_mean_delay_days"),
+        pl.col("article_delay_hours").mean().alias("user_mean_delay_hours")
+    )
+
+    return topic_mean_delays, user_mean_delays
+
+
+def add_mean_delays_features(df_features: pl.DataFrame, articles: pl.DataFrame, topic_mean_delays: pl.DataFrame, user_mean_delays: pl.DataFrame) -> pl.DataFrame:
     """
     Adds features concerning the delay in the dataframe.
     - mean_topics_mean_delay_days/mean_topics_mean_delay_hours: For each candidate article, the mean over all its topics 
@@ -549,30 +590,6 @@ def add_mean_delays_features(df_features: pl.DataFrame, articles: pl.DataFrame, 
     Returns:
         pl.DataFrame: df_features enriched with the new features.
     """
-    
-    topic_mean_delays = history.select(["impression_time_fixed", "article_id_fixed"]).explode(["impression_time_fixed", "article_id_fixed"]) \
-        .join(other=articles.select(["article_id", "topics", "published_time"]), left_on="article_id_fixed", right_on="article_id", how="left") \
-        .drop("article_id_fixed").with_columns(
-        (pl.col('impression_time_fixed') - pl.col('published_time')
-         ).dt.total_days().alias('article_delay_days'),
-        (pl.col('impression_time_fixed') - pl.col('published_time')
-         ).dt.total_hours().alias('article_delay_hours')
-    ).explode("topics").group_by("topics").agg(
-        pl.col("article_delay_days").mean().alias("topic_mean_delay_days"),
-        pl.col("article_delay_hours").mean().alias("topic_mean_delay_hours")
-    )
-
-    user_mean_delays = history.select(["user_id", "impression_time_fixed", "article_id_fixed"]).explode(["impression_time_fixed", "article_id_fixed"]) \
-        .join(other=articles.select(["article_id", "published_time"]), left_on="article_id_fixed", right_on="article_id", how="left") \
-        .drop("article_id_fixed").with_columns(
-        (pl.col('impression_time_fixed') - pl.col('published_time')
-         ).dt.total_days().alias('article_delay_days'),
-        (pl.col('impression_time_fixed') - pl.col('published_time')
-         ).dt.total_hours().alias('article_delay_hours')
-    ).group_by("user_id").agg(
-        pl.col("article_delay_days").mean().alias("user_mean_delay_days"),
-        pl.col("article_delay_hours").mean().alias("user_mean_delay_hours")
-    )
 
     return df_features.join(other=articles.select(["article_id", "topics"]), left_on="article", right_on="article_id", how="left").explode("topics") \
         .join(other=topic_mean_delays, on="topics", how="left").group_by(["impression_id", "article", "user_id"]).agg(
@@ -584,7 +601,39 @@ def add_mean_delays_features(df_features: pl.DataFrame, articles: pl.DataFrame, 
         .join(other=user_mean_delays, on="user_id", how="left")
 
 
-def add_history_trendiness_scores_feature(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
+def _preprocessing_history_trendiness_scores(history, articles):
+
+    history_trendiness_scores = pl.concat(
+        rows.select(["user_id", "impression_time_fixed", "article_id_fixed"]).explode(
+            ["impression_time_fixed", "article_id_fixed"])
+        .rename({"impression_time_fixed": "impression_time", "article_id_fixed": "article"}).pipe(
+            add_trendiness_feature, articles
+        )
+        for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+    )
+
+    users_mean_trendiness_scores = history_trendiness_scores.select(["user_id", "trendiness_score"]).group_by("user_id").agg(
+        pl.col("trendiness_score").mean().alias("mean_user_trendiness_score")
+    )
+
+    topics_mean_trendiness_scores = pl.concat(
+        rows.select("article", "trendiness_score")
+        .join(other=articles.select(["article_id", "topics"]), left_on="article", right_on="article_id", how="left")
+        .explode("topics").group_by("topics").agg(
+            pl.col("trendiness_score").sum().alias(
+                "sum_topic_trendiness_score"),
+            pl.col("trendiness_score").count().alias("len")
+        )
+        for rows in tqdm(history_trendiness_scores.iter_slices(1000), total=history_trendiness_scores.shape[0] // 1000)
+    ).group_by("topics").agg(
+        pl.col("sum_topic_trendiness_score").sum().truediv(
+            pl.col("len").sum()).alias("mean_topic_trendiness_score")
+    ).drop(["sum_topic_trendiness_score", "len"])
+
+    return users_mean_trendiness_scores, topics_mean_trendiness_scores
+
+
+def add_history_trendiness_scores_feature(df_features: pl.DataFrame, articles: pl.DataFrame, users_mean_trendiness_scores: pl.DataFrame, topics_mean_trendiness_scores: pl.DataFrame, topics) -> pl.DataFrame:
     """
     Adds 2 features concerning the trendiness, computed on the history, to the features dataframe.
     - mean_user_trendiness_score: For each user, the mean trendiness_score of the impressions in his history.
@@ -598,24 +647,6 @@ def add_history_trendiness_scores_feature(df_features: pl.DataFrame, history: pl
     Returns:
         pl.DataFrame: df_feature with the 2 features added. 
     """
-
-    topics = articles.select("topics").explode("topics").unique()
-    topics = [topic for topic in topics["topics"] if topic is not None]
-
-    history_trendiness_scores = history.select(["user_id", "impression_time_fixed", "article_id_fixed"]).explode(["impression_time_fixed", "article_id_fixed"]) \
-        .rename({"impression_time_fixed": "impression_time", "article_id_fixed": "article"}).pipe(
-        add_trendiness_feature, articles
-    )
-
-    users_mean_trendiness_scores = history_trendiness_scores.select(["user_id", "trendiness_score"]).group_by("user_id").agg(
-        pl.col("trendiness_score").mean().alias("mean_user_trendiness_score")
-    )
-
-    topics_mean_trendiness_scores = history_trendiness_scores.select("article", "trendiness_score") \
-        .join(other=articles.select(["article_id", "topics"]), left_on="article", right_on="article_id", how="left") \
-        .explode("topics").group_by("topics").agg(
-        pl.col("trendiness_score").mean().alias("mean_topic_trendiness_score")
-    )
 
     return df_features.join(other=users_mean_trendiness_scores, on="user_id", how="left") \
         .join(other=articles.select(["article_id", "topics"]), left_on="article", right_on="article_id", how="left") \
@@ -762,29 +793,12 @@ def add_other_rec_features(ds, history, algorithms, evaluate=False):
     return ds
 
 
-def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame) -> pl.DataFrame:
-    """
-    Given each impression with its timestamp, it assigns to it:
-     - Its time_window, thanks to the is_inside_window_{index} features
-     - The length of the user history divided for each time window, thanks to window_{index}_history_length features
-     - How many articles with at least one of the topics of the candidate article, the user has clicked in that time_window,
-        thanks to window_topics_score feature
-    - How many articles with the same category as the candidate article, the user has clicked in that time_window, 
-        thanks to window_category_score feature
+def _preprocessing_window_features(history: pl.DataFrame, articles: pl.DataFrame,):
 
-    Args:
-        df_features: The features dataframe to be enriched with the time window features
-        history: The history dataframe
-        articles: The articles dataframe.
-    Returns:
-        pl.DataFrame: The df_features with the new features.
-    """
     # windows = [[5,8],[7,10],[9,12],[11,15],[14,18],[17,21],[20,23],[22,5]]
     # windows = [[5,10],[9,13],[12,15],[14,18],[17,20],[19,23],[22,6]]
-    # windows= [[5,13],[12,19],[18,23],[22,6]]
-    windows = [[5, 13], [12, 23], [22, 6]]
-    topics = articles.select("topics").explode("topics").unique()
-    topics = [topic for topic in topics["topics"] if topic is not None]
+    windows = [[5, 13], [12, 19], [18, 23], [22, 6]]
+    # windows = [[5, 13], [12, 23], [22, 6]]
 
     user_windows = history.select(["user_id", "impression_time_fixed", "article_id_fixed"]).explode(['impression_time_fixed', 'article_id_fixed']) \
         .rename({'impression_time_fixed': 'impression_time'}) \
@@ -834,37 +848,54 @@ def add_window_features(df_features: pl.DataFrame, history: pl.DataFrame, articl
                 f'window_{index}_score') for index, window in enumerate(windows)]
     )
 
-    return pl.concat(
-        rows.join(other=user_windows, on='user_id', how='left').with_columns(
-            [
-                pl.when(window[0] < window[1]).then(pl.col('impression_time').dt.time().is_between(time(window[0]), time(window[1]), closed='left')).otherwise(
-                    pl.col('impression_time').dt.time().ge(time(window[0])).or_(
-                        pl.col('impression_time').dt.time().lt(time(window[1])))
-                ).cast(pl.Int8).alias(f'is_inside_window_{index}') for index, window in enumerate(windows)]
-        ).join(other=articles.select(['article_id', 'topics', 'category']), left_on='article', right_on='article_id', how='left')
-        .join(other=user_category_windows, on=['user_id', 'category'], how='left')
+    return windows, user_windows, user_topics_windows, user_category_windows
+
+
+def add_window_features(df_features: pl.DataFrame, articles: pl.DataFrame, user_windows: pl.DataFrame, user_category_windows: pl.DataFrame, user_topics_windows: pl.DataFrame, windows) -> pl.DataFrame:
+    """
+    Given each impression with its timestamp, it assigns to it:
+     - Its time_window, thanks to the is_inside_window_{index} features
+     - The length of the user history divided for each time window, thanks to window_{index}_history_length features
+     - How many articles with at least one of the topics of the candidate article, the user has clicked in that time_window,
+        thanks to window_topics_score feature
+    - How many articles with the same category as the candidate article, the user has clicked in that time_window, 
+        thanks to window_category_score feature
+
+    Args:
+        df_features: The features dataframe to be enriched with the time window features
+        history: The history dataframe
+        articles: The articles dataframe.
+    Returns:
+        pl.DataFrame: The df_features with the new features.
+    """
+
+    return df_features.join(other=user_windows, on='user_id', how='left').with_columns(
+        [
+            pl.when(window[0] < window[1]).then(pl.col('impression_time').dt.time().is_between(time(window[0]), time(window[1]), closed='left')).otherwise(
+                pl.col('impression_time').dt.time().ge(time(window[0])).or_(
+                    pl.col('impression_time').dt.time().lt(time(window[1])))
+            ).cast(pl.Int8).alias(f'is_inside_window_{index}') for index, window in enumerate(windows)]
+    ).join(other=articles.select(['article_id', 'topics']), left_on='article', right_on='article_id', how='left') \
+        .join(other=user_category_windows, on=['user_id', 'category'], how='left') \
         .with_columns(
             pl.max_horizontal([pl.col(f'window_{index}_score').mul(pl.col(
                 f'is_inside_window_{index}')) for index, window in enumerate(windows)]).alias('score')
-        ).group_by(['impression_id', 'article', 'user_id']).agg(
+    ).group_by(['impression_id', 'article', 'user_id']).agg(
             pl.exclude(["impression_id", "article",
                        "user_id", "score"]).first(),
             pl.col('score').sum().alias('window_category_score')
-        ).drop([f'window_{index}_score'for index, window in enumerate(windows)])
-        .drop('category')
-        .explode('topics')
-        .join(other=user_topics_windows, on=['user_id', 'topics'], how='left')
+    ).drop([f'window_{index}_score'for index, window in enumerate(windows)]) \
+        .explode('topics') \
+        .join(other=user_topics_windows, on=['user_id', 'topics'], how='left') \
         .with_columns(
             pl.max_horizontal([pl.col(f'window_{index}_score').mul(pl.col(
                 f'is_inside_window_{index}')) for index, window in enumerate(windows)]).alias('score')
-        ).drop([f'window_{index}_score'for index, window in enumerate(windows)])
-        .drop('topics')
+    ).drop([f'window_{index}_score'for index, window in enumerate(windows)]) \
+        .drop('topics') \
         .group_by(['impression_id', 'article', 'user_id']).agg(
             pl.exclude(["impression_id", "article",
                        "user_id", "score"]).first(),
             pl.col('score').sum().alias('window_topics_score')
-        )
-        for rows in tqdm(df_features.iter_slices(1000), total=df_features.shape[0] // 1000)
     )
 
 
@@ -945,7 +976,7 @@ def _build_last_n_topics_tf_idf(history, articles, vectorizer, last_n=5) -> pl.D
         )
         .pipe(_add_topics_tf_idf_columns, topics_col='topics_flatten', vectorizer=vectorizer, col_name=f'last_{last_n}_tf_idf').drop('topics_flatten')
         .join(history, on='user_id')
-        for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000))
+        for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000))
 
 
 def _last_n_topics_tf_idf_distance(df, articles, last_n_tf_idf, last_n=5):
@@ -1000,8 +1031,10 @@ def build_last_n_topics_distances(history, articles, df, vectorizer, last_n) -> 
     return df.join(last_n_topics_cosine, on=['impression_id', 'user_id', 'article'], how='left')
 
 
+"""
+OLD IMPLEMENTATION:
 def add_article_endorsement_feature(df_features: pl.DataFrame, period: str = "10h") -> pl.DataFrame:
-    """
+    
     Adds a feature which is a count of how many times that article has been proposed to a user in the last <period> hours.
     Args:
         df_features: The dataframe to be enriched with the new feature.
@@ -1010,7 +1043,7 @@ def add_article_endorsement_feature(df_features: pl.DataFrame, period: str = "10
     Returns:
         pl.DataFrame: The dataframe with the new feature added
 
-    """
+    
     endorsement = df_features.select(['impression_time', 'article']) \
         .sort('impression_time') \
         .set_sorted('impression_time') \
@@ -1023,14 +1056,61 @@ def add_article_endorsement_feature(df_features: pl.DataFrame, period: str = "10
 
     return df_features.join(other=endorsement, on=['impression_time', 'article'], how='left')
 
+"""
+
+
+def _preprocessing_article_endorsement_feature(behaviors, period):
+    # slice the behaviors dataframe in windows based on the article_id_inview
+    batch_dim = 10000
+    exploded_behaviors = behaviors.select(
+        ['impression_time', 'article_ids_inview']).explode("article_ids_inview")
+
+    # get min and max id of the articles
+    min_article_id = exploded_behaviors.select(
+        "article_ids_inview").min().item()
+    max_article_id = exploded_behaviors.select(
+        "article_ids_inview").max().item()
+    diff = max_article_id - min_article_id
+
+    n_batch = diff // batch_dim
+    return pl.concat(
+        exploded_behaviors.filter(
+            pl.col("article_ids_inview").ge(min_article_id + i * batch_dim)
+            .and_(pl.col("article_ids_inview").lt(min_article_id + (i + 1) * batch_dim))) \
+        .sort("impression_time").set_sorted("impression_time")
+        .with_columns(
+            pl.lit(1).alias(f'endorsement_{period}'))
+        .rolling(index_column="impression_time", period="10h").agg(
+            pl.col(f'endorsement_{period}').count()
+        ).unique("impression_time")
+        for i in tqdm(range(n_batch))
+    )
+    
+
+    # df1 = behaviors.select(["impression_time", "article_ids_inview"]) \
+    #     .sort("impression_time").set_sorted("impression_time") \
+    #     .rolling(index_column="impression_time", period="10h").agg(
+    #     pl.col("article_ids_inview").flatten().value_counts()
+    # ).unique("impression_time")
+
+    # return pl.concat(
+    #     rows.explode("article_ids_inview").unnest("article_ids_inview")
+    #     .rename({"article_ids_inview": "article", "count": f"endorsement_{period}"})
+    #     for rows in tqdm.tqdm(df1.iter_slices(10), total=df1.shape[0] // 10)
+    # )
+
+
+def add_article_endorsement_feature(df_features, articles_endorsement):
+    return df_features.join(other=articles_endorsement, on=["article", "impression_time"], how="left")
+
 
 def get_unique_categories(articles: pl.DataFrame):
     '''
     The function returns a dictionary containing the entities of the articles
-    
+
     Args:
         articles: the articles dataframe
-    
+
     Returns:
         dict: the dictionary containing the entities of the articles
     '''
@@ -1040,5 +1120,5 @@ def get_unique_categories(articles: pl.DataFrame):
         row['category']: row['category_str'] for row in unique_categories_df.iter_rows(named=True)
     }
     del unique_categories_df
-    
+
     return unique_categories

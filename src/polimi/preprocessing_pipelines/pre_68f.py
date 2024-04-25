@@ -10,27 +10,22 @@ Baseline preprocessing
 
 !! ATTENTION !!
 This pipeline version calls the version that implements 94 features and drops the unrequired columns.
-There's no reason to use this implementation since it has less features but requires the same computational time of 
+There's no reason to use this implementation since it has less features but requires the same computational time of
 the version that implements 94 features.
 '''
 
-NEW_VERSION_FEATURES = ['PctCategoryMatches',
-                        'Category_underholdning_Pct', 'Category_krimi_Pct', 'Category_ferie_Pct',
-                        'Category_side9_Pct', 'Category_penge_Pct', 'Category_musik_Pct',
-                        'Category_plus_Pct', 'Category_podcast_Pct', 'Category_dagsorden_Pct',
-                        'Category_auto_Pct', 'Category_haandvaerkeren_Pct',
-                        'Category_horoskoper_Pct', 'Category_forbrug_Pct', 'Category_vin_Pct',
-                        'Category_services_Pct', 'Category_opinionen_Pct', 'Category_incoming_Pct',
-                        'Category_nyheder_Pct', 'Category_biler_Pct', 'Category_sport_Pct',
-                        'Category_om_ekstra_bladet_Pct', 'Category_sex_og_samliv_Pct',
-                        'Category_play_Pct', 'Category_nationen_Pct']
+NEW_VERSION_FEATURES = ['PctCategoryMatches', 'Category_underholdning_Pct', 'Category_bibliotek_Pct', 'Category_migration_catalog_Pct', 'Category_ferie_Pct', 'Category_krimi_Pct',
+                        'Category_side9_Pct', 'Category_tilavis_Pct', 'Category_penge_Pct', 'Category_abonnement_Pct', 'Category_dagsorden_Pct', 'Category_plus_Pct', 'Category_musik_Pct', 
+                        'Category_podcast_Pct', 'Category_webmaster-test-sektion_Pct', 'Category_rssfeed_Pct','Category_auto_Pct', 'Category_horoskoper_Pct', 'Category_haandvaerkeren_Pct', 
+                        'Category_forbrug_Pct', 'Category_vin_Pct', 'Category_services_Pct', 'Category_opinionen_Pct', 'Category_nyheder_Pct', 'Category_biler_Pct', 'Category_incoming_Pct',
+                        'Category_sport_Pct', 'Category_om_ekstra_bladet_Pct', 'Category_sex_og_samliv_Pct', 'Category_video_Pct', 'Category_nationen_Pct', 'Category_webtv_Pct', 'Category_eblive_Pct']
 
 
 def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                             test: bool = False, sample: bool = True, npratio: int = 2,
                             tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10):
     '''
-    Generator function to build the features from blocks of the behaviors. It returns an iterable of slices of the 
+    Generator function to build the features from blocks of the behaviors. It returns an iterable of slices of the
     dataframe with the features. See build_features for a description of the features.
     Use this function instead of build_features when there are memory issue.
 
@@ -39,7 +34,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         history: the dataframe containing the users history
         articles: the dataframe containing the articles features
         test: if true consider the behaviors as a test split, so it will not attempt to build the target column
-        sample: if true, behaviors will be sampled using wu strategy, done only if test=False 
+        sample: if true, behaviors will be sampled using wu strategy, done only if test=False
             (otherwise there is no information about negative articles in the inview list)
         npratio: the number of negative samples for wu sampling (useful only if sample=True)
         tf_idf_vectorizer: an optional already fitted tf_idf_vectorizer, if None it will be fitted on the provided articles topics
@@ -52,13 +47,13 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
         behaviors, history, articles, test, sample, npratio
     )
-    
+
     unique_categories = get_unique_categories(articles)
 
     for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
         slice_features = sliced_df.pipe(_build_features_behaviors, history=history, articles=articles,
-                                        cols_explode=cols_explode, rename_columns=rename_cols, 
-                                        unique_entities=unique_entities,unique_categories=unique_categories)\
+                                        cols_explode=cols_explode, rename_columns=rename_cols,
+                                        unique_entities=unique_entities, unique_categories=unique_categories)\
             .drop(NEW_VERSION_FEATURES)
         yield slice_features, vectorizer, unique_entities
 
@@ -106,7 +101,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
         behaviors, history, articles, test, sample, npratio
     )
-    
+
     unique_categories = get_unique_categories(articles)
 
     df_features = behaviors.pipe(_build_features_behaviors, history=history, articles=articles,
@@ -115,3 +110,16 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         .drop(NEW_VERSION_FEATURES)
     return df_features, vectorizer, unique_entities
 
+
+def strip_new_features(df: pl.DataFrame) -> pl.DataFrame:
+    '''
+    Strip the new features from the dataframe, i.e. the features that are not present in the 68 features version.
+
+    Args:
+        df: the dataframe containing the features
+    '''
+    columns = df.columns
+    for col in columns:
+        if col in NEW_VERSION_FEATURES:
+            df = df.drop(columns=col)
+    return df

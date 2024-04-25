@@ -2,7 +2,9 @@ import polars as pl
 import tqdm
 import simsimd
 import numpy as np
+from sklearn import preprocessing
 
+from polimi.utils._polars import reduce_polars_df_memory_size
 
 def fast_distance(u, v):
     '''
@@ -10,6 +12,24 @@ def fast_distance(u, v):
     '''
     return simsimd.cosine(np.asarray(u), np.asarray(v))
 
+def _add_normalized_features_emb(df = None ,path = None):
+    
+    if df is None and path is None:
+        raise ValueError('You must provide a dataframe or a path')
+    elif path is not None:
+        df = pl.read_parquet(path)
+
+    scaler = preprocessing.MinMaxScaler(feature_range=(0, 1))
+    # get the minmun value of each column
+    columns= df.head(1).drop(['impression_id','user_id','article']).columns
+    for col in range(3, len(df.columns)):
+        df = df.replace_column(col, pl.Series(columns[col - 3], scaler.fit_transform(df.select(columns[col - 3]).to_numpy()).squeeze()))
+    df = df.with_columns(
+                            pl.mean_horizontal(columns).alias('mean_norm_user_item_emb_dist'),
+                            pl.min_horizontal(columns).alias('min_norm_user_item_emb_dist'),
+                            pl.max_horizontal(columns).alias('max_norm_user_item_emb_dist')
+                         )
+    return reduce_polars_df_memory_size(df)
 
 def _build_embeddings_similarity(df, embeddings, users_embeddings, new_column_name) -> pl.DataFrame:
     '''

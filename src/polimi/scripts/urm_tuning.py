@@ -14,80 +14,25 @@ import optuna
 import polars as pl
 import scipy.sparse as sps
 
-import sys
-
-
-
-sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
-
 from ebrec.evaluation.metrics_protocols import *
-from RecSys_Course_AT_PoliMi.Recommenders.SLIM.SLIMElasticNetRecommender import SLIMElasticNetRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.SLIM.SLIMElasticNetRecommender import SLIMElasticNetRecommender, MultiThreadSLIM_SLIMElasticNetRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCFRecommender import ItemKNNCFRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKNNCFRecommender
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
-from RecSys_Course_AT_PoliMi.Recommenders.GraphBased import P3alphaRecommender, RP3betaRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
 from polimi.utils._custom import ALGORITHMS
-from polimi.utils._custom import load_sparse_csr, save_json
+from polimi.utils._custom import load_sparse_csr, save_json, get_algo_params
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
-
-def get_params(trial: optuna.Trial, model: BaseRecommender):
-    if model in [ItemKNNCFRecommender, UserKNNCFRecommender]:
-        params = {
-            "similarity": trial.suggest_categorical("similarity", ['cosine', 'dice', 'jaccard', 'asymmetric', 'tversky', 'euclidean']),
-            "topK": trial.suggest_int("topK", 5, 1000),
-            "shrink": trial.suggest_int("shrink", 0, 1000),
-        }
-        if params['similarity'] == "asymmetric":
-            params["asymmetric_alpha"] = trial.suggest_float("asymmetric_alpha", 0, 2, log=False)
-            params["normalize"] = True     
-
-        elif params['similarity'] == "tversky":
-            params["tversky_alpha"] = trial.suggest_float("tversky_alpha", 0, 2, log=False)
-            params["tversky_beta"] = trial.suggest_float("tversky_beta", 0, 2, log=False)
-            params["normalize"] = True 
-
-        elif params['similarity'] == "euclidean":
-            params["normalize_avg_row"] = trial.suggest_categorical("normalize_avg_row", [True, False])
-            params["similarity_from_distance_mode"] = trial.suggest_categorical("similarity_from_distance_mode", ["lin", "log", "exp"])
-            params["normalize"] = trial.suggest_categorical("normalize", [True, False])
-        
-    elif model == SLIMElasticNetRecommender:
-        params = {
-            "alpha": trial.suggest_float("alpha", 1e-5, 1e-1, log=True),
-            "l1_ratio": trial.suggest_float("l1_ratio", 1e-5, 1e-1, log=True),
-            "positive_only": True,
-            "topK": trial.suggest_int("topK", 5, 100),
-        }
-    elif model == PureSVDRecommender:
-        params = {
-            "num_factors": trial.suggest_int("num_factors", 1, 100),
-        }
-    elif model == P3alphaRecommender:
-        params = {
-            "topK": trial.suggest_int("topK", 20, 100),
-            'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
-            'alpha': trial.suggest_float("alpha", 0.05, 0.5),
-        }   
-    elif model == RP3betaRecommender:
-        params = {
-            "topK": trial.suggest_int("topK", 20, 100),
-            'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
-            'alpha': trial.suggest_float("alpha", 0.05, 0.5),
-            'beta': trial.suggest_float("beta", 0.05, 0.5),
-        }  
-    else:
-        raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
-    return params
-
-def get_sampler_from_name(sampler_name: str):
+def get_sampler_from_name(sampler_name: str, constant_liar: bool = False):
     if sampler_name == 'RandomSampler':
         return optuna.samplers.RandomSampler()
     elif sampler_name == 'TPESampler':
-        return optuna.samplers.TPESampler()
+        return optuna.samplers.TPESampler(constant_liar=constant_liar)
     else:
         raise ValueError(f"Sampler {sampler_name} not recognized")
 
@@ -96,16 +41,16 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
                         model_name: str, metric: str, 
                         cutoff:int, study_name: str, 
                         n_trials: int, storage: str, 
-                        sampler:str) -> Tuple[Dict, pd.DataFrame]:
+                        sampler:str, jobs:int) -> Tuple[Dict, pd.DataFrame]:
     
     model = ALGORITHMS[model_name][0]
     evaluator = EvaluatorHoldout(URM_val, cutoff_list=[cutoff], exclude_seen=False)
 
     def objective_function(trial: optuna.Trial):
-        params = get_params(trial, model)
+        params = get_algo_params(trial, model)
         rec_instance = model(URM_train)
         rec_instance.fit(**params)
-        result_df, _ = evaluator.evaluateRecommender(rec_instance)    
+        result_df, _ = evaluator.evaluateRecommender(rec_instance)
         return result_df.loc[cutoff][metric.upper()]
 
     study = optuna.create_study(direction='maximize', 
@@ -113,14 +58,14 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
                                 storage=storage, 
                                 sampler=get_sampler_from_name(sampler),
                                 load_if_exists=True)
-    study.optimize(objective_function, n_trials=n_trials, n_jobs=-1)
+    study.optimize(objective_function, n_trials=n_trials, n_jobs=jobs)
     return study.best_params, study.trials_dataframe()
     
 
 def main(urm_folder: Path, output_dir: Path,
          model_name:str, study_name: str, 
          n_trials: int, storage: str,
-         sampler: str, metric: str):
+         sampler: str, metric: str, jobs: int, cutoff:int):
     
     urm_train_path = urm_folder.joinpath('URM_train.npz')
     urm_val_path = urm_folder.joinpath('URM_validation.npz')    
@@ -129,14 +74,16 @@ def main(urm_folder: Path, output_dir: Path,
     
     URM_train = load_sparse_csr(urm_train_path, logger=logging)
     URM_val =  load_sparse_csr(urm_val_path, logger=logging)
-    best_params, trials_df = optimize_parameters(URM_train, URM_val,
+    best_params, trials_df = optimize_parameters(URM_train=URM_train,
+                                                 URM_val=URM_val,
                                                  model_name=model_name,
                                                  study_name=study_name, 
                                                  n_trials=n_trials, 
                                                  storage=storage,
-                                                 cutoff=10,
+                                                 cutoff=cutoff,
                                                  metric=metric,
-                                                 sampler=sampler)
+                                                 sampler=sampler, 
+                                                 jobs=jobs)
     
     
     params_file_path = output_dir.joinpath(f'{study_name}_best_params.json')
@@ -166,6 +113,10 @@ if __name__ == '__main__':
                         help="Optuna sampler")
     parser.add_argument("-metric", choices=['NDCG', 'MAP'], default='NDCG', type=str, required=True,
                         help="Optimization metric")
+    parser.add_argument("-n_jobs", default=1, type=int, required=False,
+                        help="Optimization jobs")
+    parser.add_argument("-cutoff", default=10, type=int, required=False,
+                        help="Cutoff for the evaluation metric")
     
     
     args = parser.parse_args()
@@ -177,9 +128,11 @@ if __name__ == '__main__':
     STUDY_NAME = args.study_name
     STORAGE = args.storage
     SAMPLER = args.sampler
+    JOBS = args.n_jobs
+    CUTOFF = args.cutoff
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    output_dir = OUTPUT_DIR.joinpath(f'urm_tuning_{MODEL_NAME}_{timestamp}')
+    output_dir = OUTPUT_DIR.joinpath(f'{STUDY_NAME}_{timestamp}')
     output_dir.mkdir(parents=True, exist_ok=True)
     
     log_path = output_dir.joinpath('log.txt')    
@@ -195,4 +148,6 @@ if __name__ == '__main__':
          model_name=MODEL_NAME, study_name=STUDY_NAME, 
          n_trials=N_TRIALS, storage=STORAGE,
          metric=METRIC,
-         sampler=SAMPLER)
+         sampler=SAMPLER, 
+         jobs=JOBS, 
+         cutoff=CUTOFF)
