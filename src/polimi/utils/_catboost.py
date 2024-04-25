@@ -1080,7 +1080,8 @@ def _preprocessing_article_endorsement_feature(behaviors, period):
         .sort("impression_time").set_sorted("impression_time")
         .with_columns(
             pl.lit(1).alias(f'endorsement_{period}'))
-        .rolling(index_column="impression_time", period="10h").agg(
+        .rename({'article_ids_inview': 'article'})
+        .rolling(index_column="impression_time", period="10h", by='article').agg(
             pl.col(f'endorsement_{period}').count()
         ).unique("impression_time")
         for i in tqdm(range(n_batch))
