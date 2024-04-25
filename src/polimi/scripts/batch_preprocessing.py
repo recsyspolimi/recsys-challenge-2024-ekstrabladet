@@ -36,7 +36,8 @@ def main(input_path, output_dir, dataset_type='train',preprocessing_version='lat
     files_path = os.path.join(input_path, dataset_type)
     behaviors = pl.read_parquet(os.path.join(files_path, 'behaviors.parquet'))
     history = pl.read_parquet(os.path.join(files_path, 'history.parquet'))
-    
+    slices_dir = output_dir + '/Sliced_ds'
+    os.makedirs(slices_dir)
     logging.info('Finished to build parquet files. Starting feature engineering')
     
     is_test_data = dataset_type == 'test'
@@ -49,6 +50,7 @@ def main(input_path, output_dir, dataset_type='train',preprocessing_version='lat
     i = 0
     for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
                                                                         sample=sample, n_batches=100):
+        dataset.write_parquet(os.path.join(slices_dir, f'{dataset_type}_slice_{i}.parquet'))
         dataset_complete.append(dataset)
         logging.info(f'Slice {i+1} preprocessed.')
         i += 1
@@ -99,6 +101,7 @@ if __name__ == '__main__':
     experiment_name = f'preprocessing_{DATASET_TYPE}_{timestamp}'
     output_dir = os.path.join(OUTPUT_DIR, experiment_name)
     os.makedirs(output_dir)
+    
     
     log_path = os.path.join(output_dir, "log.txt")
     logging.basicConfig(filename=log_path, filemode="w", format=LOGGING_FORMATTER, level=logging.INFO, force=True)
