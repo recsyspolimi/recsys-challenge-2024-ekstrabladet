@@ -263,3 +263,30 @@ def list_pct_matches_with_constant(a, value) -> pl.Expr:
     '''
     return pl.when(pl.col(a).list.len() == 0).then(0.0) \
         .otherwise(pl.col(a).list.count_matches(value) / pl.col(a).list.len())
+        
+
+def _convert_to_datetime(original_df_path, modified_df_path):
+    '''
+    Utility function used to convert the impression_time column to datetime in the modified dataframe.
+    The function reads the original dataframe, extracts the impression_time column, converts it to datetime
+    and writes the modified dataframe.
+    Args:
+        original_df_path: path to the original dataframe
+        modified_df_path: path to the modified dataframe
+    '''
+    
+    original = pl.read_parquet(original_df_path).select('impression_id','user_id','article_ids_inview','impression_time').explode('article_ids_inview') \
+        .rename({'article_ids_inview':'article'})
+    modified = pl.read_parquet(modified_df_path)
+
+    new = modified.join(original, on=['impression_id','user_id', 'article'], how = 'left')
+    
+    assert new.select('impression_time_right', 'impression_time').with_columns(
+             pl.col('impression_time_right').dt.date() - pl.duration(days=1)) \
+                 .filter(pl.col('impression_time_right') != pl.col('impression_time')).shape[0] == 0
+    
+    new = new.drop('impression_time').rename({'impression_time_right': 'impression_time'})
+  
+    assert modified.drop('impression_time').equals(new.drop('impression_time'))
+    
+    new.write_parquet(modified_df_path)
