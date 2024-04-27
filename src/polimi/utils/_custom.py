@@ -151,13 +151,13 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender):
         }
     elif model == P3alphaRecommender:
         params = {
-            "topK": trial.suggest_int("topK", 20, 100),
+            "topK": trial.suggest_int("topK", 20, 500),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
             'alpha': trial.suggest_float("alpha", 0, 2),
         }   
     elif model == RP3betaRecommender:
         params = {
-            "topK": trial.suggest_int("topK", 20, 100),
+            "topK": trial.suggest_int("topK", 20, 500),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
             'alpha': trial.suggest_float("alpha", 0, 2),
             'beta': trial.suggest_float("beta", 0, 2),
@@ -185,6 +185,7 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender):
             "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
             "positive_threshold_BPR": None,
             "epochs": 1000,
+            
         }
     elif model == MultVAERecommender:
         params = {
