@@ -10,6 +10,10 @@ from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.Cython.MatrixFacto
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.Neural.MultVAERecommender import MultVAERecommender
 from RecSys_Course_AT_PoliMi.Recommenders.SLIM.SLIMElasticNetRecommender import SLIMElasticNetRecommender, MultiThreadSLIM_SLIMElasticNetRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.SLIM.Cython.SLIM_BPR_Cython import SLIM_BPR_Cython
+from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
+
+
 
 from os import getpid
 from psutil import Process
@@ -117,12 +121,20 @@ ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender,
 ALGORITHMS = {algo.RECOMMENDER_NAME: [algo] for algo in ALGORITHMS_LIST}
 
         
-def get_algo_params(trial: optuna.Trial, model: BaseRecommender):
+def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: EvaluatorHoldout, eval_metric:str):
+    earlystopping_keywargs = {
+        "validation_every_n": 5,
+        "stop_on_validation": True,
+        "lower_validations_allowed": 5,
+        "validation_metric": eval_metric,
+        "evaluator_object": eval,
+    }
+    
     if model in [ItemKNNCFRecommender, UserKNNCFRecommender]:
         params = {
             "similarity": trial.suggest_categorical("similarity", ['cosine', 'dice', 'jaccard', 'asymmetric', 'tversky', 'euclidean']),
-            "topK": trial.suggest_int("topK", 5, 1000),
-            "shrink": trial.suggest_int("shrink", 0, 1000),
+            "topK": trial.suggest_int("topK", 5, 1100),
+            "shrink": trial.suggest_int("shrink", 0, 1100),
         }
         if params['similarity'] == "asymmetric":
             params["asymmetric_alpha"] = trial.suggest_float("asymmetric_alpha", 0, 2, log=False)
@@ -151,13 +163,13 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender):
         }
     elif model == P3alphaRecommender:
         params = {
-            "topK": trial.suggest_int("topK", 20, 100),
+            "topK": trial.suggest_int("topK", 20, 500),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
             'alpha': trial.suggest_float("alpha", 0, 2),
         }   
     elif model == RP3betaRecommender:
         params = {
-            "topK": trial.suggest_int("topK", 20, 100),
+            "topK": trial.suggest_int("topK", 20, 500),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
             'alpha': trial.suggest_float("alpha", 0, 2),
             'beta': trial.suggest_float("beta", 0, 2),
@@ -174,6 +186,7 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender):
             "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
             "negative_interactions_quota": trial.suggest_float("negative_interactions_quota", 0.0, 0.5),
             "epochs": 500,
+            **earlystopping_keywargs,
         }
     elif model == MatrixFactorization_BPR_Cython:
         params = {
@@ -185,6 +198,7 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender):
             "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
             "positive_threshold_BPR": None,
             "epochs": 1000,
+            **earlystopping_keywargs
         }
     elif model == MultVAERecommender:
         params = {
@@ -198,7 +212,22 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender):
             "next_layer_size_multiplier": trial.suggest_int("next_layer_size_multiplier", 2, 10),
             "max_n_hidden_layers": trial.suggest_int("max_n_hidden_layers", 1, 4),
             "max_parameters": trial.suggest_categorical("max_parameters", [7*1e9*8/32]),            
-            "epochs": 500
+            "epochs": 500,
+            **earlystopping_keywargs
+        }
+    elif model == SLIM_BPR_Cython:
+        params = {
+            'positive_threshold_BPR': None,
+            'train_with_sparse_weights': None,
+            'allow_train_with_sparse_weights': True,
+            'topK': trial.suggest_int('topK', 5, 1000),
+            'symmetric': trial.suggest_categorical('symmetric', [True, False]),
+            'sgd_mode': trial.suggest_categorical('sgd_mode', ["sgd", "adagrad", "adam"]),
+            'lambda_i': trial.suggest_float('lambda_i', 1e-5, 1e-2, log=True),
+            'lambda_j': trial.suggest_float('lambda_j', 1e-5, 1e-2, log=True),
+            'learning_rate': trial.suggest_float('learning_rate', 1e-4, 1e-1, log=True),
+            "epochs": 500,
+            **earlystopping_keywargs
         }
     else:
         raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
