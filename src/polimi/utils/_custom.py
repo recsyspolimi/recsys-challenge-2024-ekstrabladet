@@ -23,6 +23,10 @@ import numpy as np
 import scipy.sparse as sps
 import json
 import optuna
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 _PARQUET_TYPE = 'parquet'
 
@@ -112,6 +116,13 @@ def read_json(file_path: Path):
 def save_json(data: dict, file_path: Path):
     with open(file_path, 'w') as file:
         json.dump(data, file)
+        
+        
+def load_best_optuna_params(study_name: str, storage:str=None) -> dict:
+    if not storage:
+        storage = os.getenv('OPTUNA_STORAGE')
+    study = optuna.load_study(study_name=study_name, storage=storage)
+    return study.best_params
         
         
 ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
