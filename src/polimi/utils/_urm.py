@@ -123,6 +123,6 @@ def train_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, params:
     rec_instance.fit(**params)
     
     if output_dir:
-        rec_instance.save_model(folder_path=output_dir.resolve(), file_name=file_name)
+        rec_instance.save_model(folder_path=str(output_dir), file_name=file_name)
     
     return rec_instance

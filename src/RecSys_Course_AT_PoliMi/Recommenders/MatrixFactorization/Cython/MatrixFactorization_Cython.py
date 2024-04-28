@@ -156,7 +156,7 @@ class MatrixFactorization_BPR_Cython(_MatrixFactorization_Cython):
     Subclas allowing only for MF BPR
     """
 
-    RECOMMENDER_NAME = "MatrixFactorization_BPR_Cython_Recommender"
+    RECOMMENDER_NAME = "MatrixFactorization_BPR_Cython"
 
     def __init__(self, *pos_args, **key_args):
         super(MatrixFactorization_BPR_Cython, self).__init__(*pos_args, algorithm_name="MF_BPR", **key_args)

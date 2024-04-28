@@ -29,29 +29,38 @@ import os
 load_dotenv()
 
 _PARQUET_TYPE = 'parquet'
-
-def load_history(base_path, type, split, lazy=False):
+_TYPES = ['demo', 'small', 'large', 'testset']
+_SPLIT = ['train', 'validation', 'test']
+def load_history(base_path: Path, type:str, split:str, lazy=False):
+    assert type in _TYPES, f"Type {type} not recognized. Must be one of {_TYPES}"
+    assert split in _SPLIT, f"Split {split} not recognized. Must be one of {_SPLIT}"
+        
     path = base_path / f'ebnerd_{type}' / split / f'history.{_PARQUET_TYPE}'
     if lazy:
         return pl.scan_parquet(path)
     return pl.read_parquet(path)
 
 
-def load_behaviors(base_path, type, split, lazy=False):
+def load_behaviors(base_path: Path, type:str, split:str, lazy=False):
+    assert type in _TYPES, f"Type {type} not recognized. Must be one of {_TYPES}"
+    assert split in _SPLIT, f"Split {split} not recognized. Must be one of {_SPLIT}"
+    
     path = base_path / f'ebnerd_{type}' / split / f'behaviors.{_PARQUET_TYPE}'
     if lazy:
         return pl.scan_parquet(path)
     return pl.read_parquet(path)
 
 
-def load_articles(base_path, type, lazy=False):
+def load_articles(base_path: Path, type: str, lazy=False):
+    assert type in _TYPES, f"Type {type} not recognized. Must be one of {_TYPES}"
+            
     path = base_path / f'ebnerd_{type}' / f'articles.{_PARQUET_TYPE}'
     if lazy:
         return pl.scan_parquet(path)
     return pl.read_parquet(path)
 
 
-def load_dataset(base_path, type, split, lazy=False):
+def load_dataset(base_path:Path, type:str, split:str, lazy=False):
     return {
         'history': load_history(base_path, type, split, lazy),
         'behaviors': load_behaviors(base_path, type, split, lazy),
@@ -127,7 +136,7 @@ def load_best_optuna_params(study_name: str, storage:str=None) -> dict:
         
 ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
       PureSVDRecommender, MultiThreadSLIM_SLIMElasticNetRecommender, SLIMElasticNetRecommender, 
-      MatrixFactorization_AsySVD_Cython, MatrixFactorization_BPR_Cython, MultVAERecommender]
+      MatrixFactorization_AsySVD_Cython, MatrixFactorization_BPR_Cython, MultVAERecommender, SLIM_BPR_Cython]
 
 ALGORITHMS = {algo.RECOMMENDER_NAME: [algo] for algo in ALGORITHMS_LIST}
 
