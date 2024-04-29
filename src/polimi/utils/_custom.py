@@ -7,13 +7,12 @@ from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import R
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCFRecommender import ItemKNNCFRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKNNCFRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.Cython.MatrixFactorization_Cython import MatrixFactorization_AsySVD_Cython, MatrixFactorization_BPR_Cython
-from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.PureSVDRecommender import PureSVDRecommender, PureSVDItemRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.Neural.MultVAERecommender import MultVAERecommender
 from RecSys_Course_AT_PoliMi.Recommenders.SLIM.SLIMElasticNetRecommender import SLIMElasticNetRecommender, MultiThreadSLIM_SLIMElasticNetRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.NMFRecommender import NMFRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.SLIM.Cython.SLIM_BPR_Cython import SLIM_BPR_Cython
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
-
-
 
 from os import getpid
 from psutil import Process
@@ -67,9 +66,6 @@ def load_dataset(base_path:Path, type:str, split:str, lazy=False):
         'articles': load_articles(base_path, type, lazy)
     }
     
-
-
-
 def cosine_similarity(x: List[float], y: List[float]):
     x = np.array(x)
     y = np.array(y)
@@ -136,7 +132,8 @@ def load_best_optuna_params(study_name: str, storage:str=None) -> dict:
         
 ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
       PureSVDRecommender, MultiThreadSLIM_SLIMElasticNetRecommender, SLIMElasticNetRecommender, 
-      MatrixFactorization_AsySVD_Cython, MatrixFactorization_BPR_Cython, MultVAERecommender, SLIM_BPR_Cython]
+      MatrixFactorization_AsySVD_Cython, MatrixFactorization_BPR_Cython, MultVAERecommender, SLIM_BPR_Cython, 
+      PureSVDItemRecommender, NMFRecommender]
 
 ALGORITHMS = {algo.RECOMMENDER_NAME: [algo] for algo in ALGORITHMS_LIST}
 
@@ -248,6 +245,18 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: Evaluator
             'learning_rate': trial.suggest_float('learning_rate', 1e-4, 1e-1, log=True),
             "epochs": 500,
             **earlystopping_keywargs
+        }
+    elif model == PureSVDItemRecommender:
+        params = {
+            "num_factors": trial.suggest_int("num_factors", 1, 1000),
+            "topK": trial.suggest_int("topK", 5, 1000),
+        }
+    elif model == NMFRecommender:
+        params = {
+            "num_factors": trial.suggest_int("num_factors", 1, 500),
+            "solver": trial.suggest_categorical("solver", ["coordinate_descent", "multiplicative_update"]),
+            "init_type": trial.suggest_categorical("init_type", ["random", "nndsvda"]),
+            "beta_loss": trial.suggest_categorical("beta_loss", ["frobenius", "kullback-leibler"]),
         }
     else:
         raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
