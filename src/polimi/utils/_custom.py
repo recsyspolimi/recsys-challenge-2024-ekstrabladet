@@ -27,6 +27,7 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
+_BASE_OPTUNA_STORAGE = 'mysql+pymysql://admin:MLZwrgaib8iha7DU9jgP@recsys2024-db.crio26omekmi.eu-west-1.rds.amazonaws.com/recsys2024'
 
 _PARQUET_TYPE = 'parquet'
 _TYPES = ['demo', 'small', 'large', 'testset']
@@ -127,7 +128,7 @@ def save_json(data: dict, file_path: Path):
         json.dump(data, file)
         
         
-def load_best_optuna_params(study_name: str, storage:str=None) -> dict:
+def load_best_optuna_params(study_name: str, storage:str=_BASE_OPTUNA_STORAGE) -> dict:
     if not storage:
         storage = os.getenv('OPTUNA_STORAGE')
     study = optuna.load_study(study_name=study_name, storage=storage)
