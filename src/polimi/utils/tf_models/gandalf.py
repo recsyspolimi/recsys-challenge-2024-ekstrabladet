@@ -36,9 +36,9 @@ class GANDALF(TabularNNModel):
         **kwargs
     ):
         super(GANDALF, self).__init__(categorical_features=categorical_features, numerical_features=numerical_features,
-                                      categorical_transform=categorical_transform, categories=categories,
-                                      numerical_transform=numerical_transform, use_gaussian_noise=use_gaussian_noise,
-                                      gaussian_noise_std=gaussian_noise_std, max_categorical_embedding_dim=max_categorical_embedding_dim,
+                                      categorical_transform=categorical_transform, numerical_transform=numerical_transform,
+                                      use_gaussian_noise=use_gaussian_noise, gaussian_noise_std=gaussian_noise_std, 
+                                      max_categorical_embedding_dim=max_categorical_embedding_dim,
                                       verbose=verbose, model_name=model_name, random_seed=random_seed, **kwargs)
         self.n_stages = n_stages
         self.init_t = init_t
@@ -81,7 +81,8 @@ class GANDALF(TabularNNModel):
         
     @classmethod
     def get_optuna_trial(cls, trial: Trial):
-        params = {
+        params = TabularNNModel.get_optuna_trial(trial)
+        model_params = {
             'n_stages': trial.suggest_int('n_stages', 2, 20),
             'init_t': trial.suggest_float('init_t', 0.1, 0.8),
             'n_head_layers': trial.suggest_int('n_head_layers', 0, 4),
@@ -90,6 +91,7 @@ class GANDALF(TabularNNModel):
             'l2_lambda': trial.suggest_float('l2_lambda', 1e-5, 1e-2, log=True),
             'activation': trial.suggest_categorical('activation', ['relu', 'sigmoid', 'tanh', 'swish'])
         }
+        params.update(model_params)
         if params['n_head_layers'] > 0:
             params['start_units_head'] = trial.suggest_int('start_units_head', 16, 256)
             params['head_units_decay'] = trial.suggest_categorical('head_units_decay', [1, 1.5, 2, 2.5, 3, 3.5, 4])

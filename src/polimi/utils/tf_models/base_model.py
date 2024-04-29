@@ -17,6 +17,7 @@ from sklearn.preprocessing import (
 from abc import ABC, abstractmethod
 import joblib
 import optuna
+import numpy as np
 
 
 class TabularNNModel(ABC):
@@ -32,7 +33,6 @@ class TabularNNModel(ABC):
         categorical_features: List[str] = None,
         numerical_features: List[str] = None,
         categorical_transform: str = 'embeddings',
-        categories: List[List[str]] = None,
         numerical_transform: str = 'quantile-normal',
         use_gaussian_noise: bool = False,
         gaussian_noise_std: float = 0.01,
@@ -48,7 +48,6 @@ class TabularNNModel(ABC):
             numerical_features (List[str]): the list of numerical features
             categorical_transform (str): the type of categorical encoder, can be one-hot-encoding, target-encoding
                 or embeddings (in this case the categorical variables will go through a learnable embedding layer)
-            categories (List[List[str]]): a list containing the categories for each categorical feature
             numerical_transform (str): the type of numerical preprocessing. Can be any between: "yeo-johnson", "standard", 
                 "quantile-normal", "quantile-normal", "max-abs", "box-cox", "yeo-johnson". If None, no preprocessing is done
             use_gaussian_noise (bool): if True, applies a gaussian noise to the input
@@ -67,13 +66,10 @@ class TabularNNModel(ABC):
             raise ValueError(f'Categorical encoding {categorical_transform} not available, choose one between {self.CATEGORICAL_TRANSFORMS}')
         if len(categorical_features) + len(numerical_features) == 0:
             raise ValueError('Provide at least one numerical feature or one categorical feature')
-        if len(categories) < len(categorical_features):
-            raise ValueError('Need to specify the categories of all the categorical features')
         
         self.categorical_features = categorical_features if categorical_features is not None else []
         self.numerical_features = numerical_features if numerical_features is not None else []
         self.categorical_transform = categorical_transform
-        self.categories = categories
         self.numerical_transform = numerical_transform
         self.max_categorical_embedding_dim = max_categorical_embedding_dim
         self.use_gaussian_noise = use_gaussian_noise
@@ -81,10 +77,6 @@ class TabularNNModel(ABC):
         self.random_seed = random_seed
         self.model_name = model_name
         self.model: tfk.Model = None
-        if len(self.categorical_features) > 0:
-            self._build_numerical_transformer()
-        if len(self.numerical_features) > 0:
-            self._build_categorical_encoder()
 
     def __call__(self, x, *args, **kwargs):
         return self.model(x, *args, **kwargs)
@@ -92,7 +84,7 @@ class TabularNNModel(ABC):
     def fit(
         self, 
         X: pd.DataFrame, 
-        y,
+        y: Union[np.array, pd.Series],
         validation_data: Tuple = None,
         early_stopping_rounds: int = 1,
         batch_size: int = 256,
@@ -106,6 +98,7 @@ class TabularNNModel(ABC):
         
         inputs = []
         if len(self.numerical_features) > 0:
+            self._build_numerical_transformer()
             if self.xformer is not None:
                 X_train_numerical = self.xformer.fit_transform(X[self.numerical_features], y)
             else:
@@ -113,6 +106,16 @@ class TabularNNModel(ABC):
             inputs.append(X_train_numerical)
             
         if len(self.categorical_features) > 0:
+            self.vocabulary_sizes = {}
+            self.categories = []
+            for f in self.categorical_features:
+                X[f] = X[f].astype('object').fillna('NA')
+                categories_train = np.array(X[f].unique(), dtype=str)
+                if 'NA' not in categories_train:
+                    categories_train = np.concatenate([categories_train, ['NA']])
+                self.categories.append(categories_train)
+                self.vocabulary_sizes[f] = len(categories_train)
+            self._build_categorical_encoder()
             X_train_categorical = self.encoder.fit_transform(X[self.categorical_features], y)
             inputs.append(X_train_categorical)
         
@@ -122,22 +125,22 @@ class TabularNNModel(ABC):
         if validation_data is not None:
             X_val, y_val = validation_data
             validation_data = (self._transform_test_data(X_val), y_val)
-                
-        early_stopping = tfk.callbacks.EarlyStopping(
-            monitor=early_stopping_monitor, 
-            patience=early_stopping_rounds, 
-            mode=early_stopping_mode, 
-            restore_best_weights=True
-        )
+            early_stopping = tfk.callbacks.EarlyStopping(
+                monitor=early_stopping_monitor, 
+                patience=early_stopping_rounds, 
+                mode=early_stopping_mode, 
+                restore_best_weights=True
+            )
+            callbacks = [early_stopping]
+        else:
+            callbacks = []
         
         if lr_scheduler is not None:
             if type(lr_scheduler) == tfk.callbacks.Callback:
-                callbacks = [early_stopping, lr_scheduler]
+                callbacks.append(lr_scheduler)
             elif type(lr_scheduler) == callable:
                 scheduler = tfk.callbacks.LearningRateScheduler(lr_scheduler)
-                callbacks = [early_stopping, scheduler]   
-        else:
-            callbacks = [early_stopping]
+                callbacks.append(scheduler)
             
         self.model.fit(
             X=X,
@@ -186,10 +189,15 @@ class TabularNNModel(ABC):
     def build(self):
         raise NotImplementedError('Method build not implemented')
     
-    @abstractmethod
     @classmethod
     def get_optuna_trial(cls, trial: optuna.Trial):
-        raise NotImplementedError('Method get_optuna_trial not implemented')   
+        params = {
+            'use_gaussian_noise': trial.suggest_categorical('use_gaussian_noise', [True, False]),
+            'numerical_transform': trial.suggest_categorical('numerical_transform', cls.NUMERICAL_TRANSOFORMS),
+        }
+        if params['use_gaussian_noise']:
+            params['gaussian_noise_std'] = trial.suggest_float('gaussian_noise_std', 1e-3, 1)
+        return params
         
     def _transform_test_data(self, X: pd.DataFrame):
         inputs = []
@@ -200,6 +208,11 @@ class TabularNNModel(ABC):
                 X_numerical = X[self.numerical_features]
             inputs.append(X_numerical)    
         if len(self.categorical_features) == 0:
+            for i, f in enumerate(self.categorical_features):
+                X[f] = X[f].astype('object').fillna('NA')
+                categories_val = np.array(X[f].unique())
+                unknown_categories = [x for x in categories_val if x not in self.categories[i]]
+                X[f] = X[f].replace(list(unknown_categories), 'NA')
             X_categorical = self.encoder.transform(X[self.categorical_features])
             if self.categorical_transform == 'embeddings':
                 X_categorical = [X_categorical[:, i].reshape(-1, 1) for i in range(len(self.categorical_features))]
@@ -268,9 +281,6 @@ class TabularNNModel(ABC):
     def _build_categorical_encoder(self):
         if self.categorical_transform == 'embeddings':
             self.encoder = OrdinalEncoder(categories=self.categories)
-            self.vocabulary_sizes = {
-                self.categorical_features[i]: len(self.categories[i]) for i in range(len(self.categorical_features))
-            }
         elif self.categorical_transform == 'target-encoding':
             self.encoder = TargetEncoder(target_type='binary', categories=self.categories)
             self.categorical_encoding_shape = len(self.categorical_features)

@@ -17,7 +17,6 @@ class WideDeepNetwork(TabularNNModel):
         categorical_features: list[str] = None,
         numerical_features: list[str] = None,
         categorical_transform: str = 'embeddings',
-        categories: list[list[str]] = None,
         numerical_transform: str = 'quantile-normal',
         use_gaussian_noise: bool = False,
         gaussian_noise_std: float = 0.01,
@@ -45,9 +44,9 @@ class WideDeepNetwork(TabularNNModel):
             activation (str): the activation function of the hidden layers
         '''
         super(WideDeepNetwork, self).__init__(categorical_features=categorical_features, numerical_features=numerical_features,
-                                              categorical_transform=categorical_transform, categories=categories,
-                                              numerical_transform=numerical_transform, use_gaussian_noise=use_gaussian_noise,
-                                              gaussian_noise_std=gaussian_noise_std, max_categorical_embedding_dim=max_categorical_embedding_dim,
+                                              categorical_transform=categorical_transform, numerical_transform=numerical_transform,
+                                              use_gaussian_noise=use_gaussian_noise, gaussian_noise_std=gaussian_noise_std, 
+                                              max_categorical_embedding_dim=max_categorical_embedding_dim,
                                               verbose=verbose, model_name=model_name, random_seed=random_seed, **kwargs)
         self.n_layers = n_layers
         self.start_units = start_units
@@ -86,7 +85,8 @@ class WideDeepNetwork(TabularNNModel):
         
     @classmethod
     def get_optuna_trial(cls, trial: Trial):
-        params = {
+        params = TabularNNModel.get_optuna_trial(trial)
+        model_params = {
             'n_layers': trial.suggest_int('n_layers', 1, 6),
             'start_units': trial.suggest_int('start_units', 64, 1024, log=True),
             'units_decay': trial.suggest_categorical('units_decay', [1, 1.5, 2, 2.5, 3, 3.5, 4]),
@@ -95,4 +95,5 @@ class WideDeepNetwork(TabularNNModel):
             'l2_lambda': trial.suggest_float('l2_lambda', 1e-5, 1e-2, log=True),
             'activation': trial.suggest_categorical('activation', ['relu', 'sigmoid', 'tanh', 'swish'])
         }
+        params.update(model_params)
         return params
