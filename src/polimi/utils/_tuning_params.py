@@ -60,7 +60,6 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             params['mvs_reg'] = trial.suggest_float('mvs_reg', 1e-4, 1e4, log=True)
             
     elif model in [XGBClassifier, XGBRanker]:
-        pass
         params = {
             'n_estimators': trial.suggest_int('n_estimators', 10, 5000, log=True),
             'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
