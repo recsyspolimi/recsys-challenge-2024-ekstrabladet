@@ -25,6 +25,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import R
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
 from polimi.utils._custom import ALGORITHMS
 from polimi.utils._custom import load_sparse_csr, save_json, get_algo_params
+import time
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -47,9 +48,17 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
     evaluator = EvaluatorHoldout(URM_val, cutoff_list=[cutoff], exclude_seen=False)
 
     def objective_function(trial: optuna.Trial):
+        start_time = time.time()
         params = get_algo_params(trial, model, eval=evaluator, eval_metric=metric)
         rec_instance = model(URM_train)
         rec_instance.fit(**params)
+        
+        if 'epochs' in params:
+            epochs = rec_instance.get_early_stopping_final_epochs_dict()["epochs"]
+            trial.set_user_attr("epochs", epochs)
+        
+        trial.set_user_attr("train_time (min)", f'{((time.time() - start_time)/60):.1f}')
+        
         result_df, _ = evaluator.evaluateRecommender(rec_instance)
         return result_df.loc[cutoff][metric.upper()]
 

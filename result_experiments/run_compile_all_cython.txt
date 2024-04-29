@@ -1,2 +1,0 @@
-run_compile_all_cython: Compilation finished. SUCCESS.
-Compilation log can be found here: './result_experiments/run_compile_all_cython.txt'
