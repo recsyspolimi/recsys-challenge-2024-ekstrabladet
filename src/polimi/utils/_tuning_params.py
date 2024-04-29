@@ -72,28 +72,27 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             'max_bin': trial.suggest_int('max_bin', 8, 512),
             'gamma': trial.suggest_float('gamma', 1e-7, 10, log=True),
             'min_child_weight': trial.suggest_float('min_child_weight', 1e-7, 1, log=True),
-            'subsample': trial.suggest_float('subsample', 0.1, 0.9),
-            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, 0.9),
+            'subsample': trial.suggest_float('subsample', 0.05, 0.5),
+            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, 0.8),
+            "enable_categorical": True,
         }
             
     elif model == FastRGFClassifierWrapper:
         params = {
-            "n_estimators": trial.suggest_int('n_estimators', 10, 10000),
+            "n_estimators": trial.suggest_int('n_estimators', 100, 10000),
             "max_depth": trial.suggest_int("max_depth", 3, 10),
             "max_leaf": trial.suggest_int("max_leaf", 8, 128),
             "tree_gain_ratio": trial.suggest_float("tree_gain_ratio", 0.1, 1),
             "min_samples_leaf": trial.suggest_int("min_samples_leaf", 5, 500),
-            "l1": trial.suggest_float("l1", 1e-3, 1000, log=True),
+            "l1": trial.suggest_float("l1", 1, 10000, log=True),
             "l2": trial.suggest_float("l2", 1, 100000, log=True),
-            "opt_algorithm": trial.suggest_categorical("opt_algorithm", ['rgf', 'epsilon-greedy']),
-            "learning_rate": trial.suggest_float("learning_rate", 5e-4, 0.1, log=True),
-            "max_bin": trial.suggest_int("max_bin", 8, 512, log=True),
-            "min_child_weight": trial.suggest_float("min_child_weight", 1e-3, 1e-3, log=True),
-            "data_l2": trial.suggest_float("data_l2", 1e-3, 1000),
+            "max_bin": trial.suggest_int("max_bin", 8, 1024, log=True),
+            "opt_algorithm": trial.suggest_categorical("opt_algorithm", ["rgf", "epsilon-greedy"]),
             "verbose": 0,
             "n_jobs": -1,
-            "enable_categorical": True,
         }
+        if params['opt_algorithm'] == 'epsilon-greedy':
+            params['learning_rate'] = trial.suggest_float('learning_rate', 1e-4, 0.1, log=True)
     
     else:
         raise ValueError(f'Model not recognized')
