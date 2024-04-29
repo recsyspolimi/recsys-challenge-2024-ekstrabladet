@@ -91,7 +91,8 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             "min_child_weight": trial.suggest_float("min_child_weight", 1e-3, 1e-3, log=True),
             "data_l2": trial.suggest_float("data_l2", 1e-3, 1000),
             "verbose": 0,
-            "n_jobs": -1
+            "n_jobs": -1,
+            "enable_categorical": True,
         }
     
     else:
