@@ -10,7 +10,7 @@ from polimi.preprocessing_pipelines.pre_127 import build_features as build_featu
 
 from polimi.preprocessing_pipelines.pre_127 import build_features_iterator_test as build_features_iterator_test_127f
 
-PREPROCESSING_VERSIONS = ['68f','94f','115f','127f','lates']
+PREPROCESSING_VERSIONS = ['68f','94f','115f','127f','latest']
 
 PREPROCESSING = {
     '68f': build_features_68f,

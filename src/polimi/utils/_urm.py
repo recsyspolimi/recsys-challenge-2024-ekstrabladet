@@ -140,7 +140,7 @@ def load_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, file_pat
     rec_instance.load_model(folder_path=str(file_path), file_name=file_name)
     return rec_instance
 
-def build_ner_scores_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender]):
+def build_ner_scores_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], batch_size=BATCH_SIZE, save_path:Path=None):
     '''
     Builds the score features for ner interactions. For each (impression_id, user_id, article), 
     it computes the sum, max and mean of the scores for each recommender in recs. Note that each score
@@ -168,6 +168,14 @@ def build_ner_scores_features(history: pl.DataFrame, behaviors: pl.DataFrame, ar
         ).select('impression_id', 'user_id', 'user_index', 'candidate_ids', 'candidate_ner_index')        
     
     all_items = ner_mapping['ner_index'].unique().sort().to_list()
+    
+    df = pl.concat([ #remove empty ner_index
+        slice.explode(['candidate_ids', 'candidate_ner_index'])\
+            .filter(pl.col('candidate_ner_index').list.len() > 0)\
+            .group_by(['impression_id', 'user_id', 'user_index']).agg(pl.all())
+        for slice in tqdm(df.iter_slices(batch_size), total=df.shape[0]//batch_size)
+    ])
+    
     df = pl.concat([
             slice.with_columns(
                     *[pl.col('candidate_ner_index').list.eval(
@@ -184,11 +192,16 @@ def build_ner_scores_features(history: pl.DataFrame, behaviors: pl.DataFrame, ar
             *[pl.col(col).list.eval(pl.element().list.max()).alias(f'max_{col}') for col in scores_cols],
             *[pl.col(col).list.eval(pl.element().list.mean()).alias(f'mean_{col}') for col in scores_cols],
         ).with_columns(
-            pl.all().exclude(['impression_id', 'user_id', 'candidate_ids'] + scores_cols).list.eval(pl.element().truediv(pl.element().max())), #inf norm
+            pl.all().exclude(['impression_id', 'user_id', 'candidate_ids'] + scores_cols).list.eval(pl.element().truediv(pl.element().max()).fill_nan(0.0)), #inf norm
         ).drop(scores_cols)
         
     df = reduce_polars_df_memory_size(df)
     df = df.sort(['impression_id', 'user_id'])\
         .explode(pl.all().exclude(['impression_id', 'user_id']))\
-        .rename({'candidate_ids': 'article'})    
+        .rename({'candidate_ids': 'article'})
+    
+    if save_path:
+        print(f'Saving ner scores features ... [{save_path}]')
+        df.write_parquet(save_path / 'ner_scores_features.parquet')
+        
     return df

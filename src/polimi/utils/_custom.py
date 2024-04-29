@@ -1,3 +1,4 @@
+from catboost import CatBoostClassifier, CatBoostRanker
 import polars as pl
 import numpy as np
 from typing_extensions import List, Type
@@ -13,6 +14,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.SLIM.SLIMElasticNetRecommender import 
 from RecSys_Course_AT_PoliMi.Recommenders.SLIM.Cython.SLIM_BPR_Cython import SLIM_BPR_Cython
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.NMFRecommender import NMFRecommender
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
+from lightgbm import LGBMClassifier, LGBMRanker
 
 from os import getpid
 from psutil import Process
@@ -26,6 +28,11 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+_BASE_OPTUNA_STORAGE = 'mysql+pymysql://admin:MLZwrgaib8iha7DU9jgP@recsys2024-db.crio26omekmi.eu-west-1.rds.amazonaws.com/recsys2024'
 
 _PARQUET_TYPE = 'parquet'
 _TYPES = ['demo', 'small', 'large', 'testset']
@@ -123,19 +130,11 @@ def save_json(data: dict, file_path: Path):
         json.dump(data, file)
         
         
-def load_best_optuna_params(study_name: str, storage:str=None) -> dict:
+def load_best_optuna_params(study_name: str, storage:str=_BASE_OPTUNA_STORAGE) -> dict:
     if not storage:
         storage = os.getenv('OPTUNA_STORAGE')
     study = optuna.load_study(study_name=study_name, storage=storage)
-    return study.best_params
-        
-        
-def load_best_optuna_params(study_name: str, storage:str=None) -> dict:
-    if not storage:
-        storage = os.getenv('OPTUNA_STORAGE')
-    study = optuna.load_study(study_name=study_name, storage=storage)
-    return study.best_params
-        
+    return study.best_params        
         
 ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
       PureSVDRecommender, MultiThreadSLIM_SLIMElasticNetRecommender, SLIMElasticNetRecommender, 
@@ -143,16 +142,6 @@ ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender,
       PureSVDItemRecommender, NMFRecommender]
 
 ALGORITHMS = {algo.RECOMMENDER_NAME: [algo] for algo in ALGORITHMS_LIST}
-
-        
-def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: EvaluatorHoldout, eval_metric:str):
-    earlystopping_keywargs = {
-        "validation_every_n": 5,
-        "stop_on_validation": True,
-        "lower_validations_allowed": 5,
-        "validation_metric": eval_metric,
-        "evaluator_object": eval,
-    }
     
 def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: EvaluatorHoldout, eval_metric:str):
     earlystopping_keywargs = {
