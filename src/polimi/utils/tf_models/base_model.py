@@ -26,7 +26,7 @@ class TabularNNModel(ABC):
     '''
     
     CATEGORICAL_TRANSFORMS = ['embeddings', 'one-hot-encoding', 'target-encoding']
-    NUMERICAL_TRANSOFORMS = [None, 'min-max', 'standard', 'quantile-normal', 'quantile-normal', 'max-abs', 'box-cox', 'yeo-johnson']
+    NUMERICAL_TRANSOFORMS = [None, 'min-max', 'standard', 'quantile-normal', 'quantile-normal', 'max-abs', 'yeo-johnson']
     
     def __init__(
         self, 
@@ -49,7 +49,7 @@ class TabularNNModel(ABC):
             categorical_transform (str): the type of categorical encoder, can be one-hot-encoding, target-encoding
                 or embeddings (in this case the categorical variables will go through a learnable embedding layer)
             numerical_transform (str): the type of numerical preprocessing. Can be any between: "yeo-johnson", "standard", 
-                "quantile-normal", "quantile-normal", "max-abs", "box-cox", "yeo-johnson". If None, no preprocessing is done
+                "quantile-normal", "quantile-normal", "max-abs". If None, no preprocessing is done
             use_gaussian_noise (bool): if True, applies a gaussian noise to the input
             gaussian_noise_std (float): the standard deviation of the gaussian noise
             max_categorical_embedding_dim (int): the maximum size of a categorical embedding. The actual size will be
@@ -273,8 +273,6 @@ class TabularNNModel(ABC):
             self.xformer = MaxAbsScaler()
         elif self.numerical_transform == 'standard':
             self.xformer = StandardScaler()
-        elif self.numerical_transform == 'box-cox':
-            self.xformer = PowerTransformer(method='box-cox')
         elif self.numerical_transform == 'yeo-johnson':
             self.xformer = PowerTransformer(method='yeo-johnson')
         

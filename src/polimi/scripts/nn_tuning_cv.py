@@ -17,7 +17,6 @@ import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
 from ebrec.evaluation.metrics_protocols import *
-from polimi.preprocessing_pipelines.pre_68f import strip_new_features
 from polimi.utils.tf_models import *
 from polimi.utils.tf_models.utils import *
 
