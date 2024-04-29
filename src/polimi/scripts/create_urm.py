@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import datetime
 import argparse
 import polars as pl
-from polimi.utils._urm import build_user_id_mapping, build_ner_mapping, build_ner_urm,build_recsys_urm, build_articles_with_processed_ner, compute_sparsity_ratio
+from polimi.utils._urm import build_user_id_mapping, build_ner_mapping, build_ner_urm,build_recsys_urm,build_item_mapping, build_articles_with_processed_ner, compute_sparsity_ratio
 from polimi.utils._custom import save_sparse_csr, read_json
 
 
@@ -12,7 +12,7 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, output_dir: Path):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
     articles = pl.read_parquet(dataset_path.joinpath('articles.parquet'))
-    if urm_type in ['demo', 'small', 'large']:
+    if dataset_type in ['demo', 'small', 'large']:
         train_path = dataset_path.joinpath('train')
         history_train = pl.read_parquet(train_path.joinpath('history.parquet'))
         behaviors_train = pl.read_parquet(train_path.joinpath('behaviors.parquet'))
@@ -20,7 +20,7 @@ def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, outp
         val_path = dataset_path.joinpath('validation')
         history_val = pl.read_parquet(val_path.joinpath('history.parquet'))
         behaviors_val = pl.read_parquet(val_path.joinpath('behaviors.parquet'))
-    elif urm_type == 'testset':
+    elif dataset_type == 'testset':
         history_testset = pl.read_parquet(dataset_path.joinpath('test').joinpath('history.parquet'))
     
     data_info = read_json(dataset_path.joinpath('data_info.json'))
@@ -31,7 +31,7 @@ def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, outp
         ap = build_articles_with_processed_ner(articles)
         ner_mapping = build_ner_mapping(ap)
         output_file_path = output_dir.joinpath(f'URM_{urm_split}')
-        if urm_type in ['demo', 'small', 'large']:
+        if dataset_type in ['demo', 'small', 'large']:
             user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
             if urm_split == 'train':
                 URM_ner = build_ner_urm(history_train, ap, user_id_mapping, ner_mapping, 'article_id_fixed')
@@ -39,7 +39,7 @@ def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, outp
                 URM_ner = build_ner_urm(history_val, ap, user_id_mapping, ner_mapping, 'article_id_fixed')
             elif urm_split == 'test':
                 URM_ner = build_ner_urm(behaviors_train.vstack(behaviors_val), ap, user_id_mapping, ner_mapping, 'article_ids_clicked')
-        elif urm_type == 'testset':
+        elif dataset_type == 'testset':
             user_id_mapping = build_user_id_mapping(history_testset)
             URM_ner = build_ner_urm(history_testset, ap, user_id_mapping, ner_mapping, 'article_id_fixed')
         
@@ -47,13 +47,19 @@ def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, outp
         save_sparse_csr(output_file_path, URM_ner, logger=logging)
     
     if urm_type == 'recsys':
-        user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
-        item_mapping = articles.select('article_id').unique().sort('article_id').with_row_index().rename({'index': 'item_index'})
+        item_mapping = build_item_mapping(articles)
         output_file_path = output_dir.joinpath(f'URM_{urm_split}')
-        if urm_split == 'train':
-            URM_recsys = build_recsys_urm(history_train, user_id_mapping, item_mapping)
-        elif urm_split == 'validation':
-            URM_recsys = build_recsys_urm(history_val, user_id_mapping, item_mapping)
+        if dataset_type in ['demo', 'small', 'large']:
+            user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
+            if urm_split == 'train':
+                URM_recsys = build_recsys_urm(history_train, user_id_mapping, item_mapping, 'article_id_fixed')
+            elif urm_split == 'validation':
+                URM_recsys = build_recsys_urm(history_val, user_id_mapping, item_mapping, 'article_id_fixed')
+            elif urm_split == 'test':
+                URM_recsys = build_recsys_urm(behaviors_train.vstack(behaviors_val), user_id_mapping, item_mapping, 'article_ids_clicked')
+        elif dataset_type == 'testset':
+            user_id_mapping = build_user_id_mapping(history_testset)
+            URM_recsys = build_recsys_urm(history_testset,user_id_mapping,item_mapping, 'article_id_fixed')
         
         logging.info(f'Sparsity ratio of the URM: {compute_sparsity_ratio(URM_recsys)}')
         save_sparse_csr(output_file_path, URM_recsys, logger=logging)
