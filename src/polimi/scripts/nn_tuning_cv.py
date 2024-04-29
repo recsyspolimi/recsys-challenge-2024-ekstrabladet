@@ -11,6 +11,7 @@ import seaborn as sns
 from typing_extensions import List, Tuple, Dict, Type, TypeVar
 import optuna
 import polars as pl
+import tensorflow as tf
 
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
@@ -18,6 +19,7 @@ sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 from ebrec.evaluation.metrics_protocols import *
 from polimi.preprocessing_pipelines.pre_68f import strip_new_features
 from polimi.utils.tf_models import *
+from polimi.utils.tf_models.utils import *
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 T = TypeVar('T', bound=TabularNNModel)
@@ -45,12 +47,29 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         # TODO: change tunable epochs with 1000 and add early stoppping params after setting cross validation
         params = model_class.get_optuna_trial(trial)
         model = model_class(categorical_features=categorical_features, numerical_features=numerical_features, **params)
+        model.build()
+        
+        # training hyperparameters
+        epochs = trial.suggest_int('epochs', 1, 50)
+        learning_rate = trial.suggest_float('learning_rate', 1e-4, 1e-2)
+        weight_decay = trial.suggest_float('weight_decay', 1e-2, 1e-5)
+        use_scheduler = trial.suggest_categorical('use_scheduler', [True, False])
+        lr_scheduler = get_simple_decay_scheduler(trial.suggest_float('scheduling_rate', 1e-3, 0.1)) if use_scheduler else None
+            
+        model.compile(
+            loss=tf.keras.losses.BinaryCrossentropy(),
+            metrics=[tf.keras.metrics.AUC(curve='ROC', name='auc')],
+            optimizer=tf.keras.optimizers.AdamW(learning_rate, weight_decay=weight_decay),
+        )
+        
         model.fit(
             X_train, 
             y_train,
-            epochs=trial.suggest_int('epochs', 1, 50),
-            batch_size=128
+            epochs=epochs,
+            batch_size=128,
+            lr_scheduler=lr_scheduler
         )
+        
         prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
             .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
         met_eval = MetricEvaluator(
