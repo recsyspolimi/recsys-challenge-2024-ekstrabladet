@@ -47,7 +47,7 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
     evaluator = EvaluatorHoldout(URM_val, cutoff_list=[cutoff], exclude_seen=False)
 
     def objective_function(trial: optuna.Trial):
-        params = get_algo_params(trial, model)
+        params = get_algo_params(trial, model, eval=evaluator, eval_metric=metric)
         rec_instance = model(URM_train)
         rec_instance.fit(**params)
         result_df, _ = evaluator.evaluateRecommender(rec_instance)

@@ -3,9 +3,11 @@ try:
 except ImportError:
     print("polars not available")
 
+from pathlib import Path
 import scipy.sparse as sps
 from tqdm import tqdm
 import numpy as np
+from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
 from polimi.utils._catboost import reduce_polars_df_memory_size
 
 
@@ -33,8 +35,7 @@ def compute_sparsity_ratio(URM: sps.csr_matrix):
 
 
 def _build_implicit_urm(df: pl.DataFrame, x_col: str, y_col: str, x_mapping: pl.DataFrame, y_mapping: pl.DataFrame):
-    return sps.csr_matrix((np.ones(df.shape[0]),
-                          (df[x_col].to_numpy(), df[y_col].to_numpy())),
+    return sps.csr_matrix((np.ones(df.shape[0]), (df[x_col].to_numpy(), df[y_col].to_numpy())),
                          shape=(x_mapping.shape[0], y_mapping.shape[0]))
     
 def build_user_id_mapping(history: pl.DataFrame):
@@ -114,3 +115,14 @@ def build_recsys_urm(history: pl.DataFrame,
     return sps.csr_matrix((np.ones(interactions.shape[0]),
                           (interactions['user_index'].to_numpy(), interactions['item_index'].to_numpy())),
                          shape=(user_id_mapping.shape[0], item_mapping.shape[0]))
+
+
+
+def train_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, params: dict, file_name:str = None, output_dir: Path = None):
+    rec_instance= recommender(URM)
+    rec_instance.fit(**params)
+    
+    if output_dir:
+        rec_instance.save_model(folder_path=output_dir.resolve(), file_name=file_name)
+    
+    return rec_instance

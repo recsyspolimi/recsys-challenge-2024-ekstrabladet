@@ -52,4 +52,5 @@ dependencies = [
     "jupyter",
     "ipywidgets",
     "tensorflow>=2.15.0",
+    "python-dotenv>=1.0.1",
 ]

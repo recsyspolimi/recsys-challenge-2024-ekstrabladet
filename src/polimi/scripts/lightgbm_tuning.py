@@ -69,7 +69,7 @@ def load_datasets(train_dataset_path, validation_dataset_path):
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
+    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id', 'impression_time'])
     
     # Delete cateegories percentage columns
     train_ds = strip_new_features(train_ds)

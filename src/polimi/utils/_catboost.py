@@ -1059,9 +1059,8 @@ def add_article_endorsement_feature(df_features: pl.DataFrame, period: str = "10
 """
 
 
-def _preprocessing_article_endorsement_feature(behaviors, period):
+def _preprocessing_article_endorsement_feature(behaviors, period, batch_dim=10000):
     # slice the behaviors dataframe in windows based on the article_id_inview
-    batch_dim = 10000
     exploded_behaviors = behaviors.select(
         ['impression_time', 'article_ids_inview']).explode("article_ids_inview")
 
@@ -1075,18 +1074,34 @@ def _preprocessing_article_endorsement_feature(behaviors, period):
     n_batch = diff // batch_dim
     if diff % batch_dim != 0:  # If there are remaining items
         n_batch += 1 
+        
+    # return pl.concat(
+    #     exploded_behaviors.filter(
+    #         pl.col("article_ids_inview").ge(min_article_id + i * batch_dim)
+    #         .and_(pl.col("article_ids_inview").lt(min_article_id + (i + 1) * batch_dim))) \
+    #     .sort("impression_time").set_sorted("impression_time")
+    #     .with_columns(
+    #         pl.lit(1).alias(f'endorsement_{period}'))
+    #     .rename({'article_ids_inview': 'article'})
+    #     .rolling(index_column="impression_time", period=period, by='article').agg(
+    #         pl.col(f'endorsement_{period}').count()
+    #     ).unique(["article","impression_time"])
+    #     for i in tqdm(range(n_batch))
+    # )
+    
     return pl.concat(
         exploded_behaviors.filter(
             pl.col("article_ids_inview").ge(min_article_id + i * batch_dim)
-            .and_(pl.col("article_ids_inview").lt(min_article_id + (i + 1) * batch_dim))) \
-        .sort("impression_time").set_sorted("impression_time")
-        .with_columns(
-            pl.lit(1).alias(f'endorsement_{period}'))
+            .and_(pl.col("article_ids_inview").lt(min_article_id + (i + 1) * batch_dim)))\
+        .with_columns(pl.col('impression_time').dt.round('1m').alias('impression_time_rounded'))\
+        .group_by(['impression_time_rounded','article_ids_inview']).len()\
+        .rename({'impression_time_rounded': 'impression_time', 'len':f'endorsement_{period}'}) \
+        .sort("impression_time").set_sorted("impression_time") \
         .rename({'article_ids_inview': 'article'})
-        .rolling(index_column="impression_time", period=period, by='article').agg(
-            pl.col(f'endorsement_{period}').count()
-        ).unique(["article","impression_time"])
-        for i in tqdm(range(n_batch))
+        .rolling(index_column="impression_time", period=period, group_by='article').agg(
+            pl.col(f'endorsement_{period}').sum()
+        ).unique(["article","impression_time"]) \
+        for i in tqdm(range(n_batch))                    
     )
     
 
@@ -1104,7 +1119,10 @@ def _preprocessing_article_endorsement_feature(behaviors, period):
 
 
 def add_article_endorsement_feature(df_features, articles_endorsement):
-    return df_features.join(other=articles_endorsement, on=["article", "impression_time"], how="left")
+    # old return df_features.join(other=articles_endorsement, on=["article", "impression_time"], how="left")
+    return df_features.with_columns(pl.col('impression_time').dt.round('1m').alias('rounded_impression_time'))\
+                         .join(articles_endorsement.rename({'impression_time' : 'rounded_impression_time'}), on=['article','rounded_impression_time'], how='left')\
+                         .drop('rounded_impression_time')
 
 
 def get_unique_categories(articles: pl.DataFrame):
@@ -1125,3 +1143,21 @@ def get_unique_categories(articles: pl.DataFrame):
     del unique_categories_df
 
     return unique_categories
+
+def subsample_dataset(original_datset_path: str, dataset_path : str, new_path: str, npratio: int = 2):
+    starting_dataset =  pl.read_parquet(original_datset_path).select(['impression_time','user_id','article_ids_inview','article_ids_clicked'])
+    dataset = pl.read_parquet(dataset_path)
+    
+    behaviors = pl.concat(
+        rows.pipe(
+            sampling_strategy_wu2019, npratio=npratio, shuffle=False, with_replacement=True, seed=123
+        ).explode('article_ids_inview').drop(columns = 'article_ids_clicked').rename({'article_ids_inview' : 'article'})\
+        .with_columns(pl.col('user_id').cast(pl.UInt32),
+                      pl.col('article').cast(pl.Int32))\
+        
+         for rows in tqdm(starting_dataset.iter_slices(1000), total=starting_dataset.shape[0] // 1000)
+    )
+        
+    behaviors.join(dataset, on = ['impression_time','user_id','article'], how = 'left').write_parquet(new_path)
+    
+    

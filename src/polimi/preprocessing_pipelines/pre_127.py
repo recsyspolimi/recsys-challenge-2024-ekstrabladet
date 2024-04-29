@@ -1,3 +1,4 @@
+import os
 import polars as pl
 from tqdm import tqdm
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -53,41 +54,36 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
         behaviors, history, articles, test, sample, npratio
     )
-    print('Building Topic Model Representation')
+    print('Computing topic model...')
     articles, topic_model_columns, n_components = _compute_topic_model(
         articles)
-    print('Topic Model Representation done')
 
-    print("Building topics list")
     topics = articles.select("topics").explode("topics").unique()
     topics = [topic for topic in topics["topics"] if topic is not None]
-    print("Topics list built")
 
-    print("History trendiness scores preprocessing")
+    print('Preprocessing history trendiness scores...')
     users_mean_trendiness_scores, topics_mean_trendiness_scores = _preprocessing_history_trendiness_scores(
         history=history, articles=articles)
-    print("History trendiness scores preprocessing done")
 
-    print("Mean delays preprocessing")
+    print('Preprocessing mean delays...')
     topic_mean_delays, user_mean_delays = _preprocessing_mean_delay_features(
         articles=articles, history=history)
-    print("Mean delays preprocessing done")
 
-    print("Preprocessing window features")
+    print('Preprocessing window features...')
     windows, user_windows, user_topics_windows, user_category_windows = _preprocessing_window_features(
         history=history, articles=articles)
-    print("preprocessing window features done")
 
-    print("Computing articles endorsement")
+    print('Preprocessing article endorsement feature...')
     articles_endorsement = _preprocessing_article_endorsement_feature(
         behaviors=behaviors, period="10h")
-    print("Articles endorsement computed")
 
     unique_categories = get_unique_categories(articles)
 
+    print('Reading old features...')
     if previous_version is not None:
         behaviors = pl.read_parquet(previous_version)
 
+    print('Building features...')
     for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
         if previous_version is None:
             slice_features = sliced_df.pipe(_build_features_behaviors, history=history, articles=articles,
@@ -96,43 +92,59 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         else:
             slice_features = sliced_df
 
-        print('Adding history trendiness features')
-        slice_features = pl.concat(
-            rows.pipe(add_history_trendiness_scores_feature, articles=articles, users_mean_trendiness_scores=users_mean_trendiness_scores,
-                      topics_mean_trendiness_scores=topics_mean_trendiness_scores, topics=topics)
-            for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0] // 20000))
-        slice_features = reduce_polars_df_memory_size(slice_features)
+        slice_features = _build_new_features(df_features=slice_features, history=history, articles=articles, users_mean_trendiness_scores=users_mean_trendiness_scores,
+                                             topics_mean_trendiness_scores=topics_mean_trendiness_scores, topics=topics, topic_mean_delays=topic_mean_delays,
+                                             user_mean_delays=user_mean_delays, windows=windows, user_windows=user_windows,
+                                             user_category_windows=user_category_windows, user_topics_windows=user_topics_windows, articles_endorsement=articles_endorsement,
+                                             topic_model_columns=topic_model_columns, n_components=n_components)
 
-        print('Adding mean delays features')
-        slice_features = pl.concat(
-            rows.pipe(add_mean_delays_features, articles=articles,
-                      topic_mean_delays=topic_mean_delays, user_mean_delays=user_mean_delays)
-            for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0] // 20000))
-        slice_features = reduce_polars_df_memory_size(slice_features)
+        yield slice_features, vectorizer, unique_entities
 
-        print("Adding window features")
-        slice_features = pl.concat(
-            rows.pipe(add_window_features, articles=articles, user_windows=user_windows,
-                      user_category_windows=user_category_windows, user_topics_windows=user_topics_windows, windows=windows)
-            for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0]//20000))
-        slice_features = reduce_polars_df_memory_size(slice_features)
 
-        print("Adding category trendiness features")
-        slice_features = pl.concat(
-            rows.pipe(add_trendiness_feature_categories, articles=articles)
-            for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0]//20000))
-        slice_features = reduce_polars_df_memory_size(slice_features)
+def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
+                                 test: bool = False, sample: bool = True, npratio: int = 2,
+                                 tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10, previous_version=None):
+    
+    behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
+        behaviors, history, articles, test, sample, npratio
+    )
 
-        print("Adding endorsement feature")
-        slice_features = pl.concat(
-            rows.pipe(add_article_endorsement_feature,
-                      articles_endorsement=articles_endorsement)
-            for rows in tqdm(slice_features.iter_slices(20000), total=slice_features.shape[0]//20000))
-        slice_features = reduce_polars_df_memory_size(slice_features)
+    print('Computing topic model...')
+    articles, topic_model_columns, n_components = _compute_topic_model(
+        articles)
 
-        print('Adding topic model features')
-        slice_features = slice_features.pipe(add_topic_model_features, history=history,
-                                             articles=articles, topic_model_columns=topic_model_columns, n_components=n_components)
+    topics = articles.select("topics").explode("topics").unique()
+    topics = [topic for topic in topics["topics"] if topic is not None]
+
+    print('Preprocessing history trendiness scores...')
+    users_mean_trendiness_scores, topics_mean_trendiness_scores = _preprocessing_history_trendiness_scores(
+        history=history, articles=articles)
+
+    print('Preprocessing mean delays...')
+    topic_mean_delays, user_mean_delays = _preprocessing_mean_delay_features(
+        articles=articles, history=history)
+
+    print('Preprocessing window features...')
+    windows, user_windows, user_topics_windows, user_category_windows = _preprocessing_window_features(
+        history=history, articles=articles)
+
+    print('Preprocessing article endorsement feature...')
+    articles_endorsement = _preprocessing_article_endorsement_feature(
+        behaviors=behaviors, period="10h")
+
+
+    if previous_version is not None:
+        behaviors = pl.read_parquet(previous_version)
+
+    print('Building features...')
+    for slice in range(0,101):
+        slice_features = pl.read_parquet(os.path.join(previous_version, f'Sliced_ds/test_slice_{slice}.parquet'))
+
+        slice_features = _build_new_features(df_features=slice_features, history=history, articles=articles, users_mean_trendiness_scores=users_mean_trendiness_scores,
+                                             topics_mean_trendiness_scores=topics_mean_trendiness_scores, topics=topics, topic_mean_delays=topic_mean_delays,
+                                             user_mean_delays=user_mean_delays, windows=windows, user_windows=user_windows,
+                                             user_category_windows=user_category_windows, user_topics_windows=user_topics_windows, articles_endorsement=articles_endorsement,
+                                             topic_model_columns=topic_model_columns, n_components=n_components)
 
         yield slice_features, vectorizer, unique_entities
 
@@ -199,16 +211,26 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     articles_endorsement = _preprocessing_article_endorsement_feature(
         behaviors=behaviors, period="10h")
 
-
-    articles, topic_model_columns, n_components = _compute_topic_model(
-        articles)
-    
     unique_categories = get_unique_categories(articles)
 
     df_features = behaviors.pipe(_build_features_behaviors, history=history, articles=articles,
                                  cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities,
                                  unique_categories=unique_categories)
 
+    df_features = _build_new_features(df_features=df_features, history=history, articles=articles, users_mean_trendiness_scores=users_mean_trendiness_scores,
+                                      topics_mean_trendiness_scores=topics_mean_trendiness_scores, topics=topics, topic_mean_delays=topic_mean_delays,
+                                      user_mean_delays=user_mean_delays, windows=windows, user_windows=user_windows,
+                                      user_category_windows=user_category_windows, user_topics_windows=user_topics_windows, articles_endorsement=articles_endorsement,
+                                      topic_model_columns=topic_model_columns, n_components=n_components)
+
+    return df_features, vectorizer, unique_entities
+
+
+def _build_new_features(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, users_mean_trendiness_scores: pl.DataFrame,
+                        topics_mean_trendiness_scores: pl.DataFrame, topics: pl.DataFrame, topic_mean_delays: pl.DataFrame,
+                        user_mean_delays: pl.DataFrame, windows: pl.DataFrame, user_windows: pl.DataFrame,
+                        user_category_windows: pl.DataFrame, user_topics_windows: pl.DataFrame, articles_endorsement: pl.DataFrame,
+                        topic_model_columns: list[str], n_components: int) -> pl.DataFrame:
     df_features = pl.concat(
         rows.pipe(add_history_trendiness_scores_feature, articles=articles, users_mean_trendiness_scores=users_mean_trendiness_scores,
                   topics_mean_trendiness_scores=topics_mean_trendiness_scores, topics=topics)
@@ -219,9 +241,10 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         .pipe(add_trendiness_feature_categories, articles=articles)
         .pipe(add_article_endorsement_feature, articles_endorsement=articles_endorsement)
         for rows in tqdm(df_features.iter_slices(20000), total=df_features.shape[0] // 20000))
+
     df_features = reduce_polars_df_memory_size(df_features)
 
     df_features = df_features.pipe(add_topic_model_features, history=history,
-                                         articles=articles, topic_model_columns=topic_model_columns, n_components=n_components)
+                                   articles=articles, topic_model_columns=topic_model_columns, n_components=n_components)
 
-    return df_features, vectorizer, unique_entities
+    return reduce_polars_df_memory_size(df_features)

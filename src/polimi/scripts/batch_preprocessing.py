@@ -12,19 +12,8 @@ import seaborn as sns
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
-from polimi.preprocessing_pipelines.pre_115f import build_features_iterator as build_features_iterator_115f
-from polimi.preprocessing_pipelines.pre_94f import build_features_iterator as build_features_iterator_94f
-from polimi.preprocessing_pipelines.pre_68f import build_features_iterator as build_features_iterator_68f
-from polimi.preprocessing_pipelines.pre_127 import build_features_iterator as build_features_iterator_127f
-
 from polimi.preprocessing_pipelines.categorical_dict import get_categorical_columns
-PREPROCESSING = {
-    '68f': build_features_iterator_68f,
-    '94f': build_features_iterator_94f,
-    '115f': build_features_iterator_115f,
-    '127f': build_features_iterator_127f,
-    'latest': build_features_iterator_127f,
-}
+from polimi.preprocessing_pipelines.preprocessing_versions import BATCH_PREPROCESSING, TEST_BATCH_PREPROCESSING
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -46,18 +35,23 @@ def main(input_path, output_dir, dataset_type='train',preprocessing_version='lat
     #sample = dataset_type == 'train'
     sample = False
     
-    build_features_iterator = PREPROCESSING[preprocessing_version]
+    if is_test_data and previous_version is not None:
+        build_features_iterator = TEST_BATCH_PREPROCESSING[preprocessing_version]
+    else:    
+        build_features_iterator = BATCH_PREPROCESSING[preprocessing_version]
     
     dataset_complete = []
     i = 0
     for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
                                                                         sample=sample, n_batches=100 ,previous_version = previous_version):
         dataset.write_parquet(os.path.join(slices_dir, f'{dataset_type}_slice_{i}.parquet'))
-        dataset_complete.append(dataset)
+        if not is_test_data:
+            dataset_complete.append(dataset)
         logging.info(f'Slice {i+1} preprocessed.')
         i += 1
-        
-    dataset_complete = pl.concat(dataset_complete, how='vertical_relaxed')
+    
+    if not is_test_data:
+        dataset_complete = pl.concat(dataset_complete, how='vertical_relaxed')
     
     categorical_columns = get_categorical_columns(preprocessing_version)
     
