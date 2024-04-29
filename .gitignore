@@ -35,3 +35,4 @@ src/catboost_info
 src/catboost-urm (1).ipynb
 .venv/*
 experiments
+notebooks/catboost_info/*
