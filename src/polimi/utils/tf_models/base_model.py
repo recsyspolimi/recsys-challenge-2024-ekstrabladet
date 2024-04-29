@@ -151,8 +151,8 @@ class TabularNNModel(ABC):
             callbacks=callbacks
         )
         
-    def predict(self, X, **kwargs):
-        return self.model.predict(self._transform_test_data(X), **kwargs)
+    def predict(self, X, batch_size=256, **kwargs):
+        return self.model.predict(self._transform_test_data(X), batch_size=batch_size, **kwargs)
     
     def compile(self, optimizer, loss, metrics, **kwargs):
         self.model.compile(
