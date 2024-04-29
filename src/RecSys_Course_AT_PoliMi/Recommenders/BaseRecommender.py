@@ -222,7 +222,7 @@ class BaseRecommender(object):
         if file_name is None:
             file_name = self.RECOMMENDER_NAME
 
-        self._print("Loading model from file '{}'".format(folder_path + file_name))
+        self._print(f"Loading model from file '{folder_path}/{file_name}'")
 
         dataIO = DataIO(folder_path=folder_path)
         data_dict = dataIO.load_data(file_name=file_name)
