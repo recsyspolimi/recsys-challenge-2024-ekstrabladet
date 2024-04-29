@@ -58,7 +58,20 @@ def build_ner_mapping(articles: pl.DataFrame):
         .sort('ner')\
         .with_row_index()\
         .rename({'index': 'ner_index'})     
-     
+
+def build_item_mapping(articles: pl.DataFrame):
+    return articles\
+        .select('article_id')\
+        .unique()\
+        .drop_nulls()\
+        .sort('article_id')\
+        .with_row_index()\
+        .rename({'index': 'item_index'})
+
+
+
+
+
 def _build_batch_ner_interactions(df: pl.DataFrame, 
                   articles: pl.DataFrame, 
                   user_id_mapping: pl.DataFrame,
@@ -102,17 +115,32 @@ def build_ner_urm(history: pl.DataFrame,
     ner_interactions = _build_batch_ner_interactions(history, articles, user_id_mapping, ner_mapping, articles_id_col, batch_size=batch_size)
     return _build_implicit_urm(ner_interactions, 'user_index', 'ner_index', user_id_mapping, ner_mapping)
 
-
+def _build_recsys_interactions(
+                history: pl.DataFrame,
+                user_id_mapping: pl.DataFrame,
+                item_mapping: pl.DataFrame,
+                articles_id_col = 'article_id_fixed'):
+    
+    df = history\
+            .select('user_id',articles_id_col)\
+            .explode(articles_id_col)\
+            .unique()\
+            .join(user_id_mapping,on='user_id')\
+            .join(item_mapping,left_on=articles_id_col,right_on='article_id')\
+            .unique(['user_index','item_index'])\
+            .rename({articles_id_col:'article_id'})
+    
+    return reduce_polars_df_memory_size(df)
+       
 
 def build_recsys_urm(history: pl.DataFrame,
                      user_id_mapping: pl.DataFrame,
-                     item_mapping: pl.DataFrame
+                     item_mapping: pl.DataFrame,
+                     articles_id_col = 'article_id_fixed'
                     ):
-    interactions = reduce_polars_df_memory_size(history.select('user_id','article_id_fixed').explode('article_id_fixed').unique().join(user_id_mapping,on='user_id').join(item_mapping,left_on='article_id_fixed',right_on='article_id').unique(['user_index','item_index']).rename({'article_id_fixed':'article_id'}))
-    return sps.csr_matrix((np.ones(interactions.shape[0]),
-                          (interactions['user_index'].to_numpy(), interactions['item_index'].to_numpy())),
-                         shape=(user_id_mapping.shape[0], item_mapping.shape[0]))
-
+    recsys_interactions = _build_recsys_interactions(history, user_id_mapping, item_mapping, articles_id_col)
+    return _build_implicit_urm(recsys_interactions,'user_index', 'item_index', user_id_mapping, item_mapping)
+        
 
 
 def train_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, params: dict, file_name:str = None, output_dir: Path = None):
@@ -124,16 +152,36 @@ def train_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, params:
     
     return rec_instance
 
+def build_recsys_algorithms(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender]):
 
+    user_id_mapping = build_user_id_mapping(history)
+    item_mapping = build_item_mapping(articles)
+    
+    df = behaviors\
+            .select('impression_id', 'article_id', 'user_id')\
+            .unique()\
+            .join(item_mapping, on='article_id')\
+            .join(user_id_mapping, on='user_id')\
+            .sort(['user_index', 'item_index'])\
+            .group_by('user_index').map_groups(lambda df: df.pipe(_compute_recommendations, recommenders=recs))
 
-def train_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, params: dict, file_name:str = None, output_dir: Path = None):
-    rec_instance= recommender(URM)
-    rec_instance.fit(**params)
-    
-    if output_dir:
-        rec_instance.save_model(folder_path=str(output_dir), file_name=file_name)
-    
-    return rec_instance
+    return reduce_polars_df_memory_size(df)
+            
+
+def _compute_recommendations(user_items_df, recommenders):
+    user_index = user_items_df['user_index'].to_list()[0]
+    items = user_items_df['item_index'].to_numpy()
+
+    scores = {}
+    for name, model in recommenders.items():
+        scores[name] = model._compute_item_score([user_index], items)[0, items]
+
+    return user_items_df.with_columns(
+        [
+            pl.Series(model).alias(name) for name, model in scores.items()
+        ]
+    )
+
 
 def load_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, file_path: Path, file_name: str=None):
     rec_instance = recommender(URM)
