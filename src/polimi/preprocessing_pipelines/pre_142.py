@@ -40,7 +40,7 @@ CATEGORICAL_COLUMNS = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 
 
 algo_dict = {
     PureSVDItemRecommender: {
-        'params': {'num_factors': 1000, 'topK': 549},
+        'params': {'num_factors': 997, 'topK': 589},
         'study_name': 'PureSVDItemRecommender-ner-small-ndcg100',
         'load': False
     },
@@ -50,7 +50,8 @@ algo_dict = {
         'load': False
     },
     ItemKNNCFRecommender: {
-        'params': {'topK': 486, 'normalize_similarity': True, 'alpha': 1.9993719084032937},
+        'params': {'similarity': 'tversky', 'topK': 222, 'shrink': 177, 
+                   'tversky_alpha': 0.012267012177140928, 'tversky_beta': 1.3288117939629838},
         'study_name': 'ItemKNNCFRecommender-ner-small-ndcg100',
         'load': False
     },
@@ -109,7 +110,8 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
             behaviors, history, articles, test, sample, npratio
         )
-        df_features = previous_version.join(ner_features, on=['impression_id', 'user_id', 'article'], how='left')
+        df_features = pl.read_parquet(previous_version)
+        df_features = df_features.join(ner_features, on=['impression_id', 'user_id', 'article'], how='left')
         yield df_features, vectorizer, unique_entities
 
 
@@ -135,7 +137,7 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
         )
         for slice in tqdm(range(0,101)):
             slice_features = pl.read_parquet(os.path.join(previous_version, f'Sliced_ds/test_slice_{slice}.parquet'))
-            slice_features = previous_version.join(slice_features, on=['impression_id', 'user_id', 'article'], how='left')
+            slice_features = slice_features.join(ner_features, on=['impression_id', 'user_id', 'article'], how='left')
             yield slice_features, vectorizer, unique_entities
 
 
@@ -189,7 +191,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
             behaviors, history, articles, test, sample, npratio
         )
-        df_features = previous_version
+        df_features = pl.read_parquet(previous_version)
         
     df_features = df_features.join(ner_features, on=['impression_id', 'user_id', 'article'], how='left')
     return df_features, vectorizer, unique_entities

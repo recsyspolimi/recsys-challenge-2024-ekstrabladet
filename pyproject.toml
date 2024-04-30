@@ -59,4 +59,6 @@ dependencies = [
     "xgboost==2.0.3",
     "catboost==1.2.5",
     "lightgbm==4.3.0",
+    "pyarrow==16.0.0",
+    "fastparquet==2024.2.0",
 ]

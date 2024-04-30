@@ -19,7 +19,7 @@ import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
 from ebrec.evaluation.metrics_protocols import *
-from polimi.utils._custom import get_models_params
+from polimi.utils._tuning_params import get_models_params
 from polimi.utils.model_wrappers import FastRGFClassifierWrapper
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
@@ -47,13 +47,17 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         params = get_models_params(trial, model_class, categorical_features)
         model = model_class(**params)
         if model_class == CatBoostRanker:
-            model.fit(X_train, y_train, group_id=group_ids['impression_id'], verbose=False)
+            model.fit(X_train, y_train, group_id=group_ids['impression_id'], verbose=50)
         elif model_class == XGBRanker:
-            model.fit(X_train, y_train, group=group_ids.groupby('impression_id').count().values, verbose=False)
+            model.fit(X_train, y_train, group=group_ids.groupby('impression_id').count().values, verbose=50)
         else:
-            model.fit(X_train, y_train, verbose=False)
-        prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
-            .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
+            model.fit(X_train, y_train, verbose=50)
+        if model_class in [CatBoostRanker, XGBRanker]:
+            prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict(X_val)).alias('prediction')) \
+                .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
+        else:
+            prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
+                .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
         met_eval = MetricEvaluator(
             labels=prediction_ds['target'].to_list(),
             predictions=prediction_ds['prediction'].to_list(),
@@ -62,7 +66,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         return met_eval.evaluate().evaluations['auc']
         
     study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)
-    study.optimize(objective_function, n_trials=n_trials, n_jobs=-1)
+    study.optimize(objective_function, n_trials=n_trials, n_jobs=1)
     return study.best_params, study.trials_dataframe()
     
 
@@ -76,7 +80,9 @@ def load_datasets(train_dataset_path, validation_dataset_path):
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id', 'impression_time'])
+    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
+    if 'impression_time' in train_ds.columns:
+        train_ds = train_ds.drop(columns=['impression_time'])
     
     # Delete cateegories percentage columns
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
@@ -98,7 +104,7 @@ def load_datasets(train_dataset_path, validation_dataset_path):
 
 
 def main(train_dataset_path: str, validation_dataset_path: str, output_dir: str, model_name: str,
-         is_ranking: bool = True, study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None):
+         is_ranking: bool = False, study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None):
     X_train, y_train, X_val, evaluation_ds, group_ids, cat_features = load_datasets(train_dataset_path, validation_dataset_path)
     model_class = get_model_class(model_name, is_ranking)
     
@@ -149,7 +155,7 @@ if __name__ == '__main__':
     IS_RANK = args.is_rank
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    model_name = f'Lightgbm_Tuning_{timestamp}'
+    model_name = f'{MODEL_NAME}_tuning_{timestamp}' if not IS_RANK else f'{MODEL_NAME}_ranker_tuning_{timestamp}'
     output_dir = os.path.join(OUTPUT_DIR, model_name)
     os.makedirs(output_dir)
     
@@ -162,4 +168,5 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(TRAIN_DATASET_DIR, VALIDATION_DATASET_DIR, output_dir, study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE)
+    main(TRAIN_DATASET_DIR, VALIDATION_DATASET_DIR, output_dir, MODEL_NAME, is_ranking=IS_RANK, 
+         study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE)
