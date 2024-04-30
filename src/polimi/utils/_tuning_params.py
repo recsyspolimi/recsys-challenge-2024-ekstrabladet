@@ -41,7 +41,6 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             'border_count': trial.suggest_int('border_count', 8, 512, log=True),
             'cat_features': categorical_columns,
             'random_seed': random_seed,
-            'verbose': 50,
         }
         if params['grow_policy'] == 'Lossguide':
             params['max_leaves'] = trial.suggest_int("max_leaves", 8, 64, log=True)
@@ -75,7 +74,6 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             'subsample': trial.suggest_float('subsample', 0.05, 0.5),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, 0.8),
             "enable_categorical": True,
-            "verbosity": 50,
         }
             
     elif model == FastRGFClassifierWrapper:
