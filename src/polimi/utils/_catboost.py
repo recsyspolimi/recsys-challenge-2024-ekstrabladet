@@ -1146,7 +1146,7 @@ def get_unique_categories(articles: pl.DataFrame):
     return unique_categories
 
 def subsample_dataset(original_datset_path: str, dataset_path : str, new_path: str, npratio: int = 2):
-    starting_dataset =  pl.read_parquet(original_datset_path).select(['impression_time','user_id','article_ids_inview','article_ids_clicked'])
+    starting_dataset =  pl.read_parquet(original_datset_path).select(['impression_id','user_id','article_ids_inview','article_ids_clicked'])
     dataset = pl.read_parquet(dataset_path)
     
     behaviors = pl.concat(
@@ -1159,6 +1159,6 @@ def subsample_dataset(original_datset_path: str, dataset_path : str, new_path: s
          for rows in tqdm(starting_dataset.iter_slices(1000), total=starting_dataset.shape[0] // 1000)
     )
         
-    behaviors.join(dataset, on = ['impression_time','user_id','article'], how = 'left').write_parquet(new_path)
+    behaviors.join(dataset, on = ['impression_id','user_id','article'], how = 'left').write_parquet(new_path)
     
     
