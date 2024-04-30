@@ -1120,6 +1120,7 @@ def _preprocessing_article_endorsement_feature(behaviors, period, batch_dim=1000
 
 def add_article_endorsement_feature(df_features, articles_endorsement):
     # old return df_features.join(other=articles_endorsement, on=["article", "impression_time"], how="left")
+    articles_endorsement = articles_endorsement.with_columns(pl.col('article').cast(pl.Int32))
     return df_features.with_columns(pl.col('impression_time').dt.round('1m').alias('rounded_impression_time'))\
                          .join(articles_endorsement.rename({'impression_time' : 'rounded_impression_time'}), on=['article','rounded_impression_time'], how='left')\
                          .drop('rounded_impression_time')
