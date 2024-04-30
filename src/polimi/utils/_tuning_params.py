@@ -61,7 +61,7 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             
     elif model in [XGBClassifier, XGBRanker]:
         params = {
-            'n_estimators': trial.suggest_int('n_estimators', 10, 5000, log=True),
+            'n_estimators': trial.suggest_int('n_estimators', 100, 5000, log=True),
             'learning_rate': trial.suggest_float('learning_rate', 1e-3, 0.1, log=True),
             'reg_alpha': trial.suggest_float('reg_alpha', 1e-5, 1000, log=True),
             'reg_lambda': trial.suggest_float('reg_lambda', 1e-5, 1000, log=True),
@@ -70,7 +70,7 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             'grow_policy': trial.suggest_categorical('grow_policy', ['depthwise', 'lossguide']),
             'max_bin': trial.suggest_int('max_bin', 8, 512),
             'gamma': trial.suggest_float('gamma', 1e-7, 10, log=True),
-            'min_child_weight': trial.suggest_float('min_child_weight', 1e-7, 1, log=True),
+            'min_child_weight': trial.suggest_float('min_child_weight', 1e-7, 10, log=True),
             'subsample': trial.suggest_float('subsample', 0.05, 0.5),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, 0.8),
             "enable_categorical": True,

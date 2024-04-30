@@ -49,7 +49,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         if model_class == CatBoostRanker:
             model.fit(X_train, y_train, group_id=group_ids['impression_id'], verbose=50)
         elif model_class == XGBRanker:
-            model.fit(X_train, y_train, group=group_ids.groupby('impression_id').count().values, verbose=50)
+            model.fit(X_train, y_train, group=group_ids.groupby('impression_id')['impression_id'].count().values, verbose=50)
         else:
             model.fit(X_train, y_train, verbose=50)
         if model_class in [CatBoostRanker, XGBRanker]:
