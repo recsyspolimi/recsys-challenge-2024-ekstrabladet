@@ -260,3 +260,18 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: Evaluator
     else:
         raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
     return params
+
+
+def load_recommenders(URM: sps.csr_matrix, file_path: Path):
+        recs = []
+        for rec_name in os.listdir(file_path):
+            if os.path.isfile(os.path.join(file_path,rec_name)):
+                file_name = os.path.splitext(rec_name)[0]
+                if file_name in ALGORITHMS:
+                    instance = ALGORITHMS[file_name][0](URM)
+                    instance.load_model(folder_path=str(file_path), file_name=file_name)
+                    recs.append(instance)
+                else:
+                    continue
+        
+        return recs

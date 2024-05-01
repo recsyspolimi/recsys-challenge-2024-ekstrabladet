@@ -8,7 +8,7 @@ import scipy.sparse as sps
 from tqdm import tqdm
 import numpy as np
 from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
-from polimi.utils._catboost import reduce_polars_df_memory_size
+from polimi.utils._polars import reduce_polars_df_memory_size
 
 
 """
@@ -162,23 +162,24 @@ def train_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, params:
 
 
 
-def build_recsys_algorithms(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender]):
+def build_recsys_features(df: pl.DataFrame, history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender]):
     '''
     Builds the score features for recsys interactions. For each (impression_id, user_id, article), 
     it computes the score for each recommender in recs. 
     Args:
+        df: the dataframe to which add the features
         history: the (raw) users history dataframe
         behaviors: the (raw) behaviors dataframe
         articles: the (raw) articles dataframe
         recs: a list containing all the recommenders to use for computing the scores
     Returns:
-        pl.DataFrame: the dataframe containing the triple (impression_id, user_id, article) and the scores features for each rec in recs.
+        pl.DataFrame: the dataframe with the scores features for each rec in recs.
     '''
     
     user_id_mapping = build_user_id_mapping(history)
     item_mapping = build_item_mapping(articles)
     
-    df = behaviors\
+    recsys_scores = behaviors\
             .select('impression_id', 'article_ids_inview', 'user_id')\
             .explode('article_ids_inview')\
             .unique()\
@@ -188,8 +189,12 @@ def build_recsys_algorithms(history: pl.DataFrame, behaviors: pl.DataFrame, arti
             .sort(['user_index', 'item_index'])\
             .rename({'article_id': 'article'})\
             .group_by('user_index').map_groups(lambda df: df.pipe(_compute_recommendations, recommenders=recs))
-
-    return reduce_polars_df_memory_size(df)
+            
+    recsys_scores = reduce_polars_df_memory_size(recsys_scores)
+    
+    return reduce_polars_df_memory_size(df.join(recsys_scores, on=['impression_id', 'user_id', 'article'], how='left'))
+    
+    
             
 
 def _compute_recommendations(user_items_df, recommenders):
