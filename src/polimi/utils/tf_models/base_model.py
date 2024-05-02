@@ -215,14 +215,14 @@ class TabularNNModel(ABC):
         
     def _transform_test_data(self, X: pd.DataFrame):
         inputs = []
-        if len(self.numerical_features) == 0:
+        if len(self.numerical_features) > 0:
             X[self.numerical_features] = X[self.numerical_features].replace([-np.inf, np.inf], np.nan).fillna(0)
             if self.xformer is not None:
                 X_numerical = self.xformer.transform(X[self.numerical_features]).astype(np.float32)
             else:
                 X_numerical = X[self.numerical_features].values.astype(np.float32)
             inputs.append(X_numerical)    
-        if len(self.categorical_features) == 0:
+        if len(self.categorical_features) > 0:
             for i, f in enumerate(self.categorical_features):
                 X[f] = X[f].astype(str).fillna('NA')
                 categories_val = list(X[f].unique())

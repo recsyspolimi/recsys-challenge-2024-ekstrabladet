@@ -66,7 +66,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         )
         
         prediction_ds = evaluation_ds.with_columns(
-                pl.Series(model.predict(X_val.replace([-np.inf, np.inf], np.nan).fillna(0))).alias('prediction')
+                pl.Series(model.predict(X_val)).alias('prediction')
             ).group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
         met_eval = MetricEvaluator(
             labels=prediction_ds['target'].to_list(),
