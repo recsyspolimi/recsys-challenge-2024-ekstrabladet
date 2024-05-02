@@ -3,17 +3,20 @@ from polimi.preprocessing_pipelines.pre_94f import build_features_iterator as bu
 from polimi.preprocessing_pipelines.pre_68f import build_features_iterator as build_features_iterator_68f
 from polimi.preprocessing_pipelines.pre_127 import build_features_iterator as build_features_iterator_127f
 from polimi.preprocessing_pipelines.pre_142 import build_features_iterator as build_features_iterator_142f
+from polimi.preprocessing_pipelines.pre_147 import build_features_iterator as build_features_iterator_147f
 
 from polimi.preprocessing_pipelines.pre_115f import build_features as build_features_115f
 from polimi.preprocessing_pipelines.pre_94f import build_features as build_features_94f
 from polimi.preprocessing_pipelines.pre_68f import build_features as build_features_68f
 from polimi.preprocessing_pipelines.pre_127 import build_features as build_features_127f
 from polimi.preprocessing_pipelines.pre_142 import build_features as build_features_142f
+from polimi.preprocessing_pipelines.pre_147 import build_features as build_features_147f
 
 from polimi.preprocessing_pipelines.pre_127 import build_features_iterator_test as build_features_iterator_test_127f
 from polimi.preprocessing_pipelines.pre_142 import build_features_iterator_test as build_features_iterator_test_142f
+from polimi.preprocessing_pipelines.pre_147 import build_features_iterator_test as build_features_iterator_test_147f
 
-PREPROCESSING_VERSIONS = ['68f','94f','115f','127f','latest']
+PREPROCESSING_VERSIONS = ['68f','94f','115f','127f','142f', '147f', 'latest']
 
 PREPROCESSING = {
     '68f': build_features_68f,
@@ -21,6 +24,7 @@ PREPROCESSING = {
     '115f': build_features_115f,
     '127f': build_features_127f,
     '142f': build_features_142f,
+    '147f': build_features_147f,
     'latest': build_features_127f
 }
 
@@ -30,12 +34,14 @@ BATCH_PREPROCESSING = {
     '115f': build_features_iterator_115f,
     '127f': build_features_iterator_127f,
     '142f': build_features_iterator_142f,
+    '147f': build_features_iterator_147f,
     'latest' : build_features_iterator_127f,
 }
 
 TEST_BATCH_PREPROCESSING = {
     '127f' : build_features_iterator_test_127f,
     '142f': build_features_iterator_test_142f,
+    '147f': build_features_iterator_test_147f,
     'latest' : build_features_iterator_test_127f,
 }
 

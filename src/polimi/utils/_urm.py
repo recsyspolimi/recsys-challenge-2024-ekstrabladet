@@ -162,54 +162,6 @@ def train_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, params:
 
 
 
-def build_recsys_features(df: pl.DataFrame, history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender]):
-    '''
-    Builds the score features for recsys interactions. For each (impression_id, user_id, article), 
-    it computes the score for each recommender in recs. 
-    Args:
-        df: the dataframe to which add the features
-        history: the (raw) users history dataframe
-        behaviors: the (raw) behaviors dataframe
-        articles: the (raw) articles dataframe
-        recs: a list containing all the recommenders to use for computing the scores
-    Returns:
-        pl.DataFrame: the dataframe with the scores features for each rec in recs.
-    '''
-    
-    user_id_mapping = build_user_id_mapping(history)
-    item_mapping = build_item_mapping(articles)
-    
-    recsys_scores = behaviors\
-            .select('impression_id', 'article_ids_inview', 'user_id')\
-            .explode('article_ids_inview')\
-            .unique()\
-            .rename({'article_ids_inview': 'article_id'})\
-            .join(item_mapping, on='article_id')\
-            .join(user_id_mapping, on='user_id')\
-            .sort(['user_index', 'item_index'])\
-            .rename({'article_id': 'article'})\
-            .group_by('user_index').map_groups(lambda df: df.pipe(_compute_recommendations, recommenders=recs))
-            
-    recsys_scores = reduce_polars_df_memory_size(recsys_scores)
-    
-    return reduce_polars_df_memory_size(df.join(recsys_scores, on=['impression_id', 'user_id', 'article'], how='left'))
-    
-    
-            
-
-def _compute_recommendations(user_items_df, recommenders):
-    user_index = user_items_df['user_index'].to_list()[0]
-    items = user_items_df['item_index'].to_numpy()
-
-    scores = {}
-    for rec in recommenders:
-        scores[rec.RECOMMENDER_NAME] = rec._compute_item_score([user_index], items)[0, items]
-
-    return user_items_df.with_columns(
-        [
-            pl.Series(model).alias(name) for name, model in scores.items()
-        ]
-    )
 
 
 def load_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, file_path: Path, file_name: str=None):

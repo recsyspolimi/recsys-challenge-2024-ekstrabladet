@@ -18,7 +18,7 @@ from polimi.preprocessing_pipelines.preprocessing_versions import BATCH_PREPROCE
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
-def main(input_path, output_dir, dataset_type='train',preprocessing_version='latest',previous_version = None, urm_path=None):
+def main(input_path, output_dir, dataset_type='train',preprocessing_version='latest',previous_version = None, urm_path=None, recsys_urm_path=None, recsys_models_path=None):
     logging.info(f"Preprocessing version: ----{preprocessing_version}----")
     logging.info("Starting to build the dataset")
     logging.info(f"Dataset path: {input_path}")
@@ -44,7 +44,8 @@ def main(input_path, output_dir, dataset_type='train',preprocessing_version='lat
     i = 0
     for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
                                                                         sample=sample, n_batches=100 ,previous_version = previous_version,
-                                                                        urm_path=urm_path, split_type=dataset_type, output_path=output_dir):
+                                                                        urm_path=urm_path, split_type=dataset_type, output_path=output_dir,
+                                                                        recsys_models_path=recsys_models_path, recsys_urm_path=recsys_urm_path):
         dataset.write_parquet(os.path.join(slices_dir, f'{dataset_type}_slice_{i}.parquet'))
         if not is_test_data:
             dataset_complete.append(dataset)
@@ -86,12 +87,16 @@ if __name__ == '__main__':
     parser.add_argument("-dataset_type", choices=['train', 'validation', 'test'], default='train', type=str,
                         help="Specify the type of dataset: ['train', 'validation', 'test']")
     parser.add_argument("-preprocessing_version", default='latest', type=str,
-                        choices=['68f', '94f', '115f', '127f', '142f', 'latest'],
+                        choices=['68f', '94f', '115f', '127f', '142f','147f', 'latest'],
                         help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','127f','latest']")
     parser.add_argument("-previous_version", default = None, type=str,
                         help="Specify the path of a previous version of the dataset to use as a reference for the new one. Default is None.\n YOU MUST GUARANTEE THE COMPATIBILITY BETWEEN VERSIONS. ")
     parser.add_argument("-urm_path", default=None, type=str, required=True,
                         help="Directory where the URMs are placed")
+    parser.add_argument("-recsys_models_path", default = None, type=str,
+                        help="Specify the path of the already trained recsys to use to generate recsys features")
+    parser.add_argument("-recsys_urm_path", default = None, type=str,
+                        help="Specify the path of the already created urm to use to generate recsys features")
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
@@ -100,6 +105,8 @@ if __name__ == '__main__':
     PREPROCESSING_VERSION = args.preprocessing_version
     PREVIOUS_VERSION = args.previous_version
     URM_PATH = args.urm_path
+    RECSYS_MODELS_PATH = args.recsys_models_path
+    RECSYS_URM_PATH = args.recsys_urm_path
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     experiment_name = f'preprocessing_{DATASET_TYPE}_{timestamp}'
@@ -116,4 +123,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION, PREVIOUS_VERSION, URM_PATH)
+    main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION, PREVIOUS_VERSION, URM_PATH, RECSYS_MODELS_PATH, RECSYS_URM_PATH)
