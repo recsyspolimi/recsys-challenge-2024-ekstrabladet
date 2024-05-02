@@ -27,12 +27,14 @@ from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKN
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
-from polimi.utils._custom import load_sparse_csr, load_best_optuna_params, algo_dict_ner
-from polimi.utils._urm import train_recommender, build_ner_scores_features, load_recommender
+from polimi.utils._custom import load_sparse_csr, load_best_optuna_params,load_recommenders, algo_dict_ner
+from polimi.utils._urm import train_recommender, build_ner_scores_features, load_recommender, build_item_mapping, build_user_id_mapping
+
+
 
 '''
 New features:
-    - ner
+    - recsys
 '''
 CATEGORICAL_COLUMNS = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                        'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
@@ -44,7 +46,8 @@ CATEGORICAL_COLUMNS = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 
 def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                             test: bool = False, sample: bool = True, npratio: int = 2,
                             tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10, previous_version=None,
-                            urm_path: str = None, output_path: str = None, split_type: str = 'train'):
+                            urm_path: str = None, output_path: str = None, split_type: str = 'train',
+                            recsys_models_path: str = None, recsys_urm_path: str = None, ners_models_path: str = None):
     '''
     Generator function to build the features from blocks of the behaviors. It returns an iterable of slices of the 
     dataframe with the features. See build_features for a description of the features.
@@ -65,8 +68,28 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         (pl.DataFrame, TfidfVectorizer, List[str]): the dataframe with all the features, the fitted tf-idf vectorizer and the
             unique entities (useful to cast the categorical columns when eventually transforming the dataframe to polars)
     '''
+    print('Preprocessing ner URM...')
     URM = load_sparse_csr(Path(os.path.join(urm_path, f'URM_{split_type}.npz')))
-    ner_features = _build_ner_features(behaviors, history, articles, URM, Path(output_path))
+    
+    print('Preprocessing ner models...')
+    ners = load_recommenders(URM=URM, file_path=ners_models_path)
+    
+    ner_features = _build_ner_features_147(behaviors, history, articles, ners)
+
+    recs = []
+    if recsys_urm_path and recsys_models_path:
+        print('Preprocessing URM ...')
+        URM_train = load_sparse_csr(Path(os.path.join(recsys_urm_path, f'URM_{split_type}.npz')))
+        
+        print('Preprocessing recsys models ...')
+        recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)
+
+        recsys_features = build_recsys_features(history, behaviors,articles,recs)
+        
+    else:
+        print("WARNING! RECSYS FEATURES NOT BUILDED BECAUSE THE URM_PATH AND THE MODELS_PATH WERE NOT GIVEN")
+
+
     
     if not previous_version:
         
@@ -74,6 +97,8 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
             behaviors, history, articles, test, sample, npratio, tf_idf_vectorizer, n_batches, previous_version
         ):
             df_features = df_features.join(ner_features, on=['impression_id', 'user_id', 'article'], how='left')
+            if(len(recs)>0):
+                df_features = df_features.join(recsys_features, on=['impression_id', 'user_id', 'article'], how='left')
             yield df_features, vectorizer, unique_entities
             
     else:
@@ -84,16 +109,36 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         )
         df_features = pl.read_parquet(previous_version)
         df_features = df_features.join(ner_features, on=['impression_id', 'user_id', 'article'], how='left')
+        if(len(recs)>0):
+            df_features = df_features.join(recsys_features, on=['impression_id', 'user_id', 'article'], how='left')
         yield df_features, vectorizer, unique_entities
 
 
 def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                                  test: bool = False, sample: bool = True, npratio: int = 2,
                                  tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10, previous_version=None,
-                                 urm_path: str = None, output_path: str = None, split_type: str = 'train'):
+                                 urm_path: str = None, output_path: str = None, split_type: str = 'train',
+                                 recsys_models_path: str = None, recsys_urm_path: str = None,ners_models_path: str = None):
     
+    print('Preprocessing ner URM...')
     URM = load_sparse_csr(Path(os.path.join(urm_path, f'URM_{split_type}.npz')))
-    ner_features = _build_ner_features(behaviors, history, articles, URM, Path(output_path))
+    
+    print('Preprocessing ner models...')
+    ners = load_recommenders(URM=URM, file_path=ners_models_path)
+    
+    ner_features = _build_ner_features_147(behaviors, history, articles, ners)
+
+    recs = []
+    if recsys_urm_path and recsys_models_path:
+        print('Preprocessing URM ...')
+        URM_train = load_sparse_csr(Path(os.path.join(recsys_urm_path, f'URM_{split_type}.npz')))
+        
+        print('Preprocessing recsys models ...')
+        recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)
+
+        recsys_features = build_recsys_features(history, behaviors,articles,recs)
+    else:
+        print("WARNING! RECSYS FEATURES NOT BUILDED BECAUSE THE URM_PATH AND THE MODELS_PATH WERE NOT GIVEN")
     
     if not previous_version:
         
@@ -101,6 +146,8 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
             behaviors, history, articles, test, sample, npratio, tf_idf_vectorizer, n_batches, previous_version
         ):
             slice_features = slice_features.join(ner_features, on=['impression_id', 'user_id', 'article'], how='left')
+            if(len(recs)>0):
+                slice_features = slice_features.join(recsys_features, on=['impression_id', 'user_id', 'article'], how='left')
             yield slice_features, vectorizer, unique_entities
             
     else:
@@ -110,13 +157,16 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
         for slice in tqdm(range(0,101)):
             slice_features = pl.read_parquet(os.path.join(previous_version, f'Sliced_ds/test_slice_{slice}.parquet'))
             slice_features = slice_features.join(ner_features, on=['impression_id', 'user_id', 'article'], how='left')
+            if(len(recs)>0):
+                slice_features = slice_features.join(recsys_features, on=['impression_id', 'user_id', 'article'], how='left')
             yield slice_features, vectorizer, unique_entities
 
 
 def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                    test: bool = False, sample: bool = True, npratio: int = 2,
                    tf_idf_vectorizer: TfidfVectorizer = None, previous_version: pl.DataFrame = None,
-                   urm_path: str = None, output_path: str = None, split_type: str = 'train') -> pl.DataFrame:
+                   urm_path: str = None, output_path: str = None, split_type: str = 'train',
+                   recsys_models_path: str = None, recsys_urm_path: str = None,ners_models_path: str = None) -> pl.DataFrame:
     '''
     Builds the training/evaluation features dataframe. Each row of the resulting dataframe will be an article
     in the article_ids_inview list (that will be exploded), if sampling is performed only some negative articles
@@ -152,10 +202,27 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     Returns:
         (pl.DataFrame, TfidfVectorizer, List[str]): the dataframe with all the features, the fitted tf-idf vectorizer and the
             unique entities (useful to cast the categorical columns when eventually transforming the dataframe to polars)
-    '''   
+    '''
+    print('Preprocessing ner URM...')
     URM = load_sparse_csr(Path(os.path.join(urm_path, f'URM_{split_type}.npz')))
-    ner_features = _build_ner_features(behaviors, history, articles, URM, Path(output_path))
+    
+    print('Preprocessing ner models...')
+    ners = load_recommenders(URM=URM, file_path=ners_models_path)
+    
+    ner_features = _build_ner_features_147(behaviors, history, articles, ners)
 
+    recs = []
+    if recsys_urm_path and recsys_models_path:
+        print('Preprocessing recsys URM ...')
+        URM_train = load_sparse_csr(Path(os.path.join(recsys_urm_path, f'URM_{split_type}.npz')))
+        
+        print('Preprocessing recsys models ...')
+        recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)
+
+        recsys_features = build_recsys_features(history, behaviors,articles,recs)
+    else:
+        print("WARNING! RECSYS FEATURES NOT BUILDED BECAUSE THE URM_PATH AND THE MODELS_PATH WERE NOT GIVEN")
+    
     if not previous_version:
         df_features, vectorizer, unique_entities = pre_127.build_features(behaviors, history, articles, test, sample, npratio,
                                                                           tf_idf_vectorizer, previous_version)
@@ -166,25 +233,56 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         df_features = pl.read_parquet(previous_version)
         
     df_features = df_features.join(ner_features, on=['impression_id', 'user_id', 'article'], how='left')
+    if(len(recs)>0):
+        df_features = df_features.join(recsys_features, on=['impression_id', 'user_id', 'article'], how='left')
     return df_features, vectorizer, unique_entities
 
 
-def _build_ner_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
-                        URM: sps.csr_matrix, rec_output_dir: str = None) -> pl.DataFrame:
-    recs = []
-    for rec, info in algo_dict_ner.items():
-        params = info['params']
-        study_name = info['study_name']
-        if not params:
-            print('Params are missing, loading best params...')
-            params = load_best_optuna_params(study_name)
-        
-        if 'load' in info and info['load']:
-            rec_instance = load_recommender(URM, rec, rec_output_dir, file_name=study_name)
-        else:
-            rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_output_dir) #also saves the model
-            
-        recs.append(rec_instance)
+def _build_ner_features_147(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
+                        recs: list[BaseRecommender]) -> pl.DataFrame:  
         
     ner_features = build_ner_scores_features(history=history, behaviors=behaviors, articles=articles, recs=recs)
     return reduce_polars_df_memory_size(ner_features)
+
+
+
+
+def build_recsys_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender]):
+    
+    user_id_mapping = build_user_id_mapping(history)
+    item_mapping = build_item_mapping(articles)
+    
+    recsys_scores = behaviors\
+            .select('impression_id', 'article_ids_inview', 'user_id')\
+            .explode('article_ids_inview')\
+            .unique()\
+            .rename({'article_ids_inview': 'article_id'})\
+            .join(item_mapping, on='article_id')\
+            .join(user_id_mapping, on='user_id')\
+            .sort(['user_index', 'item_index'])\
+            .rename({'article_id': 'article'})\
+            .group_by('user_index').map_groups(lambda df: df.pipe(_compute_recommendations, recommenders=recs))\
+            .drop('user_index')\
+            .drop('item_index')
+            
+    recsys_scores = reduce_polars_df_memory_size(recsys_scores)
+    
+    return recsys_scores
+
+    
+
+            
+
+def _compute_recommendations(user_items_df, recommenders):
+    user_index = user_items_df['user_index'].to_list()[0]
+    items = user_items_df['item_index'].to_numpy()
+
+    scores = {}
+    for rec in recommenders:
+        scores[rec.RECOMMENDER_NAME] = rec._compute_item_score([user_index], items)[0, items]
+
+    return user_items_df.with_columns(
+        [
+            pl.Series(model).alias(name) for name, model in scores.items()
+        ]
+    )
