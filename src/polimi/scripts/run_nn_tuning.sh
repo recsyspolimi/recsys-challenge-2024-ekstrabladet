@@ -1,7 +1,7 @@
-python ~/RecSysChallenge2024/src/polimi/scripts/lightgbm_tuning.py \
+python ~/RecSysChallenge2024/src/polimi/scripts/nn_tuning.py \
     -output_dir /home/ubuntu/experiments \
-    -training_dataset_path /home/ubuntu/experiments/preprocessing_train_2024-04-22_21-04-07 \
-    -validation_dataset_path /home/ubuntu/experiments/preprocessing_validation_2024-04-22_18-09-12 \
+    -training_dataset_path /home/ubuntu/experiments/subsample_train_small_127 \
+    -validation_dataset_path /home/ubuntu/experiments/preprocessing_validation_small_127 \
     -nn_type mlp \
     -n_trials 500 \
     -study_name mlp_tuning_127 \

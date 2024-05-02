@@ -49,7 +49,7 @@ class DeepAbstractNetwork(TabularNNModel):
         self.l2_lambda = l2_lambda
         self.activation = activation
     
-    def build(self):
+    def _build(self):
         inputs, x0 = self._build_input_layers()
 
         f = x0

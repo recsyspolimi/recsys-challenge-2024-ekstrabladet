@@ -18,11 +18,15 @@ from abc import ABC, abstractmethod
 import joblib
 import optuna
 import numpy as np
+import logging
 
 
 class TabularNNModel(ABC):
     '''
     The base class for each tabular neural network model.
+    
+    This class handle the null values by just filling them with zero. To better handle them
+    treat them separately outside the class.
     '''
     
     CATEGORICAL_TRANSFORMS = ['embeddings', 'one-hot-encoding', 'target-encoding']
@@ -58,7 +62,7 @@ class TabularNNModel(ABC):
             model_name (str)
             random_seed (int)
         '''
-        super(TabularNNModel, self).__init__(verbose=verbose, **kwargs)
+        super(TabularNNModel, self).__init__()
         
         if numerical_transform not in self.NUMERICAL_TRANSOFORMS:
             raise ValueError(f'Numerical transformation {numerical_transform} not available, choose one between {self.NUMERICAL_TRANSOFORMS}')
@@ -67,6 +71,7 @@ class TabularNNModel(ABC):
         if len(categorical_features) + len(numerical_features) == 0:
             raise ValueError('Provide at least one numerical feature or one categorical feature')
         
+        self.verbose = verbose
         self.categorical_features = categorical_features if categorical_features is not None else []
         self.numerical_features = numerical_features if numerical_features is not None else []
         self.categorical_transform = categorical_transform
@@ -89,35 +94,42 @@ class TabularNNModel(ABC):
         early_stopping_rounds: int = 1,
         batch_size: int = 256,
         epochs: int = 1,
+        optimizer: tfk.optimizers.Optimizer = None, 
+        loss: tfk.losses.Loss = None, 
+        metrics: List[Union[str, tfk.metrics.Metric]] = None,
         early_stopping_monitor: str = 'val_loss',
         early_stopping_mode: str = 'auto',
         lr_scheduler: Union[callable, tfk.callbacks.Callback] = None,
-    ):
-        if self.model is None:
-            raise ValueError('Model is not built, call the build method (or load the model from file)')
-        
+    ):       
         inputs = []
         if len(self.numerical_features) > 0:
             self._build_numerical_transformer()
+            X[self.numerical_features] = X[self.numerical_features].replace([-np.inf, np.inf], np.nan).fillna(0)
             if self.xformer is not None:
-                X_train_numerical = self.xformer.fit_transform(X[self.numerical_features], y)
+                X_train_numerical = self.xformer.fit_transform(
+                    X[self.numerical_features],
+                    y
+                ).astype(np.float32)
             else:
-                X_train_numerical = X[self.numerical_features].values
+                X_train_numerical = X[self.numerical_features].values.astype(np.float32)
             inputs.append(X_train_numerical)
             
         if len(self.categorical_features) > 0:
             self.vocabulary_sizes = {}
             self.categories = []
             for f in self.categorical_features:
-                X[f] = X[f].astype('object').fillna('NA')
-                categories_train = np.array(X[f].unique(), dtype=str)
+                X[f] = X[f].astype(str).fillna('NA')
+                categories_train = list(X[f].unique())
                 if 'NA' not in categories_train:
-                    categories_train = np.concatenate([categories_train, ['NA']])
+                    categories_train.append('NA')
                 self.categories.append(categories_train)
                 self.vocabulary_sizes[f] = len(categories_train)
             self._build_categorical_encoder()
-            X_train_categorical = self.encoder.fit_transform(X[self.categorical_features], y)
-            inputs.append(X_train_categorical)
+            X_train_categorical = self.encoder.fit_transform(X[self.categorical_features], y).astype(np.int16)
+            if self.categorical_transform == 'embeddings':
+                inputs += [X_train_categorical[:, i].reshape(-1, 1) for i in range(len(self.categorical_features))]
+            else:
+                inputs.append(X_train_categorical)
         
         if len(inputs) == 1:
             inputs = inputs[0]
@@ -136,15 +148,25 @@ class TabularNNModel(ABC):
             callbacks = []
         
         if lr_scheduler is not None:
-            if type(lr_scheduler) == tfk.callbacks.Callback:
-                callbacks.append(lr_scheduler)
-            elif type(lr_scheduler) == callable:
+            if type(lr_scheduler) == callable:
                 scheduler = tfk.callbacks.LearningRateScheduler(lr_scheduler)
                 callbacks.append(scheduler)
+            else:
+                callbacks.append(lr_scheduler)
+                
+        if self.model is None:
+            self._build()
+                
+        self.model.compile(
+            loss=loss,
+            optimizer=optimizer,
+            metrics=metrics,
+        )
+        self.model.summary(print_fn=logging.info)
             
         self.model.fit(
-            X=X,
-            y=y,
+            inputs,
+            y,
             batch_size=batch_size,
             epochs=epochs,
             validation_data=validation_data,
@@ -152,15 +174,7 @@ class TabularNNModel(ABC):
         )
         
     def predict(self, X, batch_size=256, **kwargs):
-        return self.model.predict(self._transform_test_data(X), batch_size=batch_size, **kwargs)
-    
-    def compile(self, optimizer, loss, metrics, **kwargs):
-        self.model.compile(
-            loss=loss,
-            optimizer=optimizer,
-            metrics=metrics,
-            **kwargs
-        )
+        return self.model.predict(self._transform_test_data(X), batch_size=batch_size, **kwargs)        
         
     def summary(self, expand_nested=True, **kwargs):
         self.model.summary(expand_nested=expand_nested, **kwargs)
@@ -186,7 +200,7 @@ class TabularNNModel(ABC):
                 raise ValueError(f'Categorical encoder not found in {directory}')
         
     @abstractmethod
-    def build(self):
+    def _build(self):
         raise NotImplementedError('Method build not implemented')
     
     @classmethod
@@ -202,18 +216,19 @@ class TabularNNModel(ABC):
     def _transform_test_data(self, X: pd.DataFrame):
         inputs = []
         if len(self.numerical_features) == 0:
+            X[self.numerical_features] = X[self.numerical_features].replace([-np.inf, np.inf], np.nan).fillna(0)
             if self.xformer is not None:
-                X_numerical = self.xformer.transform(X[self.numerical_features])
+                X_numerical = self.xformer.transform(X[self.numerical_features]).astype(np.float32)
             else:
-                X_numerical = X[self.numerical_features]
+                X_numerical = X[self.numerical_features].values.astype(np.float32)
             inputs.append(X_numerical)    
         if len(self.categorical_features) == 0:
             for i, f in enumerate(self.categorical_features):
-                X[f] = X[f].astype('object').fillna('NA')
-                categories_val = np.array(X[f].unique())
+                X[f] = X[f].astype(str).fillna('NA')
+                categories_val = list(X[f].unique())
                 unknown_categories = [x for x in categories_val if x not in self.categories[i]]
                 X[f] = X[f].replace(list(unknown_categories), 'NA')
-            X_categorical = self.encoder.transform(X[self.categorical_features])
+            X_categorical = self.encoder.transform(X[self.categorical_features]).astype(np.int16)
             if self.categorical_transform == 'embeddings':
                 X_categorical = [X_categorical[:, i].reshape(-1, 1) for i in range(len(self.categorical_features))]
                 inputs += X_categorical
@@ -225,9 +240,11 @@ class TabularNNModel(ABC):
                 
     def _build_input_layers(self):
         inputs = []
-        if len(self.categorical_features) > 0:
-            numeric_input_layer = tfkl.Input(shape=(len(self.numerical_features)), name='NumericInput')
+        concat_inputs = []
+        if len(self.numerical_features) > 0:
+            numeric_input_layer = tfkl.Input(shape=(len(self.numerical_features),), name='NumericInput')
             inputs.append(numeric_input_layer)
+            concat_inputs.append(numeric_input_layer)
         
         if self.categorical_features is not None:
             
@@ -242,7 +259,8 @@ class TabularNNModel(ABC):
                     embedding_layer = tfkl.Embedding(input_dim=vocabulary_size + 1, output_dim=embedding_dim)(cat_input)
                     flatten_layer = tfkl.Flatten()(embedding_layer)
                     embedding_layers.append(flatten_layer)
-                inputs += embedding_layers
+                inputs += categorical_inputs
+                concat_inputs += embedding_layers
                 
             else:
                 categorical_input = tfkl.Input(
@@ -250,11 +268,12 @@ class TabularNNModel(ABC):
                     name='CategoricalInput',
                 )
                 inputs.append(categorical_input)
+                concat_inputs.append(categorical_input)
                 
         if len(inputs) > 1:
-            encoded_inputs = tfkl.Concatenate()(inputs)
+            encoded_inputs = tfkl.Concatenate()(concat_inputs)
         else:
-            encoded_inputs = inputs[0]
+            encoded_inputs = concat_inputs[0]
             
         if self.use_gaussian_noise:
             encoded_inputs = tfkl.GaussianNoise(self.gaussian_noise_std, name='GaussianNoise')(encoded_inputs)

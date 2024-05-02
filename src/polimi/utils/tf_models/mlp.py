@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras as tfk
 import tensorflow.keras.layers as tfkl
-from base_model import TabularNNModel
+from .base_model import TabularNNModel
 from optuna import Trial
 
 
@@ -54,7 +54,7 @@ class MLP(TabularNNModel):
         self.l2_lambda = l2_lambda
         self.activation = activation
     
-    def build(self):
+    def _build(self):
         inputs, x = self._build_input_layers()
 
         units = self.start_units

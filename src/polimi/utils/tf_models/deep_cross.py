@@ -2,7 +2,7 @@ from optuna import Trial
 import tensorflow as tf
 import tensorflow.keras as tfk
 import tensorflow.keras.layers as tfkl
-from base_model import TabularNNModel
+from .base_model import TabularNNModel
 
 
 class DeepCrossNetwork(TabularNNModel):
@@ -57,7 +57,7 @@ class DeepCrossNetwork(TabularNNModel):
         self.l2_lambda = l2_lambda
         self.activation = activation
     
-    def build(self):
+    def _build(self):
         inputs, x0 = self._build_input_layers()
         
         cross = x0

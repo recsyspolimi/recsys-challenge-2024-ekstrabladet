@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras as tfk
 import tensorflow.keras.layers as tfkl
-from base_model import TabularNNModel
+from .base_model import TabularNNModel
 from optuna import Trial
 
 
@@ -56,7 +56,7 @@ class WideDeepNetwork(TabularNNModel):
         self.l2_lambda = l2_lambda
         self.activation = activation
     
-    def build(self):
+    def _build(self):
         inputs, wide = self._build_input_layers()
 
         deep = wide

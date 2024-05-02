@@ -39,38 +39,35 @@ def get_model_class(name: str = 'mlp'):
 
 def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.DataFrame, evaluation_ds: pl.DataFrame, 
                         categorical_features: List[str], numerical_features: List[str],
-                        study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None, 
+                        study_name: str = 'mlp_tuning', n_trials: int = 100, storage: str = None, 
                         model_class: Type[T] = TabularNNModel) -> Tuple[Dict, pd.DataFrame]:
     
     def objective_function(trial: optuna.Trial):
-        # TODO: change tunable epochs with 1000 and add early stoppping params after setting cross validation
+        # TODO: early stopping instead of tunable epochs?
         params = model_class.get_optuna_trial(trial)
         model = model_class(categorical_features=categorical_features, numerical_features=numerical_features, **params)
-        model.build()
         
         # training hyperparameters
         epochs = trial.suggest_int('epochs', 1, 50)
         learning_rate = trial.suggest_float('learning_rate', 1e-4, 1e-2)
-        weight_decay = trial.suggest_float('weight_decay', 1e-2, 1e-5)
+        weight_decay = trial.suggest_float('weight_decay', 1e-5, 1e-2)
         use_scheduler = trial.suggest_categorical('use_scheduler', [True, False])
         lr_scheduler = get_simple_decay_scheduler(trial.suggest_float('scheduling_rate', 1e-3, 0.1)) if use_scheduler else None
-            
-        model.compile(
-            loss=tf.keras.losses.BinaryCrossentropy(),
-            metrics=[tf.keras.metrics.AUC(curve='ROC', name='auc')],
-            optimizer=tf.keras.optimizers.AdamW(learning_rate, weight_decay=weight_decay),
-        )
         
         model.fit(
             X_train, 
             y_train,
             epochs=epochs,
             batch_size=128,
-            lr_scheduler=lr_scheduler
+            lr_scheduler=lr_scheduler,
+            loss=tf.keras.losses.BinaryCrossentropy(),
+            metrics=[tf.keras.metrics.AUC(curve='ROC', name='auc')],
+            optimizer=tf.keras.optimizers.AdamW(learning_rate, weight_decay=weight_decay),
         )
         
-        prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
-            .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
+        prediction_ds = evaluation_ds.with_columns(
+                pl.Series(model.predict(X_val.replace([-np.inf, np.inf], np.nan).fillna(0))).alias('prediction')
+            ).group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
         met_eval = MetricEvaluator(
             labels=prediction_ds['target'].to_list(),
             predictions=prediction_ds['prediction'].to_list(),
@@ -79,7 +76,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         return met_eval.evaluate().evaluations['auc']
         
     study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)
-    study.optimize(objective_function, n_trials=n_trials, n_jobs=-1)
+    study.optimize(objective_function, n_trials=n_trials, n_jobs=1)
     return study.best_params, study.trials_dataframe()
     
 
@@ -92,10 +89,9 @@ def load_datasets(train_dataset_path, validation_dataset_path):
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id', 'impression_time'])
-    
-    # Delete cateegories percentage columns
-    # train_ds = strip_new_features(train_ds)
+    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
+    if 'impression_time' in train_ds.columns:
+        train_ds = train_ds.drop(columns=['impression_time'])
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
     
     X_train = train_ds.drop(columns=['target'])
@@ -110,9 +106,6 @@ def load_datasets(train_dataset_path, validation_dataset_path):
     logging.info(f"Loading the validation dataset from {validation_dataset_path}")
     
     val_ds = pd.read_parquet(os.path.join(validation_dataset_path, 'validation_ds.parquet'))
-    
-    # val_ds = strip_new_features(val_ds)
-    val_ds = val_ds.drop(columns = 'impression_time')
     val_ds[data_info['categorical_columns']] = val_ds[data_info['categorical_columns']].astype('category')
 
     X_val = val_ds[X_train.columns]

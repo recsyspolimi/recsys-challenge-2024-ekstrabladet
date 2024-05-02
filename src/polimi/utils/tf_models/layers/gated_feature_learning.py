@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras as tfk
 import tensorflow.keras.layers as tfkl
-from activations import t_softmax
+from .activations import t_softmax
 
 
 class GatedFeatureLearningUnit(tfkl.Layer):
