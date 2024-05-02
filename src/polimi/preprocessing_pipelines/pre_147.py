@@ -111,7 +111,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     recs = []
     if recsys_urm_path and recsys_models_path:
         print('Preprocessing URM ...')
-        URM_train = load_sparse_csr(path=Path(recsys_urm_path))
+        URM_train = load_sparse_csr(Path(os.path.join(recsys_urm_path, f'URM_{split_type}.npz')))
         
         print('Preprocessing recsys models ...')
         recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)

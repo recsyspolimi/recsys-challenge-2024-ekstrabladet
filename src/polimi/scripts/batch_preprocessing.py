@@ -94,9 +94,9 @@ if __name__ == '__main__':
     parser.add_argument("-urm_path", default=None, type=str, required=True,
                         help="Directory where the URMs are placed")
     parser.add_argument("-recsys_models_path", default = None, type=str,
-                        help="Specify the path of the already trained recsys to use to generate recsys features")
+                        help="Specify the path of the already trained recsys to use to generate recsys features. If not specified the recsys features are skipped")
     parser.add_argument("-recsys_urm_path", default = None, type=str,
-                        help="Specify the path of the already created urm to use to generate recsys features")
+                        help="Specify the path of the already created urm to use to generate recsys features. If not specified the recsys features are skipped")
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
