@@ -142,6 +142,54 @@ ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender,
       PureSVDItemRecommender, NMFRecommender]
 
 ALGORITHMS = {algo.RECOMMENDER_NAME: [algo] for algo in ALGORITHMS_LIST}
+
+algo_dict_ner = {
+    PureSVDItemRecommender: {
+        'params': {'num_factors': 997, 'topK': 589},
+        'study_name': 'PureSVDItemRecommender-ner-small-ndcg100',
+        'load': False
+    },
+    P3alphaRecommender: {
+        'params': {'topK': 486, 'normalize_similarity': True, 'alpha': 1.9993719084032937},
+        'study_name': 'P3alphaRecommender-ner-small-ndcg100',
+        'load': False
+    },
+    ItemKNNCFRecommender: {
+        'params': {'similarity': 'tversky', 'topK': 222, 'shrink': 177, 
+                   'tversky_alpha': 0.012267012177140928, 'tversky_beta': 1.3288117939629838},
+        'study_name': 'ItemKNNCFRecommender-ner-small-ndcg100',
+        'load': False
+    },
+    RP3betaRecommender: {
+        'params': {'topK': 499, 'normalize_similarity': True, 'alpha': 1.9956096660427538, 'beta': 0.04484545361718186},
+        'study_name': 'RP3betaRecommender-ner-small-ndcg100',
+        'load': False
+    },
+    UserKNNCFRecommender: {
+        'params': {'similarity': 'tversky', 'topK': 590, 'shrink': 0, 
+                   'tversky_alpha': 1.6829525098337292, 'tversky_beta': 0.13181828101203877},
+        'study_name': 'UserKNNCFRecommender-ner-small-ndcg100',
+        'load': False
+    }
+}
+
+algo_dict_recsys = {
+    RP3betaRecommender: {
+        'params': {'topK': 150, 'normalize_similarity': True, 'alpha': 1.4560970759265028, 'beta': 0.19133155065479682},
+        'study_name': 'RP3betaRecommender-recsys-small-ndcg10-2',
+        'load': False
+    },
+    UserKNNCFRecommender: {
+        'params': {'similarity': 'tversky', 'topK': 567, 'shrink': 0, 'tversky_alpha': 0.2009439066039243, 'tversky_beta': 0.025220651462917017},
+        'study_name': 'UserKNNCFRecommender-recsys-small-ndcg100_2',
+        'load': False
+    },
+    PureSVDRecommender: {
+        'params': {'num_factors': 700},
+        'study_name': 'PureSVDRecommender-recsys-small-ndcg100_2',
+        'load': False
+    }
+}
     
 def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: EvaluatorHoldout, eval_metric:str):
     earlystopping_keywargs = {

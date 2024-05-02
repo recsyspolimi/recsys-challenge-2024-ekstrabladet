@@ -27,7 +27,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKN
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
-from polimi.utils._custom import load_sparse_csr, load_best_optuna_params,load_recommenders
+from polimi.utils._custom import load_sparse_csr, load_best_optuna_params,load_recommenders, algo_dict_ner
 from polimi.utils._urm import train_recommender, build_ner_scores_features, load_recommender, build_item_mapping, build_user_id_mapping
 
 
@@ -39,52 +39,15 @@ New features:
 CATEGORICAL_COLUMNS = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                        'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
                        'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory']
-algo_dict= {
-    UserKNNCFRecommender: {
-        'params': {'similarity': 'tversky', 'topK': 590, 'shrink': 0, 
-                   'tversky_alpha': 1.6829525098337292, 'tversky_beta': 0.13181828101203877},
-        'study_name': 'UserKNNCFRecommender-ner-small-ndcg100',
-        'load': False
-    }
 
-}
-"""
-algo_dict = {
-    PureSVDItemRecommender: {
-        'params': {'num_factors': 997, 'topK': 589},
-        'study_name': 'PureSVDItemRecommender-ner-small-ndcg100',
-        'load': False
-    },
-    P3alphaRecommender: {
-        'params': {'topK': 486, 'normalize_similarity': True, 'alpha': 1.9993719084032937},
-        'study_name': 'P3alphaRecommender-ner-small-ndcg100',
-        'load': False
-    },
-    ItemKNNCFRecommender: {
-        'params': {'similarity': 'tversky', 'topK': 222, 'shrink': 177, 
-                   'tversky_alpha': 0.012267012177140928, 'tversky_beta': 1.3288117939629838},
-        'study_name': 'ItemKNNCFRecommender-ner-small-ndcg100',
-        'load': False
-    },
-    RP3betaRecommender: {
-        'params': {'topK': 499, 'normalize_similarity': True, 'alpha': 1.9956096660427538, 'beta': 0.04484545361718186},
-        'study_name': 'RP3betaRecommender-ner-small-ndcg100',
-        'load': False
-    },
-    UserKNNCFRecommender: {
-        'params': {'similarity': 'tversky', 'topK': 590, 'shrink': 0, 
-                   'tversky_alpha': 1.6829525098337292, 'tversky_beta': 0.13181828101203877},
-        'study_name': 'UserKNNCFRecommender-ner-small-ndcg100',
-        'load': False
-    }
-}
-"""
+
+
 
 def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                             test: bool = False, sample: bool = True, npratio: int = 2,
                             tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10, previous_version=None,
                             urm_path: str = None, output_path: str = None, split_type: str = 'train',
-                            recsys_models_path: str = None, recsys_urm_path: str = None):
+                            recsys_models_path: str = None, recsys_urm_path: str = None, ners_models_path: str = None):
     '''
     Generator function to build the features from blocks of the behaviors. It returns an iterable of slices of the 
     dataframe with the features. See build_features for a description of the features.
@@ -105,8 +68,13 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         (pl.DataFrame, TfidfVectorizer, List[str]): the dataframe with all the features, the fitted tf-idf vectorizer and the
             unique entities (useful to cast the categorical columns when eventually transforming the dataframe to polars)
     '''
+    print('Preprocessing ner URM...')
     URM = load_sparse_csr(Path(os.path.join(urm_path, f'URM_{split_type}.npz')))
-    ner_features = _build_ner_features(behaviors, history, articles, URM, Path(output_path))
+    
+    print('Preprocessing ner models...')
+    ners = load_recommenders(URM=URM, file_path=ners_models_path)
+    
+    ner_features = _build_ner_features_147(behaviors, history, articles, ners)
 
     recs = []
     if recsys_urm_path and recsys_models_path:
@@ -117,6 +85,9 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)
 
         recsys_features = build_recsys_features(history, behaviors,articles,recs)
+        
+    else:
+        print("WARNING! RECSYS FEATURES NOT BUILDED BECAUSE THE URM_PATH AND THE MODELS_PATH WERE NOT GIVEN")
 
 
     
@@ -147,10 +118,15 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
                                  test: bool = False, sample: bool = True, npratio: int = 2,
                                  tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10, previous_version=None,
                                  urm_path: str = None, output_path: str = None, split_type: str = 'train',
-                                 recsys_models_path: str = None, recsys_urm_path: str = None):
+                                 recsys_models_path: str = None, recsys_urm_path: str = None,ners_models_path: str = None):
     
+    print('Preprocessing ner URM...')
     URM = load_sparse_csr(Path(os.path.join(urm_path, f'URM_{split_type}.npz')))
-    ner_features = _build_ner_features(behaviors, history, articles, URM, Path(output_path))
+    
+    print('Preprocessing ner models...')
+    ners = load_recommenders(URM=URM, file_path=ners_models_path)
+    
+    ner_features = _build_ner_features_147(behaviors, history, articles, ners)
 
     recs = []
     if recsys_urm_path and recsys_models_path:
@@ -161,6 +137,8 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
         recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)
 
         recsys_features = build_recsys_features(history, behaviors,articles,recs)
+    else:
+        print("WARNING! RECSYS FEATURES NOT BUILDED BECAUSE THE URM_PATH AND THE MODELS_PATH WERE NOT GIVEN")
     
     if not previous_version:
         
@@ -188,7 +166,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
                    test: bool = False, sample: bool = True, npratio: int = 2,
                    tf_idf_vectorizer: TfidfVectorizer = None, previous_version: pl.DataFrame = None,
                    urm_path: str = None, output_path: str = None, split_type: str = 'train',
-                   recsys_models_path: str = None, recsys_urm_path: str = None) -> pl.DataFrame:
+                   recsys_models_path: str = None, recsys_urm_path: str = None,ners_models_path: str = None) -> pl.DataFrame:
     '''
     Builds the training/evaluation features dataframe. Each row of the resulting dataframe will be an article
     in the article_ids_inview list (that will be exploded), if sampling is performed only some negative articles
@@ -224,20 +202,27 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     Returns:
         (pl.DataFrame, TfidfVectorizer, List[str]): the dataframe with all the features, the fitted tf-idf vectorizer and the
             unique entities (useful to cast the categorical columns when eventually transforming the dataframe to polars)
-    '''   
+    '''
+    print('Preprocessing ner URM...')
     URM = load_sparse_csr(Path(os.path.join(urm_path, f'URM_{split_type}.npz')))
-    ner_features = _build_ner_features(behaviors, history, articles, URM, Path(output_path))
+    
+    print('Preprocessing ner models...')
+    ners = load_recommenders(URM=URM, file_path=ners_models_path)
+    
+    ner_features = _build_ner_features_147(behaviors, history, articles, ners)
 
     recs = []
     if recsys_urm_path and recsys_models_path:
-        print('Preprocessing URM ...')
+        print('Preprocessing recsys URM ...')
         URM_train = load_sparse_csr(Path(os.path.join(recsys_urm_path, f'URM_{split_type}.npz')))
         
         print('Preprocessing recsys models ...')
         recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)
 
         recsys_features = build_recsys_features(history, behaviors,articles,recs)
-
+    else:
+        print("WARNING! RECSYS FEATURES NOT BUILDED BECAUSE THE URM_PATH AND THE MODELS_PATH WERE NOT GIVEN")
+    
     if not previous_version:
         df_features, vectorizer, unique_entities = pre_127.build_features(behaviors, history, articles, test, sample, npratio,
                                                                           tf_idf_vectorizer, previous_version)
@@ -253,22 +238,8 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     return df_features, vectorizer, unique_entities
 
 
-def _build_ner_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
-                        URM: sps.csr_matrix, rec_output_dir: str = None) -> pl.DataFrame:
-    recs = []
-    for rec, info in algo_dict.items():
-        params = info['params']
-        study_name = info['study_name']
-        if not params:
-            print('Params are missing, loading best params...')
-            params = load_best_optuna_params(study_name)
-        
-        if 'load' in info and info['load']:
-            rec_instance = load_recommender(URM, rec, rec_output_dir, file_name=study_name)
-        else:
-            rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_output_dir) #also saves the model
-            
-        recs.append(rec_instance)
+def _build_ner_features_147(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
+                        recs: list[BaseRecommender]) -> pl.DataFrame:  
         
     ner_features = build_ner_scores_features(history=history, behaviors=behaviors, articles=articles, recs=recs)
     return reduce_polars_df_memory_size(ner_features)

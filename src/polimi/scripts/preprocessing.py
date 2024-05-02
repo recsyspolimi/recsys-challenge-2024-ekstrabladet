@@ -19,7 +19,7 @@ from polimi.preprocessing_pipelines.categorical_dict import get_categorical_colu
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
-def main(input_path, output_dir, dataset_type='train', preprocessing_version='latest', previous_version=None, urm_path=None,recsys_urm_path=None,recsys_models_path=None):
+def main(input_path, output_dir, dataset_type='train', preprocessing_version='latest', previous_version=None,urm_path=None, recsys_urm_path=None, recsys_models_path=None, ners_models_path=None):
     logging.info(f"Preprocessing version: ----{preprocessing_version}----")
     logging.info("Starting to build the dataset")
     logging.info(f"Dataset path: {input_path}")
@@ -38,7 +38,7 @@ def main(input_path, output_dir, dataset_type='train', preprocessing_version='la
 
     dataset, tf_idf_vectorizer, unique_entities = PREPROCESSING[preprocessing_version](
         behaviors, history, articles, test=is_test_data, sample=sample, previous_version=previous_version,
-        urm_path=urm_path, split_type=dataset_type, output_path=output_dir, recsys_models_path=recsys_models_path,recsys_urm_path=recsys_urm_path)
+        urm_path=urm_path,ners_models_path=ners_models_path, split_type=dataset_type, output_path=output_dir, recsys_models_path=recsys_models_path,recsys_urm_path=recsys_urm_path)
 
     categorical_columns = get_categorical_columns(preprocessing_version)
 
@@ -80,20 +80,23 @@ if __name__ == '__main__':
                         help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','latest']")
     parser.add_argument("-previous_version", default=None, type=str,
                         help="Specify the path of a previous version of the dataset to use as a reference for the new one. Default is None.\n YOU MUST GUARANTEE THE COMPATIBILITY BETWEEN VERSIONS. ")
-    parser.add_argument("-urm_path", default=None, type=str, required=True,
-                        help="Directory where the URMs are placed")
-    parser.add_argument("-recsys_models_path", default = None, type=str,
-                        help="Specify the path of the already trained recsys to use to generate recsys features. If not specified the recsys features are skipped")
-    parser.add_argument("-recsys_urm_path", default = None, type=str,
-                        help="Specify the path of the already created urm to use to generate recsys features. If not specified the recsys features are skipped")
-
+    parser.add_argument("-urm_ner_path", default=None, type=str, required=False,
+                        help="Specify the path of the already created urm to use to generate ners features.")
+    parser.add_argument("-ners_models_path", default=None, type=str, required=False,
+                        help="Specify the path of the already created urm to use to generate ners features.")
+    parser.add_argument("-recsys_models_path", default = None, type=str,required=False,
+                        help="Specify the path of the already trained recsys to use to generate recsys features.")
+    parser.add_argument("-recsys_urm_path", default = None, type=str,required=False,
+                        help="Specify the path of the already created urm to use to generate recsys features.")
+    
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
     DATASET_DIR = args.dataset_path
     DATASET_TYPE = args.dataset_type
     PREPROCESSING_VERSION = args.preprocessing_version
     PREVIOUS_VERSION = args.previous_version
-    URM_PATH = args.urm_path
+    URM_PATH = args.urm_ner_path
+    NER_MODELS_PATH = args.ners_models_path
     RECSYS_MODELS_PATH = args.recsys_models_path
     RECSYS_URM_PATH = args.recsys_urm_path
 
@@ -113,4 +116,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
 
     main(DATASET_DIR, output_dir, DATASET_TYPE,
-         PREPROCESSING_VERSION, PREVIOUS_VERSION, URM_PATH, RECSYS_URM_PATH, RECSYS_MODELS_PATH)
+         PREPROCESSING_VERSION, PREVIOUS_VERSION, URM_PATH, NER_MODELS_PATH,RECSYS_URM_PATH, RECSYS_MODELS_PATH)
