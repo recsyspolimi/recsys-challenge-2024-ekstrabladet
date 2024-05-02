@@ -123,4 +123,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION, PREVIOUS_VERSION, URM_PATH, RECSYS_MODELS_PATH, RECSYS_URM_PATH)
+    main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION, PREVIOUS_VERSION, URM_PATH, RECSYS_URM_PATH, RECSYS_MODELS_PATH)

@@ -34,7 +34,7 @@ from polimi.utils._urm import train_recommender, build_ner_scores_features, load
 
 '''
 New features:
-    - ner
+    - recsys
 '''
 CATEGORICAL_COLUMNS = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                        'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
@@ -155,7 +155,7 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
     recs = []
     if recsys_urm_path and recsys_models_path:
         print('Preprocessing URM ...')
-        URM_train = load_sparse_csr(path=Path(recsys_urm_path))
+        URM_train = load_sparse_csr(Path(os.path.join(recsys_urm_path, f'URM_{split_type}.npz')))
         
         print('Preprocessing recsys models ...')
         recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)
@@ -231,7 +231,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     recs = []
     if recsys_urm_path and recsys_models_path:
         print('Preprocessing URM ...')
-        URM_train = load_sparse_csr(path=Path(recsys_urm_path))
+        URM_train = load_sparse_csr(Path(os.path.join(recsys_urm_path, f'URM_{split_type}.npz')))
         
         print('Preprocessing recsys models ...')
         recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)

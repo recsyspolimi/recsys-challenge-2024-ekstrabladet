@@ -19,7 +19,7 @@ from polimi.preprocessing_pipelines.categorical_dict import get_categorical_colu
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
-def main(input_path, output_dir, dataset_type='train', preprocessing_version='latest', previous_version=None, urm_path=None, recsys_models_path=None, recsys_urm_path=None):
+def main(input_path, output_dir, dataset_type='train', preprocessing_version='latest', previous_version=None, urm_path=None,recsys_urm_path=None,recsys_models_path=None):
     logging.info(f"Preprocessing version: ----{preprocessing_version}----")
     logging.info("Starting to build the dataset")
     logging.info(f"Dataset path: {input_path}")
@@ -113,4 +113,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
 
     main(DATASET_DIR, output_dir, DATASET_TYPE,
-         PREPROCESSING_VERSION, PREVIOUS_VERSION, URM_PATH,RECSYS_MODELS_PATH, RECSYS_URM_PATH)
+         PREPROCESSING_VERSION, PREVIOUS_VERSION, URM_PATH, RECSYS_URM_PATH, RECSYS_MODELS_PATH)
