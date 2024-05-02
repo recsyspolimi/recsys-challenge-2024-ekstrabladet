@@ -83,8 +83,8 @@ class MLP(TabularNNModel):
     def get_optuna_trial(cls, trial: Trial):
         params = TabularNNModel.get_optuna_trial(trial)
         model_params = {
-            'n_layers': trial.suggest_int('n_layers', 1, 6),
-            'start_units': trial.suggest_int('start_units', 64, 1024, log=True),
+            'n_layers': trial.suggest_int('n_layers', 1, 5),
+            'start_units': trial.suggest_int('start_units', 64, 256),
             'units_decay': trial.suggest_categorical('units_decay', [1, 1.5, 2, 2.5, 3, 3.5, 4]),
             'dropout_rate': trial.suggest_float('dropout_rate', 0.01, 0.4),
             'l1_lambda': trial.suggest_float('l1_lambda', 1e-5, 1e-2, log=True),
