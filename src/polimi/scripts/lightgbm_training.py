@@ -40,8 +40,9 @@ def main(dataset_path, lgbm_params_path, output_dir):
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = strip_new_features(train_ds)
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id', 'impression_time'])
+    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
+    if 'impression_time' in train_ds.columns:
+        train_ds = train_ds.drop(columns=['impression_time'])
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
 
     X = train_ds.drop(columns=['target'])

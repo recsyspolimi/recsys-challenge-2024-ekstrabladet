@@ -2,7 +2,6 @@ import pandas as pd
 import polars as pl
 import numpy as np
 import gc
-from polimi.preprocessing_pipelines.pre_68f import strip_new_features
 
 
 def _batch_predict(model, X, batch_size=None):
@@ -24,8 +23,6 @@ def _inference(dataset_path, data_info, model, eval=False, batch_size=1000):
 
     inference_ds[data_info['categorical_columns']
                  ] = inference_ds[data_info['categorical_columns']].astype('category')
-    
-    inference_ds = strip_new_features(inference_ds)
 
     if 'target' not in inference_ds.columns and eval:
         raise ValueError(
@@ -35,12 +32,15 @@ def _inference(dataset_path, data_info, model, eval=False, batch_size=1000):
         evaluation_ds = pl.from_pandas(
             inference_ds[['impression_id', 'user_id', 'article', 'target']]) 
         X = inference_ds.drop(
-            columns=['impression_id', 'target', 'article', 'user_id','impression_time'])
+            columns=['impression_id', 'target', 'article', 'user_id'])
     else:
         evaluation_ds = pl.from_pandas(
             inference_ds[['impression_id', 'user_id', 'article']])
-        X = inference_ds.drop(columns=['impression_id', 'article', 'user_id','impression_time'])
+        X = inference_ds.drop(columns=['impression_id', 'article', 'user_id'])
 
+    if 'impression_time' in X.columns:
+        X = X.drop(columns=['impression_time'])
+        
     evaluation_ds = evaluation_ds.with_columns(
         pl.Series(_batch_predict(model, X, batch_size)).alias('prediction'))
 
