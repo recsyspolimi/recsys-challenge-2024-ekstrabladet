@@ -23,6 +23,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKN
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
+from RecSys_Course_AT_PoliMi.Data_manager.split_functions.split_train_validation_random_holdout import split_train_in_two_percentage_global_sample
 from polimi.utils._custom import ALGORITHMS
 from polimi.utils._custom import load_sparse_csr, save_json, get_algo_params
 import time
@@ -49,11 +50,13 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
 
     def objective_function(trial: optuna.Trial):
         start_time = time.time()
-        params = get_algo_params(trial, model, eval=evaluator, eval_metric=metric)
+        params = get_algo_params(trial, model, evaluator_es=evaluator, eval_metric_es=metric)
+        is_early_stopping = 'epochs' in params
+        
         rec_instance = model(URM_train)
         rec_instance.fit(**params)
         
-        if 'epochs' in params:
+        if is_early_stopping:
             epochs = rec_instance.get_early_stopping_final_epochs_dict()["epochs"]
             trial.set_user_attr("epochs", epochs)
         

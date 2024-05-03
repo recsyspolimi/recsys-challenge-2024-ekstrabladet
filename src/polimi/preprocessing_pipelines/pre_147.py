@@ -83,7 +83,6 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         
         print('Preprocessing recsys models ...')
         recs = load_recommenders(URM=URM_train,file_path=recsys_models_path)
-
         recsys_features = build_recsys_features(history, behaviors,articles,recs)
         
     else:

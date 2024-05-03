@@ -57,7 +57,9 @@ def build_ner_mapping(articles: pl.DataFrame):
         .drop_nulls()\
         .sort('ner')\
         .with_row_index()\
-        .rename({'index': 'ner_index'})     
+        .rename({'index': 'ner_index'})\
+        .cast({'ner_index': pl.UInt32})
+
 
 def build_item_mapping(articles: pl.DataFrame):
     return articles\
@@ -68,10 +70,6 @@ def build_item_mapping(articles: pl.DataFrame):
         .with_row_index()\
         .rename({'index': 'item_index'})
 
-
-
-
-
 def _build_batch_ner_interactions(df: pl.DataFrame, 
                   articles: pl.DataFrame, 
                   user_id_mapping: pl.DataFrame,
@@ -80,7 +78,7 @@ def _build_batch_ner_interactions(df: pl.DataFrame,
                   batch_size=BATCH_SIZE):
     
     articles_ner_index = articles\
-        .with_columns(pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None).cast(pl.UInt32)).list.drop_nulls())
+        .with_columns(pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None, return_dtype=pl.UInt32)).list.drop_nulls())
     
     df = df.select('user_id', articles_id_col)\
         .group_by('user_id')\
@@ -88,7 +86,7 @@ def _build_batch_ner_interactions(df: pl.DataFrame,
         
     df = pl.concat([
         slice.with_columns(
-            pl.col(articles_id_col).list.eval(pl.element().replace(articles_ner_index['article_id'], articles_ner_index['ner_clusters'], default=None).cast(pl.List(pl.UInt32)))\
+            pl.col(articles_id_col).list.eval(pl.element().replace(articles_ner_index['article_id'], articles_ner_index['ner_clusters'], default=None, return_dtype=pl.List(pl.UInt32)))\
                 .list.eval(pl.element().flatten())\
                 .list.drop_nulls()\
                 .list.unique()\
@@ -105,14 +103,14 @@ def _build_batch_ner_interactions(df: pl.DataFrame,
     
     
 
-def build_ner_urm(history: pl.DataFrame, 
+def build_ner_urm(df: pl.DataFrame, 
                   articles: pl.DataFrame, 
                   user_id_mapping: pl.DataFrame,
                   ner_mapping: pl.DataFrame,
                   articles_id_col = 'article_id_fixed',
                   batch_size=BATCH_SIZE):
         
-    ner_interactions = _build_batch_ner_interactions(history, articles, user_id_mapping, ner_mapping, articles_id_col, batch_size=batch_size)
+    ner_interactions = _build_batch_ner_interactions(df, articles, user_id_mapping, ner_mapping, articles_id_col, batch_size=batch_size)
     return _build_implicit_urm(ner_interactions, 'user_index', 'ner_index', user_id_mapping, ner_mapping)
 
 def _build_recsys_interactions(

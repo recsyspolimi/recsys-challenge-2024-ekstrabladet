@@ -191,13 +191,13 @@ algo_dict_recsys = {
     }
 }
     
-def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: EvaluatorHoldout, eval_metric:str):
+def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: EvaluatorHoldout, eval_metric_es:str):
     earlystopping_keywargs = {
         "validation_every_n": 5,
         "stop_on_validation": True,
         "lower_validations_allowed": 5,
-        "validation_metric": eval_metric,
-        "evaluator_object": eval,
+        "validation_metric": eval_metric_es,
+        "evaluator_object": evaluator_es,
     }
     
     if model in [ItemKNNCFRecommender, UserKNNCFRecommender]:
@@ -261,7 +261,6 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: Evaluator
             "negative_interactions_quota": trial.suggest_float("negative_interactions_quota", 0.0, 0.5),
             "epochs": 500,
             **earlystopping_keywargs,
-            **earlystopping_keywargs,
         }
     elif model == MatrixFactorization_BPR_Cython:
         params = {
@@ -273,7 +272,6 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: Evaluator
             "learning_rate": trial.suggest_float("learning_rate", 1e-4, 1e-1, log=True),
             "positive_threshold_BPR": None,
             "epochs": 1000,
-            **earlystopping_keywargs
             **earlystopping_keywargs
         }
     elif model == MultVAERecommender:
