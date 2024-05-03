@@ -305,6 +305,17 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, eval: Evaluator
             "epochs": 500,
             **earlystopping_keywargs
         }
+    elif model == NMFRecommender:
+        params = {
+            "num_factors": trial.suggest_int("num_factors", 1, 600),
+            "init_type": trial.suggest_categorical("init_type", ["random", "nndsvda"]),
+            "beta_loss": trial.suggest_categorical("beta_loss", ["frobenius", "kullback-leibler"]),
+        }
+        solver = ["multiplicative_update"]
+        if (params["beta_loss"] == "frobenius"):
+            solver += ['coordinate_descent']
+        
+        params['solver'] = trial.suggest_categorical("solver", solver)
     else:
         raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
     return params
