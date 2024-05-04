@@ -314,6 +314,11 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: E
             solver += ['coordinate_descent']
         
         params['solver'] = trial.suggest_categorical("solver", solver)
+    elif model == PureSVDItemRecommender:
+        params = {
+            "num_factors": trial.suggest_int("num_factors", 1, 1000),
+            "topK": trial.suggest_int("topK", 5, 1000),            
+        }
     else:
         raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
     return params

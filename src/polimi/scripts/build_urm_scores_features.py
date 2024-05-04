@@ -16,7 +16,7 @@ from polimi.utils._urm import train_recommender, build_ner_scores_features, load
 import polars as pl
 import scipy.sparse as sps
     
-def main_ner_score_features(feature_ouput_dir: Path, rec_output_dir: Path, URM: sps.csr_matrix,
+def build_ner_score_features(feature_ouput_dir: Path, rec_dir: Path, URM: sps.csr_matrix,
          algo_dict: dict, history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame):
     
     recs = []
@@ -24,13 +24,14 @@ def main_ner_score_features(feature_ouput_dir: Path, rec_output_dir: Path, URM: 
         params = info['params']
         study_name = info['study_name']
         if not params:
-            print('Params are missing, loading best params...')
+            print(f'Params are missing, loading best params for {study_name}...')
             params = load_best_optuna_params(study_name)
+            print(f'Loaded params: {params}')
         
         if 'load' in info and info['load']:
-            rec_instance = load_recommender(URM, rec, rec_output_dir, file_name=study_name)
+            rec_instance = load_recommender(URM, rec, rec_dir, file_name=study_name)
         else:
-            rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_output_dir) #also saves the model
+            rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_dir) #also saves the model
             
         recs.append(rec_instance)
         
@@ -40,26 +41,21 @@ if __name__ == '__main__':
     algo_dict = {
         UserKNNCFRecommender: {
             'params': None,
-            'study_name': 'UserKNNCFRecommender-ner-small-ndcg100',
+            'study_name': 'UserKNNCFRecommender-ner-small-ndcg100_new',
             'load': False
         },
-        RP3betaRecommender: {
-            'params': None,
-            'study_name': 'RP3betaRecommender-ner-small-ndcg100',
-            'load': False
-        }
     }
     
     URM_TYPE = 'ner'
     DTYPE = 'small'
     DSPLIT = 'train'
     
-    d_path = Path('/Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset')
+    d_path = Path('/mnt/ebs_volume/recsys2024/dataset')
     
-    urm_path = d_path.joinpath('urm').joinpath(URM_TYPE).joinpath(DTYPE)
+    urm_path = Path('/mnt/ebs_volume/urm').joinpath(URM_TYPE).joinpath(DTYPE)
     URM = load_sparse_csr(urm_path.joinpath(f'URM_{DSPLIT}.npz') )
 
-    algo_path = urm_path.joinpath('algo')
+    algo_path = urm_path.joinpath('algo').joinpath(DSPLIT)
     algo_path.mkdir(parents=True, exist_ok=True)
     
     features_path = d_path.joinpath('features').joinpath(DTYPE).joinpath(DSPLIT)
@@ -69,5 +65,5 @@ if __name__ == '__main__':
     behaviors = load_behaviors(d_path, DTYPE, DSPLIT, lazy=False)
     articles = load_articles(d_path, DTYPE, lazy=False)
 
-    main_ner_score_features(feature_ouput_dir=features_path, rec_output_dir=algo_path, 
+    build_ner_score_features(feature_ouput_dir=features_path, rec_dir=algo_path, 
          URM=URM, algo_dict=algo_dict, history=history, behaviors=behaviors, articles=articles)

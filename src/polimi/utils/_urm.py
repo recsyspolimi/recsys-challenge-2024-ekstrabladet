@@ -149,18 +149,6 @@ def train_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, params:
 
     return rec_instance
 
-# def train_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, params: dict, file_name:str = None, output_dir: Path = None):
-#     rec_instance= recommender(URM)
-#     rec_instance.fit(**params)
-#     
-#     if output_dir:
-#         rec_instance.save_model(folder_path=output_dir.resolve(), file_name=file_name)
-#     
-#     return rec_instance
-
-
-
-
 
 def load_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, file_path: Path, file_name: str=None):
     rec_instance = recommender(URM)
