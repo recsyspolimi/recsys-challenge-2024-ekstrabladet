@@ -1,0 +1,5 @@
+2024-05-04 08:06:37,742:root:INFO: Loading the preprocessed dataset from /mnt/ebs_volume/recsys2024/dataset/ebnerd_small
+2024-05-04 08:06:40,190:root:INFO: Data info: {}
+2024-05-04 08:06:40,191:root:INFO: Building the URM small recsys test
+2024-05-04 08:06:40,661:root:INFO: Sparsity ratio of the URM: 0.9993838682103992
+2024-05-04 08:06:40,687:root:INFO: File saved at: /mnt/ebs_volume/recsys2024/urm/recsys/small/URM_test
