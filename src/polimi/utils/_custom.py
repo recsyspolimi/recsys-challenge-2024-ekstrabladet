@@ -134,7 +134,11 @@ def load_best_optuna_params(study_name: str, storage:str=_BASE_OPTUNA_STORAGE) -
     if not storage:
         storage = os.getenv('OPTUNA_STORAGE')
     study = optuna.load_study(study_name=study_name, storage=storage)
-    return study.best_params        
+    best_trial_user_attrs = study.best_trial.user_attrs
+    best_trial_params = study.best_params
+    if ('epochs' in best_trial_user_attrs):
+        best_trial_params['epochs'] = best_trial_user_attrs['epochs']
+    return best_trial_params         
         
 ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
       PureSVDRecommender, MultiThreadSLIM_SLIMElasticNetRecommender, SLIMElasticNetRecommender, 
