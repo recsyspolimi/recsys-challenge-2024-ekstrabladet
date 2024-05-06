@@ -134,7 +134,11 @@ def load_best_optuna_params(study_name: str, storage:str=_BASE_OPTUNA_STORAGE) -
     if not storage:
         storage = os.getenv('OPTUNA_STORAGE')
     study = optuna.load_study(study_name=study_name, storage=storage)
-    return study.best_params        
+    best_trial_user_attrs = study.best_trial.user_attrs
+    best_trial_params = study.best_params
+    if ('epochs' in best_trial_user_attrs):
+        best_trial_params['epochs'] = best_trial_user_attrs['epochs']
+    return best_trial_params         
         
 ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
       PureSVDRecommender, MultiThreadSLIM_SLIMElasticNetRecommender, SLIMElasticNetRecommender, 
@@ -145,30 +149,28 @@ ALGORITHMS = {algo.RECOMMENDER_NAME: [algo] for algo in ALGORITHMS_LIST}
 
 algo_dict_ner = {
     PureSVDItemRecommender: {
-        'params': {'num_factors': 997, 'topK': 589},
-        'study_name': 'PureSVDItemRecommender-ner-small-ndcg100',
+        'params': {},
+        'study_name': 'PureSVDItemRecommender-ner-small-ndcg100_new',
         'load': False
     },
     P3alphaRecommender: {
-        'params': {'topK': 486, 'normalize_similarity': True, 'alpha': 1.9993719084032937},
-        'study_name': 'P3alphaRecommender-ner-small-ndcg100',
+        'params': {},
+        'study_name': 'P3alphaRecommender-ner-small-ndcg100_new',
         'load': False
     },
     ItemKNNCFRecommender: {
-        'params': {'similarity': 'tversky', 'topK': 222, 'shrink': 177, 
-                   'tversky_alpha': 0.012267012177140928, 'tversky_beta': 1.3288117939629838},
-        'study_name': 'ItemKNNCFRecommender-ner-small-ndcg100',
+        'params': {},
+        'study_name': 'ItemKNNCFRecommender-ner-small-ndcg100_new',
         'load': False
     },
     RP3betaRecommender: {
-        'params': {'topK': 499, 'normalize_similarity': True, 'alpha': 1.9956096660427538, 'beta': 0.04484545361718186},
-        'study_name': 'RP3betaRecommender-ner-small-ndcg100',
+        'params': {},
+        'study_name': 'RP3betaRecommender-ner-small-ndcg100_new',
         'load': False
     },
     UserKNNCFRecommender: {
-        'params': {'similarity': 'tversky', 'topK': 590, 'shrink': 0, 
-                   'tversky_alpha': 1.6829525098337292, 'tversky_beta': 0.13181828101203877},
-        'study_name': 'UserKNNCFRecommender-ner-small-ndcg100',
+        'params': {},
+        'study_name': 'UserKNNCFRecommender-ner-small-ndcg100_new',
         'load': False
     }
 }
@@ -203,8 +205,8 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: E
     if model in [ItemKNNCFRecommender, UserKNNCFRecommender]:
         params = {
             "similarity": trial.suggest_categorical("similarity", ['cosine', 'dice', 'jaccard', 'asymmetric', 'tversky', 'euclidean']),
-            "topK": trial.suggest_int("topK", 5, 1100),
-            "shrink": trial.suggest_int("shrink", 0, 1100),
+            "topK": trial.suggest_int("topK", 5, 1500),
+            "shrink": trial.suggest_int("shrink", 0, 1000),
         }
         if params['similarity'] == "asymmetric":
             params["asymmetric_alpha"] = trial.suggest_float("asymmetric_alpha", 0, 2, log=False)
@@ -225,21 +227,21 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: E
             "alpha": trial.suggest_float("alpha", 1e-3, 1, log=True),
             "l1_ratio": trial.suggest_float("l1_ratio", 1e-5, 1, log=True),
             "positive_only": True,
-            "topK": trial.suggest_int("topK", 5, 1000),
+            "topK": trial.suggest_int("topK", 5, 1500),
         }
     elif model == PureSVDRecommender:
         params = {
-            "num_factors": trial.suggest_int("num_factors", 1, 1000),
+            "num_factors": trial.suggest_int("num_factors", 1, 1500),
         }
     elif model == P3alphaRecommender:
         params = {
-            "topK": trial.suggest_int("topK", 20, 1000),
+            "topK": trial.suggest_int("topK", 20, 1500),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
             'alpha': trial.suggest_float("alpha", 0, 2),
         }   
     elif model == RP3betaRecommender:
         params = {
-            "topK": trial.suggest_int("topK", 20, 1000),
+            "topK": trial.suggest_int("topK", 20, 1500),
             'normalize_similarity': trial.suggest_categorical("normalize_similarity", [True]),
             'alpha': trial.suggest_float("alpha", 0, 2),
             'beta': trial.suggest_float("beta", 0, 2),
@@ -312,7 +314,7 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: E
     elif model == PureSVDItemRecommender:
         params = {
             "num_factors": trial.suggest_int("num_factors", 1, 1000),
-            "topK": trial.suggest_int("topK", 5, 1000),            
+            "topK": trial.suggest_int("topK", 5, 1500),            
         }
     else:
         raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
