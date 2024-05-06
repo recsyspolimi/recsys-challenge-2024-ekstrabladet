@@ -138,7 +138,7 @@ def load_best_optuna_params(study_name: str, storage:str=_BASE_OPTUNA_STORAGE) -
     best_trial_params = study.best_params
     if ('epochs' in best_trial_user_attrs):
         best_trial_params['epochs'] = best_trial_user_attrs['epochs']
-    return best_trial_params        
+    return best_trial_params         
         
 ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
       PureSVDRecommender, MultiThreadSLIM_SLIMElasticNetRecommender, SLIMElasticNetRecommender, 
@@ -302,7 +302,7 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: E
         }
     elif model == NMFRecommender:
         params = {
-            "num_factors": trial.suggest_int("num_factors", 1, 600),
+            "num_factors": trial.suggest_int("num_factors", 1, 1000),
             "init_type": trial.suggest_categorical("init_type", ["random", "nndsvda"]),
             "beta_loss": trial.suggest_categorical("beta_loss", ["frobenius", "kullback-leibler"]),
         }

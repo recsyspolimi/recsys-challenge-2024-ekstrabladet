@@ -5,9 +5,10 @@ import numpy as np
 import gc
 
 
-def reduce_polars_df_memory_size(df: pl.DataFrame):
+def reduce_polars_df_memory_size(df: pl.DataFrame, verbose: bool = True) -> pl.DataFrame:
     start_mem = df.estimated_size('mb')
-    print('Memory usage of dataframe is {:.2f} MB'.format(start_mem))
+    if verbose:
+        print('Memory usage of dataframe is {:.2f} MB'.format(start_mem))
     
     for col in df.columns:
         col_type = df[col].dtype
@@ -58,8 +59,9 @@ def reduce_polars_df_memory_size(df: pl.DataFrame):
 
     gc.collect()
     end_mem = df.estimated_size('mb')
-    print('Memory usage after optimization is: {:.2f} MB'.format(end_mem))
-    print('Decreased by {:.1f}%'.format(100 * (start_mem - end_mem) / start_mem))
+    if verbose:
+        print('Memory usage after optimization is: {:.2f} MB'.format(end_mem))
+        print('Decreased by {:.1f}%'.format(100 * (start_mem - end_mem) / start_mem))
     
     return df
 

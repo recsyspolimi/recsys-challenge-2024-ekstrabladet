@@ -12,6 +12,23 @@ def fast_distance(u, v):
     '''
     return simsimd.cosine(np.asarray(u), np.asarray(v))
 
+def distance_function_768(x):
+    return simsimd.cosine(np.asarray(x[:768]), np.asarray(x[768:]))
+
+def distance_function_300(x):
+    return simsimd.cosine(np.asarray(x[:300]), np.asarray(x[300:]))
+    
+def distance_function_6(x):
+    return simsimd.cosine(np.asarray(x[:6]), np.asarray(x[6:]))
+
+def get_distance_function(len):
+    if len == 768:
+        return distance_function_768
+    elif len == 300:
+        return distance_function_300
+    elif len == 6:
+        return distance_function_6
+
 def _add_normalized_features_emb(df = None ,path = None):
     
     if df is None and path is None:
