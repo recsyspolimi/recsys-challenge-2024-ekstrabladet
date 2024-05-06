@@ -47,18 +47,18 @@ if __name__ == '__main__':
     }
     
     URM_TYPE = 'ner'
-    DTYPE = 'small'
+    DTYPE = 'large'
     DSPLIT = 'train'
     
     d_path = Path('/mnt/ebs_volume/recsys2024/dataset')
     
-    urm_path = Path('/mnt/ebs_volume/urm').joinpath(URM_TYPE).joinpath(DTYPE)
+    urm_path = Path('/mnt/ebs_volume/recsys2024/urm').joinpath(URM_TYPE).joinpath(DTYPE)
     URM = load_sparse_csr(urm_path.joinpath(f'URM_{DSPLIT}.npz') )
 
     algo_path = urm_path.joinpath('algo').joinpath(DSPLIT)
     algo_path.mkdir(parents=True, exist_ok=True)
     
-    features_path = d_path.joinpath('features').joinpath(DTYPE).joinpath(DSPLIT)
+    features_path = d_path.parent.joinpath('features').joinpath(DTYPE).joinpath(DSPLIT)
     features_path.mkdir(parents=True, exist_ok=True)
     
     history = load_history(d_path, DTYPE, DSPLIT, lazy=False)

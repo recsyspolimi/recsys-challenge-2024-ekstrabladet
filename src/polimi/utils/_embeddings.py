@@ -12,6 +12,23 @@ def fast_distance(u, v):
     '''
     return simsimd.cosine(np.asarray(u), np.asarray(v))
 
+def distance_function_768(x):
+    return simsimd.cosine(np.asarray(x[:768]), np.asarray(x[768:]))
+
+def distance_function_300(x):
+    return simsimd.cosine(np.asarray(x[:300]), np.asarray(x[300:]))
+    
+def distance_function_6(x):
+    return simsimd.cosine(np.asarray(x[:6]), np.asarray(x[6:]))
+
+def get_distance_function(len):
+    if len == 768:
+        return distance_function_768
+    elif len == 300:
+        return distance_function_300
+    elif len == 6:
+        return distance_function_6
+
 def _add_normalized_features_emb(df = None ,path = None):
     
     if df is None and path is None:
@@ -120,5 +137,240 @@ def iterator_build_embeddings_similarity(df, users_embeddings, embeddings, new_c
     for sliced_df in df.iter_slices(df.shape[0] // n_batches):
         slice_features = sliced_df.pipe(_build_embeddings_similarity, embeddings=embeddings,
                                         users_embeddings=users_embeddings, new_column_name=new_column_name)
+
+        yield slice_features
+
+
+def add_features_cosine_history_fb_embeddings(train_ds, articles, history, fb_embeddings):
+    history_ds = history.select(["user_id", "article_id_fixed"])
+    article_embeddings = fb_embeddings.select(["article_id","FacebookAI/xlm-roberta-base"]).rename({"article_id": "article_id_fixed","FacebookAI/xlm-roberta-base":"embeddings"})
+    
+    dfs = []
+    for rows in tqdm.tqdm(train_ds.iter_slices(1000), total=train_ds.shape[0] // 1000):
+        df = (
+            rows.select(["impression_id", "user_id", "article"])  # Select only useful columns
+            .join(article_embeddings, left_on="article",right_on="article_id_fixed", how="left")  # Add articles details
+            .join(other=history_ds, on="user_id", how="left")  # Add history of the user
+            .explode("article_id_fixed")  # Explode the user's history
+            .join(other=article_embeddings, on="article_id_fixed", how="left")  # Add embeddings of the articles in the history
+            .with_columns(
+                # Calculate cosine similarity only with relevant embeddings
+                pl.struct(['embeddings','embeddings_right']).map_elements(
+                    lambda x: fast_distance(x['embeddings'], x['embeddings_right']),
+                    return_dtype=pl.Float64
+                ).alias('cos_sim')
+            )
+            .group_by(["impression_id", "article"])
+            .agg([  # Grouping on all the "n" articles in the user's history, compute aggregations of the "n" cosine similarity values
+                pl.col("cos_sim").mean().alias("fb_mean_cos_sim"),
+                pl.col("cos_sim").min().alias("fb_min_cos_sim"),
+                pl.col("cos_sim").max().alias("fb_max_cos_sim"),
+                pl.col("cos_sim").std().alias("fb_std_cos_sim")]
+            )
+        )
+        dfs.append(df)
+    
+    df = pl.concat(dfs)
+    
+    return train_ds.join(other=df, on=["impression_id", "article"], how="left")
+
+def calculate_weights_decay_ImprTime(impression_times, decay_rate):
+    # Convert impression times to numpy array for easier calculations
+    impression_times_np = np.array(impression_times)
+    
+    # Calculate time differences relative to the latest impression time
+    time_diffs = impression_times_np.max() - impression_times_np
+    time_diffs = time_diffs.astype(float)
+    # Apply exponential decay function to the time differences to compute weights
+    weights = np.exp(-decay_rate * time_diffs)
+    
+    # Normalize the weights
+    sum_weights = np.sum(weights)
+    normalized_weights = weights / sum_weights if sum_weights != 0 else weights
+    
+    # Convert the normalized weights array to a Python list of floats
+    normalized_weights_list = normalized_weights.tolist()
+    
+    return normalized_weights_list
+
+def build_weighted_timestamps_embeddings(df, history, embeddings, emb_type):
+    '''
+    This function computes an average of the embeddings of the items in the user history weighting them on impression_time_fixed
+    and then computes a cosine similarity between the embedding of the item and the new embedding of the user 
+    (items and users used for the computation come from df rows).
+    It concatenates the cosine similarity to df dataframe.
+    Requires that history contains 'impression_time_fixed'
+    Requires embedding to have two columns: article_id and embedding.
+    '''
+    embeddings = embeddings.rename({embeddings.columns[0]: 'article_id', embeddings.columns[1]: 'item_embedding'})
+    embedding_len = len(embeddings['item_embedding'].limit(1).item())
+    history = history.with_columns(pl.col('impression_time_fixed').map_elements(lambda x : calculate_weights_decay_ImprTime(x,1e-10)).alias('Weights_time_decay'))
+    
+
+    # Iterate over history dataframe in chunks
+    users_embeddings = pl.concat(
+        [
+            (
+                rows.select('user_id', 'article_id_fixed', 'impression_time_fixed','Weights_time_decay')
+                .explode('article_id_fixed','impression_time_fixed','Weights_time_decay')
+                .rename({'article_id_fixed': 'article_id'})
+                .join(embeddings, on='article_id')
+                .with_columns(
+                    pl.col("item_embedding").list.to_struct()
+                ).unnest("item_embedding")
+                .with_columns(
+                    [pl.col(f'field_{i}').mul(pl.col('Weights_time_decay'))for i in range(embedding_len)]
+                
+                )
+                .group_by('user_id')
+                .agg(
+                    [pl.col(f'field_{i}').mean().alias(f'embeddings_mean_{i}') for i in range(embedding_len)]
+                )
+                .with_columns(pl.concat_list([f'embeddings_mean_{i}' for i in range(embedding_len)]).alias('user_embedding_weighted_TS'))
+                .select('user_id', 'user_embedding_weighted_TS')
+            )
+            for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+        ]
+    )
+
+    return users_embeddings, 'user_embedding_weighted_TS', f'TW_click_predictor_{emb_type}'
+
+def calculate_weights_scroll(scroll_percentages):
+    # Convert scroll percentages to numpy array for easier calculations
+    scroll_percentages_np = np.array(scroll_percentages)
+    arr_filled = np.array([np.nan_to_num(sub_arr, nan=0) for sub_arr in scroll_percentages_np])
+    weights = np.sqrt(arr_filled)
+    
+    # Normalize the weights
+    sum_weights = np.sum(weights)
+    normalized_weights = weights / sum_weights if sum_weights != 0 else weights
+    
+    # Convert the normalized weights array to a Python list of floats
+    normalized_weights_list = normalized_weights.tolist()
+    
+    return normalized_weights_list
+
+def calculate_weights_readtimes(read_times):
+    # Convert read times to numpy array for easier calculations
+    read_times_np = np.array(read_times)
+    
+    # Calculate the difference between each read time and the maximum read time
+    max_read_time = max(read_times_np)  # Assuming the maximum read time is known
+    diff_with_max = max_read_time - read_times_np
+    
+    # Apply square root function to the difference to compute weights
+    weights = np.sqrt(diff_with_max)
+    
+    # Normalize the weights
+    sum_weights = np.sum(weights)
+    normalized_weights = weights / sum_weights if sum_weights != 0 else weights
+    
+    # Convert the normalized weights array to a Python list of floats
+    normalized_weights_list = normalized_weights.tolist()
+    
+    return normalized_weights_list
+
+def build_weighted_SP_embeddings(df, history, embeddings, emb_type):
+    '''
+    This function computes an average of the embeddings of the items in the user history 
+    and then computes a cosine similarity between the embedding of the item and the new embedding of the user 
+    (items and users used for the computation come from df rows).
+    It concatenates the cosine similarity to df dataframe.
+    '''
+    embeddings = embeddings.rename({embeddings.columns[0]: 'article_id', embeddings.columns[1]: 'item_embedding'})
+    embedding_len = len(embeddings['item_embedding'].limit(1).item())
+    history = history.with_columns(pl.col('scroll_percentage_fixed').map_elements(lambda x : calculate_weights_scroll(x)).alias('Weights_scroll'))
+    # Iterate over history dataframe in chunks
+    users_embeddings = pl.concat(
+        [
+            (
+                rows.select('user_id', 'article_id_fixed', 'scroll_percentage_fixed','Weights_scroll')
+                .explode('article_id_fixed','scroll_percentage_fixed','Weights_scroll')
+                .rename({'article_id_fixed': 'article_id'})
+                .join(embeddings, on='article_id')
+                .with_columns(
+                    pl.col("item_embedding").list.to_struct()
+                ).unnest("item_embedding")
+                .with_columns(
+                    [pl.col(f'field_{i}').mul(pl.col('Weights_scroll'))for i in range(embedding_len)]
+                
+                )
+                .group_by('user_id')
+                .agg(
+                    [pl.col(f'field_{i}').mean().alias(f'embeddings_mean_{i}') for i in range(embedding_len)]
+                )
+                .with_columns(pl.concat_list([f'embeddings_mean_{i}' for i in range(embedding_len)]).alias('user_embedding_weight_SP'))
+                .select('user_id', 'user_embedding_weight_SP')
+            )
+            for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+        ]
+    )
+
+    return users_embeddings, 'user_embedding_weight_SP', f'SP%W_click_predictor_{emb_type}'
+    # Iterate over df dataframe in chunks
+ 
+
+def build_weighted_readtime_embeddings(df, history, embeddings, emb_type):
+    '''
+    This function computes an average of the embeddings of the items in the user history 
+    and then computes a cosine similarity between the embedding of the item and the new embedding of the user 
+    (items and users used for the computation come from df rows).
+    It concatenates the cosine similarity to df dataframe.
+    '''
+    embeddings = embeddings.rename({embeddings.columns[0]: 'article_id', embeddings.columns[1]: 'item_embedding'})
+    embedding_len = len(embeddings['item_embedding'].limit(1).item())
+    history = history.with_columns( pl.col('read_time_fixed').map_elements(lambda x : calculate_weights_readtimes(x)).alias('Weights_readtime'))
+
+    # Iterate over history dataframe in chunks
+    users_embeddings = pl.concat(
+        [
+            (
+                rows.select('user_id', 'article_id_fixed', 'scroll_percentage_fixed','Weights_readtime')
+                .explode('article_id_fixed','scroll_percentage_fixed','Weights_readtime')
+                .rename({'article_id_fixed': 'article_id'})
+                .join(embeddings, on='article_id')
+                .with_columns(
+                    pl.col("item_embedding").list.to_struct()
+                ).unnest("item_embedding")
+                .with_columns(
+                    [pl.col(f'field_{i}').mul(pl.col('Weights_readtime'))for i in range(embedding_len)]
+                
+                )
+                .group_by('user_id')
+                .agg(
+                    [pl.col(f'field_{i}').mean().alias(f'embeddings_mean_{i}') for i in range(embedding_len)]
+                )
+                .with_columns(pl.concat_list([f'embeddings_mean_{i}' for i in range(embedding_len)]).alias('user_embedding_weight_readtime'))
+                .select('user_id', 'user_embedding_weight_readtime')
+            )
+            for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+        ]
+    )
+    
+    return users_embeddings, 'user_embedding_weight_readtime', f'readtime_click_predictor_{emb_type}'
+
+
+
+def compute_similarity(df, users_embeddings, embeddings, column_name, new_col_name):
+    
+    df = df.with_columns(pl.col('user_id').cast(pl.UInt32),
+                         pl.col('article').cast(pl.Int32))
+    user_item_emb_similarity = pl.concat(
+                rows.select(['user_id','article']).join(embeddings, left_on = 'article', right_on = 'article_id')\
+                .join(users_embeddings, on = 'user_id')\
+                .with_columns(
+                     pl.struct([column_name, 'item_embedding']).map_elements(
+                                        lambda x: fast_distance(x[column_name], x['item_embedding']), return_dtype=pl.Float32).cast(pl.Float32).alias(new_col_name)
+                ).drop(['item_embedding_right','user_embedding_right'])
+            for rows in tqdm.tqdm(df.iter_slices(1000), total=df.shape[0] // 1000)).unique(subset=['user_id', 'article'])
+    
+    return user_item_emb_similarity.select(['user_id','article',new_col_name])
+  
+
+def iterator_weighted_embedding(df, users_embeddings, embeddings, column_name, new_col_name, n_batches: int = 10):
+
+    for sliced_df in df.iter_slices(df.shape[0] // n_batches):
+        slice_features = sliced_df.pipe(compute_similarity, users_embeddings=users_embeddings,
+                                        embeddings=embeddings, column_name= column_name, new_col_name=new_col_name)
 
         yield slice_features

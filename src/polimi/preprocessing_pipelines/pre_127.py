@@ -134,10 +134,6 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
     articles_endorsement = _preprocessing_article_endorsement_feature(
         behaviors=behaviors, period="10h")
 
-
-    if previous_version is not None:
-        behaviors = pl.read_parquet(previous_version)
-
     print('Building features...')
     for slice in range(0,101):
         slice_features = pl.read_parquet(os.path.join(previous_version, f'Sliced_ds/test_slice_{slice}.parquet'))
