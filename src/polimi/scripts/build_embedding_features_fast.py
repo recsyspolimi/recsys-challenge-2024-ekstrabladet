@@ -5,11 +5,11 @@ import argparse
 import polars as pl
 import gc
 from pathlib import Path
-
-import sys
-sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
+import math
+from tqdm import tqdm
+from polimi.utils._polars import reduce_polars_df_memory_size, stack_slices
 from polimi.utils._embeddings import _build_user_embeddings
-from polimi.utils._embeddings import iterator_build_embeddings_similarity, build_normalized_embeddings_matrix, build_embeddings_scores, build_embeddings_agg_scores
+from polimi.utils._embeddings import iterator_build_embeddings_similarity, build_normalized_embeddings_matrix, build_embeddings_scores, build_embeddings_agg_scores, build_embeddings_scores_test
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -59,19 +59,32 @@ def main(input_path, output_dir):
                 pl.col('article').list.eval(pl.element().replace(article_emb_mapping['article_id'], article_emb_mapping['index'], default=None)).name.suffix('_index'),
             ).drop('impression_time_fixed', 'scroll_percentage_fixed', 'read_time_fixed')
             
-        train_ds = build_embeddings_scores(train_ds, history_m, m_dict=norm_m_dict)
-        
         save_path = output_dir / data_type
         save_path.mkdir(parents=True, exist_ok=True)
-        
-        logging.info(f'Saving embeddings scores plain to {save_path}')
-        train_ds.write_parquet(save_path / 'embeddings_scores.parquet')
-        
-        logging.info(f'Building embeddings scores standard aggregations...')
-        train_ds = build_embeddings_agg_scores(train_ds, history, emb_names=emb_name_dict.values())
+         
+        train_ds = reduce_polars_df_memory_size(train_ds)
+        train_ds = train_ds.sort('user_id')
+        BATCH_SIZE = 1e6
+        slices = math.ceil(len(train_ds) / BATCH_SIZE)
+        for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=slices)):
+            logging.info(f'Starting embeddings scores slice {i}...')
+            slice = build_embeddings_scores(slice, history_m, m_dict=norm_m_dict)
+            logging.info(f'Saving embeddings scores plain slice {i} to {save_path}...')
+            slice.write_parquet(save_path / f'embeddings_scores_slice_{i}.parquet')
                 
-        logging.info(f'Saving embeddings scores aggregations to {save_path}')
-        train_ds.write_parquet(save_path / 'embeddings_scores_agg.parquet')
+        for i in range(0, slices):
+            slice = pl.read_parquet(save_path / f'embeddings_scores_slice_{i}.parquet')
+            logging.info(f'Building embeddings scores slice {i} standard aggregations...')
+            slice = build_embeddings_agg_scores(slice, history, emb_names=emb_name_dict.values())
+            logging.info(f'Saving embeddings scores slice {i} aggregations to {save_path}')
+            slice.write_parquet(save_path / f'embeddings_scores_agg_slice_{i}.parquet')
+        
+        
+        scores_slices_paths = list(save_path.glob('embeddings_scores_slice_*.parquet'))
+        stack_slices(scores_slices_paths, save_path, 'embeddings_scores.parquet', delete_all_slices=True)
+        
+        agg_scores_slices_paths = list(save_path.glob('embeddings_scores_agg_slice_*.parquet'))
+        stack_slices(agg_scores_slices_paths, save_path, 'agg_embeddings_scores.parquet', delete_all_slices=True)
         
         
 if __name__ == '__main__':

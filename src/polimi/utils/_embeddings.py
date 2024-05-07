@@ -397,7 +397,6 @@ def build_normalized_embeddings_matrix(emb_df: pl.DataFrame, article_emb_mapping
 
 
 def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict[str, np.ndarray]):
-    df = reduce_polars_df_memory_size(df)
     df = pl.concat([
         slice.explode(['article_index', 'article']).with_columns(
             *[pl.lit(np.dot(m[slice['article_index'].explode().to_numpy()], m[history_m[key[0]]].T)).alias(f'{emb_name}_scores') for emb_name, m in m_dict.items()]
@@ -408,8 +407,24 @@ def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict
     ]).drop('article_index', 'user_index')
     return df
 
+# def build_embeddings_scores_test(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict[str, np.ndarray]):
+#     df = reduce_polars_df_memory_size(df)
+#     final_df = None
+#     for key, slice in tqdm(df.partition_by(by=['user_index'], as_dict=True).items(), total=df['user_index'].n_unique()):
+#         slice = slice.explode(['article_index', 'article']).with_columns(
+#             *[pl.lit(np.dot(m[slice['article_index'].explode().to_numpy()], m[history_m[key[0]]].T)).alias(f'{emb_name}_scores') for emb_name, m in m_dict.items()]
+#         )\
+#         .group_by(['impression_id', 'user_id', 'user_index'])\
+#         .agg(pl.all())
+        
+#         if final_df is None:
+#             final_df = slice
+#         else:
+#             final_df = final_df.vstack(slice)
+    
+#     return final_df.drop('article_index', 'user_index')
+
 def build_embeddings_agg_scores(df: pl.DataFrame, history: pl.DataFrame, emb_names: list[str]):
-    df = reduce_polars_df_memory_size(df)
     df = df.with_columns(
         *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.mean()).name.suffix('_mean') for emb_name in emb_names],
         *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.max()).name.suffix('_max') for emb_name in emb_names],

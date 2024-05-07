@@ -3,6 +3,7 @@ from rich.progress import Progress
 from typing import Callable, List, Any
 import numpy as np
 import gc
+from pathlib import Path
 
 
 def reduce_polars_df_memory_size(df: pl.DataFrame, verbose: bool = True) -> pl.DataFrame:
@@ -292,3 +293,17 @@ def _convert_to_datetime(original_df_path, modified_df_path):
     assert modified.drop('impression_time').equals(new.drop('impression_time'))
     
     new.write_parquet(modified_df_path)
+
+
+def stack_slices(parquet_files: list[Path], save_path: Path, save_name: str, delete_all_slices:bool=False):
+    assert len(parquet_files) > 0, 'No parquet files found in the directory'
+    df = pl.read_parquet(parquet_files[0])
+    for file in parquet_files[1:]:
+        df = df.vstack(pl.read_parquet(file))
+    print('Savig the final stacked dataframe...')
+    df.write_parquet(save_path / f'{save_name}.parquet')
+    if delete_all_slices:
+        print(f'Deleting all {len(parquet_files)} slices...')
+        for file in parquet_files:
+            file.unlink()
+        
