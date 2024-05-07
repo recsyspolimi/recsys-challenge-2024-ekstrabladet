@@ -34,7 +34,6 @@ import os
     
     
 def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict):
-def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict):
     start_time = time.time()
     recs = []
     for rec, info in algo_dict.items():
@@ -74,84 +73,51 @@ def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict):
     print(f'Loaded/trained ner scores algorithms in {((time.time() - start_time)/60):.1f} minutes')
     return recs
     
-    
-def build_ner_score_features(feature_ouput_dir: Path, recs: list, 
-                             history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame):
-    
-    print(f'Loaded/trained ner scores algorithms in {((time.time() - start_time)/60):.1f} minutes')
-    return recs
-    
-    
+        
 def build_ner_score_features(feature_ouput_dir: Path, recs: list, 
                              history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame):
     
     start_time = time.time()
     build_ner_scores_features(history=history, behaviors=behaviors, articles=articles, recs=recs, save_path=feature_ouput_dir)
     print(f'Built ner scores features in {((time.time() - start_time)/60):.1f} minutes')
-    print(f'Built ner scores features in {((time.time() - start_time)/60):.1f} minutes')
     
 if __name__ == '__main__':
     algo_ner_dict = {
-        # PureSVDItemRecommender: {
-        #     'params': None,
-        #     'study_name': 'PureSVDItemRecommender-ner-small-ndcg100_new',
-        #     'load': False
-        # },
-        # UserKNNCFRecommender: {
-        #     'params': None,
-        #     'study_name': 'UserKNNCFRecommender-ner-small-ndcg100_new',
-        #     'load': False
-        # },
-        # ItemKNNCFRecommender: {
-        #     'params': None,
-        #     'study_name': 'ItemKNNCFRecommender-ner-small-ndcg100_new',
-        #     'load': False
-        # },
-        # P3alphaRecommender: {
-        #     'params': None,
-        #     'study_name': 'P3alphaRecommender-ner-small-ndcg100_new',
-        #     'load': False
-        # },
-        # RP3betaRecommender: {
-        #     'params': None,
-        #     'study_name': 'RP3betaRecommender-ner-small-ndcg100_new',
-        #     'load': False
-        # },
-        # SLIM_BPR_Cython: {
-        #     'params': None,
-        #     'study_name': 'SLIM_BPR_Cython-ner-small-ndcg100_new',
-        #     'load': False
-        # },
+        PureSVDItemRecommender: {
+            'params': None,
+            'study_name': 'PureSVDItemRecommender-ner-small-ndcg100_new',
+            'load': False
+        },
+        UserKNNCFRecommender: {
+            'params': None,
+            'study_name': 'UserKNNCFRecommender-ner-small-ndcg100_new',
+            'load': False
+        },
+        ItemKNNCFRecommender: {
+            'params': None,
+            'study_name': 'ItemKNNCFRecommender-ner-small-ndcg100_new',
+            'load': False
+        },
+        P3alphaRecommender: {
+            'params': None,
+            'study_name': 'P3alphaRecommender-ner-small-ndcg100_new',
+            'load': False
+        },
+        RP3betaRecommender: {
+            'params': None,
+            'study_name': 'RP3betaRecommender-ner-small-ndcg100_new',
+            'load': False
+        },
+        SLIM_BPR_Cython: {
+            'params': None,
+            'study_name': 'SLIM_BPR_Cython-ner-small-ndcg100_new',
+            'load': False
+        },
          MatrixFactorization_BPR_Cython: {
             'params': None,
             'study_name': 'MatrixFactorization_BPR_Cython-ner-small-ndcg100_new',
             'load': False
         },
-        # ItemKNNCFRecommender: {
-        #     'params': None,
-        #     'study_name': 'ItemKNNCFRecommender-ner-small-ndcg100_new',
-        #     'load': False
-        # },
-        # P3alphaRecommender: {
-        #     'params': None,
-        #     'study_name': 'P3alphaRecommender-ner-small-ndcg100_new',
-        #     'load': False
-        # },
-        # RP3betaRecommender: {
-        #     'params': None,
-        #     'study_name': 'RP3betaRecommender-ner-small-ndcg100_new',
-        #     'load': False
-        # },
-        # SLIM_BPR_Cython: {
-        #     'params': None,
-        #     'study_name': 'SLIM_BPR_Cython-ner-small-ndcg100_new',
-        #     'load': False
-        # },
-        #  MatrixFactorization_BPR_Cython: {
-        #     'params': None,
-        #     'study_name': 'MatrixFactorization_BPR_Cython-ner-small-ndcg100_new',
-        #     'load': False
-        # },
     }
     
     URM_TYPE = 'ner'
@@ -161,7 +127,6 @@ if __name__ == '__main__':
     d_path = Path('/mnt/ebs_volume/recsys2024/dataset')
     
     urm_path = d_path.parent.joinpath('urm').joinpath(URM_TYPE).joinpath(DTYPE)
-    urm_path = d_path.parent.joinpath('urm').joinpath(URM_TYPE).joinpath(DTYPE)
     URM = load_sparse_csr(urm_path.joinpath(f'URM_{DSPLIT}.npz') )
 
     algo_path = urm_path.joinpath('algo').joinpath(DSPLIT)
@@ -170,15 +135,15 @@ if __name__ == '__main__':
     features_path = d_path.parent.joinpath('features').joinpath(DTYPE).joinpath(DSPLIT)
     features_path.mkdir(parents=True, exist_ok=True)
     
-    history = load_history(d_path, DTYPE, DSPLIT, lazy=False)
-    behaviors = load_behaviors(d_path, DTYPE, DSPLIT, lazy=False)
-    articles = load_articles(d_path, DTYPE, lazy=False)
+
 
     recs = train_ner_score_algo(URM, algo_path, algo_ner_dict)
     
-    # build_ner_score_features(feature_ouput_dir=features_path, recs=recs, 
-    #                          history=history, behaviors=behaviors, articles=articles)
-    recs = train_ner_score_algo(URM, algo_path, algo_ner_dict)
+    history = load_history(d_path, DTYPE, DSPLIT, lazy=False)
+    behaviors = load_behaviors(d_path, DTYPE, DSPLIT, lazy=False)
+    articles = load_articles(d_path, DTYPE, lazy=False)
     
-    # build_ner_score_features(feature_ouput_dir=features_path, recs=recs, 
-    #                          history=history, behaviors=behaviors, articles=articles)
+    build_ner_score_features(feature_ouput_dir=features_path, recs=recs, 
+                             history=history, behaviors=behaviors, articles=articles)
+    recs = train_ner_score_algo(URM, algo_path, algo_ner_dict)
+

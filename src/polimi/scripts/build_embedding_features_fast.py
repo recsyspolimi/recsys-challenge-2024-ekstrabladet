@@ -19,7 +19,6 @@ def main(input_path, output_dir):
     logging.info(f"Dataset path: {input_path}")
     input_path = Path(input_path)
     output_dir = Path(output_dir)
-    print('A    ', str(input_path).split('/')[-1])
     if str(input_path).split('/')[-1] == 'ebnerd_testset':
         dataset_types = ['test']
     else:
@@ -60,7 +59,7 @@ def main(input_path, output_dir):
                 pl.col('article').list.eval(pl.element().replace(article_emb_mapping['article_id'], article_emb_mapping['index'], default=None)).name.suffix('_index'),
             ).drop('impression_time_fixed', 'scroll_percentage_fixed', 'read_time_fixed')
             
-        train_ds = build_embeddings_scores(train_ds[:1000], history_m, m_dict=norm_m_dict)
+        train_ds = build_embeddings_scores(train_ds, history_m, m_dict=norm_m_dict)
         
         save_path = output_dir / data_type
         save_path.mkdir(parents=True, exist_ok=True)
