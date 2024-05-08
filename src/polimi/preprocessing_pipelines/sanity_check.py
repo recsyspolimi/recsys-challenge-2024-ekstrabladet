@@ -3,7 +3,7 @@ from tqdm import tqdm
 
 TYPE = 'test'
 ORIGINAL_PATH = '/home/ubuntu/dataset/ebnerd_testset/test/behaviors.parquet'
-PREPROCESSING_PATH = '/home/ubuntu/experiments/preprocessing_test_2024-04-25_10-03-50/Sliced_ds'
+PREPROCESSING_PATH = '/home/ubuntu/experiments/preprocessing_test_2024-05-07_17-07-46/Sliced_ds'
 if __name__ == '__main__':
     
     original_ds = pl.read_parquet(ORIGINAL_PATH).select(['user_id', 'impression_id', 'article_ids_inview'])\
@@ -15,7 +15,13 @@ if __name__ == '__main__':
     else :
         df_slices = []
         for i in tqdm(range(0,101)):
-            df_slices.append(pl.read_parquet(PREPROCESSING_PATH + f'/test_slice_{i}.parquet').select(['user_id', 'article', 'impression_id']))
+            slice_df = pl.read_parquet(PREPROCESSING_PATH + f'/test_slice_{i}.parquet')
+            print(slice_df.shape[0])
+            print(slice_df['mean_topics_mean_delay_days'].is_null().sum())
+            print(slice_df['mean_topics_mean_delay_hours'].is_null().sum())
+            df_slices.append(slice_df.select(['user_id', 'article', 'impression_id']))
         df = pl.concat(df_slices, how='vertical_relaxed')
+        
+    
     
     assert original_ds.join(df, on= ['user_id', 'article', 'impression_id'], how='anti').shape[0] == 0

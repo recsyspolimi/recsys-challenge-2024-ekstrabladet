@@ -45,7 +45,7 @@ if __name__ == '__main__':
     parser.add_argument("-models",default='all', type=str, required = True,
                         help="Specify which type of models you want to train, with the names of the models divided with a space. If all run all the with the best params")
     parser.add_argument("-urm_split", choices=['train', 'validation', 'test'], default='train',required=True, type=str,
-                        help="Specify the type of URM split: ['train', 'validation', 'test']")
+                        help="Specify the type of URM split: ['train', 'validation', 'test', 'train_val']")
     parser.add_argument("-output_dir", default=None, type=str,required=True,
                         help="The directory where the trained models will be placed")
     parser.add_argument("-urm_type", choices=['ner', 'recsys'],required=True, default='ner', type=str,
