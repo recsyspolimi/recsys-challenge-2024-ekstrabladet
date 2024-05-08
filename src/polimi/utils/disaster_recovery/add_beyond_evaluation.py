@@ -7,6 +7,7 @@ import os
 ORIGINAL_PATH = '/home/ubuntu/dataset/ebnerd_testset/test/behaviors.parquet'
 SUBMISSION = '/home/ubuntu/experiments/Inference_Test_2024-05-05_12-12-59/predictions.parquet'
 OUT_PATH = '/home/ubuntu/tmp'
+
 if __name__ == '__main__':
     sub = pl.read_parquet(SUBMISSION)
 
@@ -31,6 +32,11 @@ if __name__ == '__main__':
     
     assert ordered_predictions.filter(pl.col('impression_id')!= 0).equals(modified.filter(pl.col('impression_id')!= 0))
     assert ordered_predictions.select(['impression_id', 'user_id']).equals(modified.select(['impression_id', 'user_id']))
+    assert ordered_predictions.shape == modified.shape
+    print(behaviors.shape)
+    print(modified.shape)
+    assert modified.shape == behaviors.shape 
+
     print(modified)
     
     write_submission_file(modified['impression_id'].to_list(),

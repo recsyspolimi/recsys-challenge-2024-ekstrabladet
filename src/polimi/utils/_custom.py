@@ -176,19 +176,40 @@ algo_dict_ner = {
 }
 
 algo_dict_recsys = {
+    MultiThreadSLIM_SLIMElasticNetRecommender: {
+        'params': {'alpha': 0.047107928170509114, 'l1_ratio': 0.028917204211745425, 'topK': 479},
+        'study_name': 'MultiThreadSLIM_SLIMElasticNetRecommender-recsys-small-ndcg100_new',
+        'load': False
+    },
+    SLIM_BPR_Cython: {
+        'params': {'topK': 45, 'symmetric': True, 'lambda_i': 0.0015099932905612715, 'lambda_j': 0.0023178589178914234, 'learning_rate': 0.0015923690992811813},
+        'study_name': 'SLIM_BPR_Cython-recsys-small-ndcg100_new',
+        'load': False
+    },
+    PureSVDItemRecommender: {
+        'params': {'num_factors': 12, 'topK': 1391},
+        'study_name': 'PureSVDItemRecommender-recsys-small-ndcg100_new',
+        'load': False
+    },
+    ItemKNNCFRecommender: {
+        'params': {'similarity': 'euclidean', 'topK': 135, 'shrink': 751, 'normalize_avg_row': True, 'similarity_from_distance_mode': 'log', 'normalize': True},
+        'study_name': 'ItemKNNCFRecommender-recsys-small-ndcg100_new',
+        'load': False
+    },
+
     RP3betaRecommender: {
-        'params': {'topK': 150, 'normalize_similarity': True, 'alpha': 1.4560970759265028, 'beta': 0.19133155065479682},
-        'study_name': 'RP3betaRecommender-recsys-small-ndcg10-2',
+        'params': {'topK': 797, 'normalize_similarity': True, 'alpha': 1.892317046771731, 'beta': 0.06992786797723574},
+        'study_name': 'RP3betaRecommender-recsys-small-ndcg100_new',
         'load': False
     },
     UserKNNCFRecommender: {
-        'params': {'similarity': 'tversky', 'topK': 567, 'shrink': 0, 'tversky_alpha': 0.2009439066039243, 'tversky_beta': 0.025220651462917017},
-        'study_name': 'UserKNNCFRecommender-recsys-small-ndcg100_2',
+        'params': {'similarity': 'euclidean', 'topK': 1997, 'shrink': 113, 'normalize_avg_row': False, 'similarity_from_distance_mode': 'lin'},
+        'study_name': 'UserKNNCFRecommender-recsys-small-ndcg100_new',
         'load': False
     },
     PureSVDRecommender: {
-        'params': {'num_factors': 700},
-        'study_name': 'PureSVDRecommender-recsys-small-ndcg100_2',
+        'params': {'num_factors': 15},
+        'study_name': 'PureSVDRecommender-recsys-small-ndcg100_new',
         'load': False
     }
 }

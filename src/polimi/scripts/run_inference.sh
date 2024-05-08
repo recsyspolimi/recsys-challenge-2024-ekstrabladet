@@ -1,11 +1,13 @@
 # evaluating a model
 python ~/RecSysChallenge2024/src/polimi/scripts/inference.py \
     -output_dir ~/experiments \
-    -dataset_path /home/ubuntu/experiments/preprocessing_test_2024-04-25_10-03-50 \
-    -model_path /home/ubuntu/experiments/Lightgbm_Training_2024-04-26_15-06-51/model.joblib \
+    -dataset_path /home/ubuntu/experiments/preprocessing_validation_2024-04-29_13-17-47 \
+    -model_path /home/ubuntu/experiments/Lightgbm_Training_2024-05-05_10-30-49/model.joblib \
     -batch_size 1000000 \
-    --submit \
-    -behaviors_path /home/ubuntu/dataset/ebnerd_testset/test/behaviors.parquet
+    --eval \
+    -behaviors_path /home/ubuntu/dataset/ebnerd_small/validation/behaviors.parquet
+    #--submit \
+    
 
 wait 10
 

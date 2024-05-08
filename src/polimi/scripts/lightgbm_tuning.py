@@ -69,11 +69,10 @@ def load_datasets(train_dataset_path, validation_dataset_path):
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id', 'impression_time'])
+    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
     
-    # Delete cateegories percentage columns
-    train_ds = strip_new_features(train_ds)
-    train_ds = train_ds.drop(columns = 'impression_time')
+    if 'impression_time' in train_ds.columns:
+        train_ds = train_ds.drop(columns = 'impression_time')
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
     
     X_train = train_ds.drop(columns=['target'])
@@ -86,8 +85,8 @@ def load_datasets(train_dataset_path, validation_dataset_path):
     
     val_ds = pd.read_parquet(os.path.join(validation_dataset_path, 'validation_ds.parquet'))
     
-    val_ds = strip_new_features(val_ds)
-    val_ds = val_ds.drop(columns = 'impression_time')
+    if 'impression_time' in val_ds.columns:
+        val_ds = val_ds.drop(columns = 'impression_time')
     val_ds[data_info['categorical_columns']] = val_ds[data_info['categorical_columns']].astype('category')
 
     X_val = val_ds[X_train.columns]
