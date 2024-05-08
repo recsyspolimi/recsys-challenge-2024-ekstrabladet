@@ -29,7 +29,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import R
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
 from polimi.utils._custom import load_sparse_csr, load_best_optuna_params,load_recommenders, algo_dict_ner
 from polimi.utils._urm import train_recommender, build_ner_scores_features, load_recommender, build_item_mapping, build_user_id_mapping
-
+import time
 
 
 '''
@@ -246,8 +246,8 @@ def _build_ner_features_147(behaviors: pl.DataFrame, history: pl.DataFrame, arti
 
 
 
-def build_recsys_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender]):
-    
+def build_recsys_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], save_path:Path=None ):
+    start_time = time.time()
     user_id_mapping = build_user_id_mapping(history)
     item_mapping = build_item_mapping(articles)
     
@@ -265,7 +265,12 @@ def build_recsys_features(history: pl.DataFrame, behaviors: pl.DataFrame, articl
             .drop('item_index')
             
     recsys_scores = reduce_polars_df_memory_size(recsys_scores)
-    
+
+    if save_path:
+        print(f'Saving ner scores features ... [{save_path}]')
+        recsys_scores.write_parquet(save_path / 'recsys_scores_features.parquet')
+
+    print(f'Built recsys scores features in {((time.time() - start_time)/60):.1f} minutes')
     return recsys_scores
 
     
