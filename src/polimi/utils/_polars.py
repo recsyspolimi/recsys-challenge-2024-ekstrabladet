@@ -300,6 +300,7 @@ def stack_slices(parquet_files: list[Path], save_path: Path, save_name: str, del
     df = pl.read_parquet(parquet_files[0])
     for file in parquet_files[1:]:
         df = df.vstack(pl.read_parquet(file))
+        
     print('Savig the final stacked dataframe...')
     df.write_parquet(save_path / f'{save_name}.parquet')
     if delete_all_slices:

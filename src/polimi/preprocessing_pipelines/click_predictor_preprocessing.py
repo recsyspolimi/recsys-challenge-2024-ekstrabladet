@@ -31,7 +31,7 @@ partitions = cores - 2  # Define as many partitions as you want
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
-log_path = '/mnt/ebs_volume/recsys2024/tmp/log.txt'
+log_path = '/home/ubuntu/tmp/log.txt'
 
 
 def parallelized_distance(data, function):
@@ -115,7 +115,7 @@ if __name__ == '__main__':
 
         output_ds = train_ds.select(['user_id', 'article'])
 
-        output_dir = f'/mnt/ebs_volume/recsys2024/tmp/{type}_ds.parquet'
+        output_dir = f'/home/ubuntu/tmp/{type}_ds.parquet'
         output_ds = train_ds
         for em in range(len(emb)):
             logging.info('-------------------------------------')
@@ -130,7 +130,7 @@ if __name__ == '__main__':
             start = time.time()
             emb_len = len(embedding.select('item_embedding').limit(1).item())
             
-            n_batches = 1000
+            n_batches = 100
 
             for col in range(len(column_names)):
                 logging.info(f'Computing distance for {column_names[col]}')
@@ -143,6 +143,10 @@ if __name__ == '__main__':
                     count += 1
                 new_ds = reduce_polars_df_memory_size(
                     pl.concat(new_ds, how='vertical_relaxed'))
+                ckp_path = f'/home/ubuntu/tmp/{type}_emb'
+                col_name= new_col_names[col]
+                file_name = f'/{col_name}.parquet'
+                new_ds.write_parquet(ckp_path + file_name)
                 output_ds = output_ds.join(
                     new_ds, on=['user_id', 'article'], how='left')
 
