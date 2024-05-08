@@ -176,7 +176,7 @@ algo_dict_ner = {
 }
 
 algo_dict_recsys = {
-    MultiThreadSLIM_SLIMElasticNetRecommender: {
+    SLIMElasticNetRecommender: {
         'params': {'alpha': 0.047107928170509114, 'l1_ratio': 0.028917204211745425, 'topK': 479},
         'study_name': 'MultiThreadSLIM_SLIMElasticNetRecommender-recsys-small-ndcg100_new',
         'load': False
