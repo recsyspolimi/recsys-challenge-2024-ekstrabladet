@@ -39,8 +39,7 @@ def _compute_topic_model(articles, n_components=5):
 
 def add_topic_model_features(df, history, articles, topic_model_columns, n_components):
     
-    prev_train_columns = [c for c in df.columns if c not in [
-        'impression_id', 'article', 'impression_time']]
+    prev_train_columns = [c for c in df.columns if c not in ['impression_id', 'article']]
 
     return pl.concat(
         rows.join(history.select(
@@ -86,7 +85,7 @@ def add_topic_model_features(df, history, articles, topic_model_columns, n_compo
               for i, x in enumerate(topic_model_columns)],
             pl.col('topic_model_dot').truediv(pl.col('topic_model_norm').mul(
                 'topic_model_history_norm')).alias('topic_model_cosine')
-        ).group_by(['impression_id', 'article']).agg(
+        ).group_by(['impression_id', 'article', 'user_id']).agg(
             pl.col(prev_train_columns).first(),
             pl.col("JS").mul(pl.col("history_weight")
                              ).sum().alias("weighted_mean_JS"),

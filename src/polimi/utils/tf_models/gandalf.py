@@ -16,7 +16,6 @@ class GANDALF(TabularNNModel):
         categorical_features: list[str] = None,
         numerical_features: list[str] = None,
         categorical_transform: str = 'embeddings',
-        categories: list[list[str]] = None,
         numerical_transform: str = 'quantile-normal',
         use_gaussian_noise: bool = False,
         gaussian_noise_std: float = 0.01,
@@ -84,8 +83,8 @@ class GANDALF(TabularNNModel):
         params = TabularNNModel.get_optuna_trial(trial)
         model_params = {
             'n_stages': trial.suggest_int('n_stages', 2, 20),
-            'init_t': trial.suggest_float('init_t', 0.1, 0.8),
-            'n_head_layers': trial.suggest_int('n_head_layers', 0, 4),
+            'init_t': trial.suggest_float('init_t', 0.1, 1),
+            'n_head_layers': trial.suggest_int('n_head_layers', 0, 3),
             'dropout_rate': trial.suggest_float('dropout_rate', 0.01, 0.4),
             'l1_lambda': trial.suggest_float('l1_lambda', 1e-5, 1e-2, log=True),
             'l2_lambda': trial.suggest_float('l2_lambda', 1e-5, 1e-2, log=True),

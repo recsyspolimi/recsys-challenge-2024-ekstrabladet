@@ -1,8 +1,9 @@
 import polars as pl
-import tqdm
+from tqdm import tqdm
 import simsimd
 import numpy as np
 from sklearn import preprocessing
+from pathlib import Path
 
 from polimi.utils._polars import reduce_polars_df_memory_size
 
@@ -15,6 +16,9 @@ def fast_distance(u, v):
 def distance_function_768(x):
     return simsimd.cosine(np.asarray(x[:768]), np.asarray(x[768:]))
 
+def distance_function_384(x):
+    return simsimd.cosine(np.asarray(x[:384]), np.asarray(x[384:]))
+
 def distance_function_300(x):
     return simsimd.cosine(np.asarray(x[:300]), np.asarray(x[300:]))
     
@@ -26,6 +30,8 @@ def get_distance_function(len):
         return distance_function_768
     elif len == 300:
         return distance_function_300
+    elif len == 384:
+        return distance_function_384
     elif len == 6:
         return distance_function_6
 
@@ -96,7 +102,7 @@ def _build_user_embeddings(df, embeddings) -> pl.DataFrame:
                             embedding_len)]).alias('user_embedding')
         )
         .select('user_id', 'user_embedding')
-        for rows in tqdm.tqdm(df.iter_slices(1000), total=df.shape[0] // 1000))
+        for rows in tqdm(df.iter_slices(1000), total=df.shape[0] // 1000))
 
 
 def build_embeddings_similarity(df, history, embeddings, new_column_name) -> pl.DataFrame:
@@ -229,7 +235,7 @@ def build_weighted_timestamps_embeddings(df, history, embeddings, emb_type):
                 .with_columns(pl.concat_list([f'embeddings_mean_{i}' for i in range(embedding_len)]).alias('user_embedding_weighted_TS'))
                 .select('user_id', 'user_embedding_weighted_TS')
             )
-            for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+            for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
         ]
     )
 
@@ -302,7 +308,7 @@ def build_weighted_SP_embeddings(df, history, embeddings, emb_type):
                 .with_columns(pl.concat_list([f'embeddings_mean_{i}' for i in range(embedding_len)]).alias('user_embedding_weight_SP'))
                 .select('user_id', 'user_embedding_weight_SP')
             )
-            for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+            for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
         ]
     )
 
@@ -343,12 +349,30 @@ def build_weighted_readtime_embeddings(df, history, embeddings, emb_type):
                 .with_columns(pl.concat_list([f'embeddings_mean_{i}' for i in range(embedding_len)]).alias('user_embedding_weight_readtime'))
                 .select('user_id', 'user_embedding_weight_readtime')
             )
-            for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+            for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
         ]
     )
     
     return users_embeddings, 'user_embedding_weight_readtime', f'readtime_click_predictor_{emb_type}'
 
+def _build_mean_user_embeddings(df, history, embeddings, emb_type) -> pl.DataFrame:
+    embedding_len = len(embeddings['item_embedding'].limit(1).item())
+
+    print('Building user embeddings...')
+    users_embeddings =  pl.concat(
+        rows.select('user_id', 'article_id_fixed').explode('article_id_fixed').rename(
+            {'article_id_fixed': 'article_id'}).join(embeddings, on='article_id')
+        .with_columns(pl.col("item_embedding").list.to_struct()).unnest("item_embedding")
+        .group_by('user_id').agg(
+            [pl.col(f'field_{i}').mean().cast(pl.Float32) for i in range(embedding_len)])
+        .with_columns(
+            pl.concat_list([f"field_{i}" for i in range(
+                            embedding_len)]).alias('mean_user_embedding')
+        )
+        .select('user_id', 'mean_user_embedding')
+        for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000))
+    
+    return users_embeddings, 'mean_user_embedding', f'{emb_type}_user_item_distance'
 
 
 def compute_similarity(df, users_embeddings, embeddings, column_name, new_col_name):
@@ -362,7 +386,7 @@ def compute_similarity(df, users_embeddings, embeddings, column_name, new_col_na
                      pl.struct([column_name, 'item_embedding']).map_elements(
                                         lambda x: fast_distance(x[column_name], x['item_embedding']), return_dtype=pl.Float32).cast(pl.Float32).alias(new_col_name)
                 ).drop(['item_embedding_right','user_embedding_right'])
-            for rows in tqdm.tqdm(df.iter_slices(1000), total=df.shape[0] // 1000)).unique(subset=['user_id', 'article'])
+            for rows in tqdm(df.iter_slices(1000), total=df.shape[0] // 1000)).unique(subset=['user_id', 'article'])
     
     return user_item_emb_similarity.select(['user_id','article',new_col_name])
   
@@ -374,3 +398,61 @@ def iterator_weighted_embedding(df, users_embeddings, embeddings, column_name, n
                                         embeddings=embeddings, column_name= column_name, new_col_name=new_col_name)
 
         yield slice_features
+        
+        
+        
+
+# Embeddings Lorenzo
+
+def build_normalized_embeddings_matrix(emb_df: pl.DataFrame, article_emb_mapping: pl.DataFrame, shrinkage: float = 1e-6):
+    missing_articles_in_embedding = list(set(article_emb_mapping['article_id'].to_numpy()) - set(emb_df['article_id'].to_numpy()))
+    if len(missing_articles_in_embedding) > 0:
+        print(f'[Warning... {len(missing_articles_in_embedding)} missing articles in embedding matrix]')
+        emb_size = len(emb_df['embedding'][0])
+        null_vector = np.zeros(emb_size, dtype=np.float32)
+        emb_df = emb_df.vstack(pl.DataFrame({'article_id': missing_articles_in_embedding, 'embedding': [null_vector] * len(missing_articles_in_embedding)}))
+        
+    emb_df = article_emb_mapping.join(emb_df, on='article_id', how='left')
+    m = np.array([np.array(row) for row in emb_df['embedding'].to_numpy()])
+    row_norms = np.linalg.norm(m, axis=1, keepdims=True)
+    m = m / (row_norms + shrinkage)
+    return m
+
+
+def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict[str, np.ndarray]):
+    df = pl.concat([
+        slice.explode(['article_index', 'article']).with_columns(
+            *[pl.lit(np.dot(m[slice['article_index'].explode().to_numpy()], m[history_m[key[0]]].T)).alias(f'{emb_name}_scores') for emb_name, m in m_dict.items()]
+        )\
+        .group_by(['impression_id', 'user_id', 'user_index'])\
+        .agg(pl.all())
+        for key, slice in tqdm(df.partition_by(by=['user_index'], as_dict=True).items(), total=df['user_index'].n_unique())
+    ]).drop('article_index', 'user_index')
+    return df
+
+# def build_embeddings_scores_test(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict[str, np.ndarray]):
+#     df = reduce_polars_df_memory_size(df)
+#     final_df = None
+#     for key, slice in tqdm(df.partition_by(by=['user_index'], as_dict=True).items(), total=df['user_index'].n_unique()):
+#         slice = slice.explode(['article_index', 'article']).with_columns(
+#             *[pl.lit(np.dot(m[slice['article_index'].explode().to_numpy()], m[history_m[key[0]]].T)).alias(f'{emb_name}_scores') for emb_name, m in m_dict.items()]
+#         )\
+#         .group_by(['impression_id', 'user_id', 'user_index'])\
+#         .agg(pl.all())
+        
+#         if final_df is None:
+#             final_df = slice
+#         else:
+#             final_df = final_df.vstack(slice)
+    
+#     return final_df.drop('article_index', 'user_index')
+
+def build_embeddings_agg_scores(df: pl.DataFrame, history: pl.DataFrame, emb_names: list[str]):
+    df = df.with_columns(
+        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.mean()).name.suffix('_mean') for emb_name in emb_names],
+        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.max()).name.suffix('_max') for emb_name in emb_names],
+        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.min()).name.suffix('_min') for emb_name in emb_names],
+        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.std()).name.suffix('_std') for emb_name in emb_names],
+        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.median()).name.suffix('_median') for emb_name in emb_names],
+    )
+    return df
