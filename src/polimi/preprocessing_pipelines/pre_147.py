@@ -267,7 +267,7 @@ def build_recsys_features(history: pl.DataFrame, behaviors: pl.DataFrame, articl
     recsys_scores = reduce_polars_df_memory_size(recsys_scores)
 
     if save_path:
-        print(f'Saving ner scores features ... [{save_path}]')
+        print(f'Saving scores features ... [{save_path}]')
         recsys_scores.write_parquet(save_path / 'recsys_scores_features.parquet')
 
     print(f'Built recsys scores features in {((time.time() - start_time)/60):.1f} minutes')

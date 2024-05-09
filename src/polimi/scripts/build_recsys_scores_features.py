@@ -26,7 +26,6 @@ def main(dataset_split: str , output_dir: Path, dataset_type: str, base_path: st
     recs = load_recommenders(URM=load_sparse_csr(path=urm_path), file_path=recs_path)
 
     logging.info(f"Building scores...")
-    output_dir = output_dir.joinpath(dataset_type)
     build_recsys_features(history=history, articles=articles, behaviors=behaviors,recs=recs, save_path=output_dir)
     
    
@@ -53,6 +52,7 @@ if __name__ == '__main__':
        
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    OUTPUT_DIR = OUTPUT_DIR.joinpath(URM_TYPE).joinpath(DATASET_TYPE).joinpath(DATASET_SPLIT)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     log_path = OUTPUT_DIR.joinpath("log.txt")    
     logging.basicConfig(filename=log_path, filemode="w", format=LOGGING_FORMATTER, level=logging.INFO, force=True)
