@@ -132,7 +132,7 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
 
     print('Preprocessing article endorsement feature...')
     articles_endorsement = _preprocessing_article_endorsement_feature(
-        behaviors=behaviors, period="10h")
+        behaviors=behaviors.filter(pl.col('impression_time')!= 0), period="10h")
 
     print('Building features...')
     for slice in range(0,101):

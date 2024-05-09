@@ -16,6 +16,9 @@ def fast_distance(u, v):
 def distance_function_768(x):
     return simsimd.cosine(np.asarray(x[:768]), np.asarray(x[768:]))
 
+def distance_function_384(x):
+    return simsimd.cosine(np.asarray(x[:384]), np.asarray(x[384:]))
+
 def distance_function_300(x):
     return simsimd.cosine(np.asarray(x[:300]), np.asarray(x[300:]))
     
@@ -27,6 +30,8 @@ def get_distance_function(len):
         return distance_function_768
     elif len == 300:
         return distance_function_300
+    elif len == 384:
+        return distance_function_384
     elif len == 6:
         return distance_function_6
 
@@ -97,7 +102,7 @@ def _build_user_embeddings(df, embeddings) -> pl.DataFrame:
                             embedding_len)]).alias('user_embedding')
         )
         .select('user_id', 'user_embedding')
-        for rows in tqdm.tqdm(df.iter_slices(1000), total=df.shape[0] // 1000))
+        for rows in tqdm(df.iter_slices(1000), total=df.shape[0] // 1000))
 
 
 def build_embeddings_similarity(df, history, embeddings, new_column_name) -> pl.DataFrame:
@@ -230,7 +235,7 @@ def build_weighted_timestamps_embeddings(df, history, embeddings, emb_type):
                 .with_columns(pl.concat_list([f'embeddings_mean_{i}' for i in range(embedding_len)]).alias('user_embedding_weighted_TS'))
                 .select('user_id', 'user_embedding_weighted_TS')
             )
-            for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+            for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
         ]
     )
 
@@ -303,7 +308,7 @@ def build_weighted_SP_embeddings(df, history, embeddings, emb_type):
                 .with_columns(pl.concat_list([f'embeddings_mean_{i}' for i in range(embedding_len)]).alias('user_embedding_weight_SP'))
                 .select('user_id', 'user_embedding_weight_SP')
             )
-            for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+            for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
         ]
     )
 
@@ -344,12 +349,30 @@ def build_weighted_readtime_embeddings(df, history, embeddings, emb_type):
                 .with_columns(pl.concat_list([f'embeddings_mean_{i}' for i in range(embedding_len)]).alias('user_embedding_weight_readtime'))
                 .select('user_id', 'user_embedding_weight_readtime')
             )
-            for rows in tqdm.tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
+            for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000)
         ]
     )
     
     return users_embeddings, 'user_embedding_weight_readtime', f'readtime_click_predictor_{emb_type}'
 
+def _build_mean_user_embeddings(df, history, embeddings, emb_type) -> pl.DataFrame:
+    embedding_len = len(embeddings['item_embedding'].limit(1).item())
+
+    print('Building user embeddings...')
+    users_embeddings =  pl.concat(
+        rows.select('user_id', 'article_id_fixed').explode('article_id_fixed').rename(
+            {'article_id_fixed': 'article_id'}).join(embeddings, on='article_id')
+        .with_columns(pl.col("item_embedding").list.to_struct()).unnest("item_embedding")
+        .group_by('user_id').agg(
+            [pl.col(f'field_{i}').mean().cast(pl.Float32) for i in range(embedding_len)])
+        .with_columns(
+            pl.concat_list([f"field_{i}" for i in range(
+                            embedding_len)]).alias('mean_user_embedding')
+        )
+        .select('user_id', 'mean_user_embedding')
+        for rows in tqdm(history.iter_slices(1000), total=history.shape[0] // 1000))
+    
+    return users_embeddings, 'mean_user_embedding', f'{emb_type}_user_item_distance'
 
 
 def compute_similarity(df, users_embeddings, embeddings, column_name, new_col_name):
@@ -363,7 +386,7 @@ def compute_similarity(df, users_embeddings, embeddings, column_name, new_col_na
                      pl.struct([column_name, 'item_embedding']).map_elements(
                                         lambda x: fast_distance(x[column_name], x['item_embedding']), return_dtype=pl.Float32).cast(pl.Float32).alias(new_col_name)
                 ).drop(['item_embedding_right','user_embedding_right'])
-            for rows in tqdm.tqdm(df.iter_slices(1000), total=df.shape[0] // 1000)).unique(subset=['user_id', 'article'])
+            for rows in tqdm(df.iter_slices(1000), total=df.shape[0] // 1000)).unique(subset=['user_id', 'article'])
     
     return user_item_emb_similarity.select(['user_id','article',new_col_name])
   
