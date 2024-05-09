@@ -95,7 +95,7 @@ if __name__ == '__main__':
     USE_RANKER = args.ranker
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    model_name = f'Catboost_Training_{timestamp}'
+    model_name = f'Catboost_Training_{timestamp}' if not USE_RANKER else f'CatboostRanker_Training_{timestamp}'
     output_dir = os.path.join(OUTPUT_DIR, model_name)
     os.makedirs(output_dir)
     
