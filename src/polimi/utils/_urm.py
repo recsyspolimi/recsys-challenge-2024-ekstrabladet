@@ -155,7 +155,7 @@ def load_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, file_pat
     rec_instance.load_model(folder_path=str(file_path), file_name=file_name)
     return rec_instance
 
-def build_ner_scores_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], batch_size=BATCH_SIZE, save_path:Path=None):
+def build_ner_scores_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], batch_size=BATCH_SIZE):
     '''
     Builds the score features for ner interactions. For each (impression_id, user_id, article), 
     it computes the sum, max and mean of the scores for each recommender in recs. Note that each score
@@ -214,9 +214,5 @@ def build_ner_scores_features(history: pl.DataFrame, behaviors: pl.DataFrame, ar
     df = df.sort(['impression_id', 'user_id'])\
         .explode(pl.all().exclude(['impression_id', 'user_id']))\
         .rename({'candidate_ids': 'article'})
-    
-    if save_path:
-        print(f'Saving ner scores features ... [{save_path}]')
-        df.write_parquet(save_path / 'ner_scores_features.parquet')
-        
+            
     return df

@@ -1,6 +1,16 @@
 
 
 from pathlib import Path
+import os
+import logging
+from datetime import datetime
+import argparse
+import polars as pl
+import gc
+from pathlib import Path
+import math
+from tqdm import tqdm
+from polimi.utils._polars import reduce_polars_df_memory_size, stack_slices
 from ebrec.evaluation.metrics_protocols import *
 from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
@@ -30,7 +40,7 @@ import polars as pl
 import scipy.sparse as sps
 import time
 import os
-import os
+LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
     
     
 def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict):
@@ -70,80 +80,116 @@ def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict):
             rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_dir) #also saves the model
             
         recs.append(rec_instance)
-    print(f'Loaded/trained ner scores algorithms in {((time.time() - start_time)/60):.1f} minutes')
+    print(f'Loaded/Trained ner scores algorithms in {((time.time() - start_time)/60):.1f} minutes')
     return recs
     
-        
-def build_ner_score_features(feature_ouput_dir: Path, recs: list, 
-                             history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame):
     
-    start_time = time.time()
-    build_ner_scores_features(history=history, behaviors=behaviors, articles=articles, recs=recs, save_path=feature_ouput_dir)
-    print(f'Built ner scores features in {((time.time() - start_time)/60):.1f} minutes')
-    
-if __name__ == '__main__':
-    algo_ner_dict = {
+ALGO_NER_TRAIN_DICT = {
+        RP3betaRecommender: {
+            'params': None,
+            'study_name': 'RP3betaRecommender-ner-small-ndcg100_new',
+            'load': True
+        },
         PureSVDItemRecommender: {
             'params': None,
             'study_name': 'PureSVDItemRecommender-ner-small-ndcg100_new',
-            'load': False
-        },
-        UserKNNCFRecommender: {
-            'params': None,
-            'study_name': 'UserKNNCFRecommender-ner-small-ndcg100_new',
-            'load': False
+            'load': True
         },
         ItemKNNCFRecommender: {
             'params': None,
             'study_name': 'ItemKNNCFRecommender-ner-small-ndcg100_new',
-            'load': False
+            'load': True
+        },
+        MatrixFactorization_BPR_Cython: {
+            'params': None,
+            'study_name': 'MatrixFactorization_BPR_Cython-ner-small-ndcg100_new',
+            'load': True
         },
         P3alphaRecommender: {
             'params': None,
             'study_name': 'P3alphaRecommender-ner-small-ndcg100_new',
-            'load': False
-        },
-        RP3betaRecommender: {
-            'params': None,
-            'study_name': 'RP3betaRecommender-ner-small-ndcg100_new',
-            'load': False
+            'load': True
         },
         SLIM_BPR_Cython: {
             'params': None,
             'study_name': 'SLIM_BPR_Cython-ner-small-ndcg100_new',
-            'load': False
+            'load': True
         },
-         MatrixFactorization_BPR_Cython: {
+        UserKNNCFRecommender: {
             'params': None,
-            'study_name': 'MatrixFactorization_BPR_Cython-ner-small-ndcg100_new',
-            'load': False
+            'study_name': 'UserKNNCFRecommender-ner-small-ndcg100_new',
+            'load': True
         },
     }
     
-    URM_TYPE = 'ner'
-    DTYPE = 'large'
-    DSPLIT = 'train'
+def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path):    
     
-    d_path = Path('/mnt/ebs_volume/recsys2024/dataset')
+    is_testset = str(dataset_path).split('/')[-1] == 'ebnerd_testset'
+    if is_testset:
+        splits = ['test']
+    else:
+        splits = ['train', 'validation']
     
-    urm_path = d_path.parent.joinpath('urm').joinpath(URM_TYPE).joinpath(DTYPE)
-    URM = load_sparse_csr(urm_path.joinpath(f'URM_{DSPLIT}.npz') )
+    
+    for split in splits:
+        URM = load_sparse_csr(urm_path / f'URM_{split}.npz')
+        
+        split_algo_path = algo_path / split
+        split_algo_path.mkdir(parents=True, exist_ok=True)
+        recs = train_ner_score_algo(URM, split_algo_path, ALGO_NER_TRAIN_DICT)
+        
+        del URM
+        gc.collect()
 
-    algo_path = urm_path.joinpath('algo').joinpath(DSPLIT)
-    algo_path.mkdir(parents=True, exist_ok=True)
-    
-    features_path = d_path.parent.joinpath('features').joinpath(DTYPE).joinpath(DSPLIT)
-    features_path.mkdir(parents=True, exist_ok=True)
+        history = pl.read_parquet(dataset_path / split / 'history.parquet')
+        behaviors = pl.read_parquet(dataset_path / split / 'behaviors.parquet')
+        articles = pl.read_parquet(dataset_path / 'articles.parquet')
+        
+        
+        start_time = time.time()
+        df = build_ner_scores_features(history=history, behaviors=behaviors, articles=articles, recs=recs)        
+        logging.info(f'Saving ner scores features ... [{output_dir}]')
+        df.write_parquet(output_dir / 'ner_scores_features.parquet')
+        logging.info(f'Built ner scores features in {((time.time() - start_time)/60):.1f} minutes')
+
     
 
 
-    recs = train_ner_score_algo(URM, algo_path, algo_ner_dict)
-    
-    history = load_history(d_path, DTYPE, DSPLIT, lazy=False)
-    behaviors = load_behaviors(d_path, DTYPE, DSPLIT, lazy=False)
-    articles = load_articles(d_path, DTYPE, lazy=False)
-    
-    build_ner_score_features(feature_ouput_dir=features_path, recs=recs, 
-                             history=history, behaviors=behaviors, articles=articles)
-    recs = train_ner_score_algo(URM, algo_path, algo_ner_dict)
 
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description="Training script for generating embeddings scores for the dataset")
+
+    parser.add_argument("-output_dir", default="~/experiments", type=str,
+                        help="The directory where the dataset will be placed")
+    parser.add_argument("-dataset_path", default=None, type=str, required=True,
+                        help="Directory where the dataset is placed")
+    parser.add_argument("-urm_path", default=None, type=str, required=True,
+                        help="Directory where the URM are placed")
+    parser.add_argument("-algo_path", default=None, type=str, required=True,
+                        help="Directory where the rec sys algo are placed")
+
+    args = parser.parse_args()
+    OUTPUT_DIR = Path(args.output_dir)
+    DATASET_DIR = Path(args.dataset_path)
+    URM_DIR = Path(args.urm_path)
+    ALGO_DIR = Path(args.algo_path)
+    
+    ALGO_DIR.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    out_name = f'preprocessing_urm_ner_scores_{timestamp}'
+    output_dir = OUTPUT_DIR / out_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    log_path = output_dir / "log.txt"
+    logging.basicConfig(filename=log_path, filemode="w",
+                        format=LOGGING_FORMATTER, level=logging.INFO, force=True)
+
+    stdout_handler = logging.StreamHandler()
+    stdout_handler.setFormatter(logging.Formatter(LOGGING_FORMATTER))
+
+    root_logger = logging.getLogger()
+    root_logger.addHandler(stdout_handler)
+
+    main(DATASET_DIR, URM_DIR, ALGO_DIR, output_dir)
