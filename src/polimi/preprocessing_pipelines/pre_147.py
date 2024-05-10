@@ -241,7 +241,7 @@ def _build_ner_features_147(behaviors: pl.DataFrame, history: pl.DataFrame, arti
                         recs: list[BaseRecommender]) -> pl.DataFrame:  
         
     ner_features = build_ner_scores_features(history=history, behaviors=behaviors, articles=articles, recs=recs)
-    return reduce_polars_df_memory_size(ner_features)
+    return ner_features
 
 
 

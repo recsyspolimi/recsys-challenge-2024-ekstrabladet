@@ -22,7 +22,7 @@ def save_feature_importances_plot(model: LGBMClassifier, feature_names: List[str
     sorted_importances = np.argsort(feature_importances)[::-1]
     output_path = os.path.join(output_dir, 'feature_importances.png')
 
-    plt.figure(figsize=(10, 10))
+    plt.figure(figsize=(10, 20))
     sns.barplot(x=feature_importances[sorted_importances], y=np.array(feature_names)[sorted_importances])
     plt.xlabel('Feature Importance')
     plt.ylabel('Feature Name')
