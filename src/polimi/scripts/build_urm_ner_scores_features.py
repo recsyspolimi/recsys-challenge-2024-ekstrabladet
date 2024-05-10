@@ -35,11 +35,12 @@ from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from polimi.utils._custom import ALGORITHMS
 from polimi.utils._custom import load_sparse_csr, load_best_optuna_params, load_articles, load_behaviors, load_history, save_json
 from polimi.utils._custom import load_sparse_csr, load_best_optuna_params, load_articles, load_behaviors, load_history, save_json
-from polimi.utils._urm import train_recommender, build_ner_scores_features, load_recommender
+from polimi.utils._urm import train_recommender, build_urm_ner_score_features, load_recommender
 import polars as pl
 import scipy.sparse as sps
 import time
 import os
+from polimi.utils._urm import build_user_id_mapping, build_articles_with_processed_ner, build_ner_mapping
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
     
     
@@ -110,16 +111,16 @@ ALGO_NER_TRAIN_DICT = {
             'study_name': 'P3alphaRecommender-ner-small-ndcg100_new',
             'load': True
         },
-        SLIM_BPR_Cython: {
-            'params': None,
-            'study_name': 'SLIM_BPR_Cython-ner-small-ndcg100_new',
-            'load': True
-        },
-        UserKNNCFRecommender: {
-            'params': None,
-            'study_name': 'UserKNNCFRecommender-ner-small-ndcg100_new',
-            'load': True
-        },
+        # SLIM_BPR_Cython: {
+        #     'params': None,
+        #     'study_name': 'SLIM_BPR_Cython-ner-small-ndcg100_new',
+        #     'load': True
+        # },
+        # UserKNNCFRecommender: {
+        #     'params': None,
+        #     'study_name': 'UserKNNCFRecommender-ner-small-ndcg100_new',
+        #     'load': True
+        # },
     }
     
 def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path):    
@@ -132,6 +133,9 @@ def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path)
     
     
     for split in splits:
+        save_path = output_dir / split
+        save_path.mkdir(parents=True, exist_ok=True)
+        
         URM = load_sparse_csr(urm_path / f'URM_{split}.npz')
         
         split_algo_path = algo_path / split
@@ -146,16 +150,35 @@ def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path)
         articles = pl.read_parquet(dataset_path / 'articles.parquet')
         
         
+        user_id_mapping = build_user_id_mapping(history)
+        ap = build_articles_with_processed_ner(articles)
+        ner_mapping = build_ner_mapping(ap)
+        ap = ap.with_columns(
+            pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None).drop_nulls()).alias('ner_clusters_index'),
+        )
+        
+        train_ds = behaviors.rename({'article_ids_inview': 'candidate_ids'})\
+            .with_columns(
+                pl.col('candidate_ids').list.eval(pl.element().replace(ap['article_id'], ap['ner_clusters_index'], default=None)).alias('candidate_ner_index'),
+                pl.col('user_id').replace(user_id_mapping['user_id'], user_id_mapping['user_index'], default=None).alias('user_index'),
+            ).select('impression_id', 'user_id', 'user_index', 'candidate_ids', 'candidate_ner_index')        
+        
+
+        train_ds = reduce_polars_df_memory_size(train_ds)
         start_time = time.time()
-        df = build_ner_scores_features(history=history, behaviors=behaviors, articles=articles, recs=recs)        
-        logging.info(f'Saving ner scores features ... [{output_dir}]')
-        df.write_parquet(output_dir / 'ner_scores_features.parquet')
-        logging.info(f'Built ner scores features in {((time.time() - start_time)/60):.1f} minutes')
-
-    
-
-
-
+        train_ds = train_ds.sort('user_id')
+        BATCH_SIZE = int(5e5)
+        n_slices = math.ceil(len(train_ds) / BATCH_SIZE)
+        for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
+            logging.info(f'Starting urm ner scores slice {i}...')
+            slice = build_urm_ner_score_features(slice, ner_mapping=ner_mapping, recs=recs)
+            logging.info(f'Saving urm ner scores slice {i} to {output_dir}')
+            slice.write_parquet(output_dir / f'urm_ner_scores_slice_{i}.parquet')
+        
+        logging.info(f'Built ner scores features slices in {((time.time() - start_time)/60):.1f} minutes')
+        agg_slices_paths = list(output_dir.glob('urm_ner_scores_slice_*.parquet'))
+        stack_slices(agg_slices_paths, output_dir, 'urm_ner_scores.parquet', delete_all_slices=True)
+        
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Training script for generating embeddings scores for the dataset")

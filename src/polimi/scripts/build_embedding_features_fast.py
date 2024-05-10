@@ -65,8 +65,8 @@ def main(input_path, output_dir):
         train_ds = reduce_polars_df_memory_size(train_ds)
         train_ds = train_ds.sort('user_id')
         BATCH_SIZE = int(5e5)
-        slices = math.ceil(len(train_ds) / BATCH_SIZE)
-        for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=slices)):
+        n_slices = math.ceil(len(train_ds) / BATCH_SIZE)
+        for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
             logging.info(f'Starting embeddings scores slice {i}...')
             slice = build_embeddings_scores(slice, history_m, m_dict=norm_m_dict)
             logging.info(f'Building embeddings scores slice {i} standard aggregations...')
