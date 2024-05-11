@@ -125,15 +125,17 @@ ALGO_NER_TRAIN_DICT = {
     
 def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path):    
     
-    is_testset = str(dataset_path).split('/')[-1] == 'ebnerd_testset'
+    dtype = str(dataset_path).split('/')[-1]
+    is_testset = dtype == 'ebnerd_testset'
     if is_testset:
-        splits = ['test']
+        splits = ['train']
+        
     else:
         splits = ['train', 'validation']
     
     
     for split in splits:
-        save_path = output_path / split
+        save_path = output_path / dtype / split
         save_path.mkdir(parents=True, exist_ok=True)
         
         URM = load_sparse_csr(urm_path / f'URM_{split}.npz')
@@ -183,7 +185,7 @@ def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path)
         logging.info(f'Built ner scores features slices in {((time.time() - start_time)/60):.1f} minutes')
         agg_slices_paths = list(save_path.glob('urm_ner_scores_slice_*.parquet'))
         assert len(agg_slices_paths) == n_slices, 'Some slices were not saved'
-        stack_slices(agg_slices_paths, save_path, 'urm_ner_scores.parquet', delete_all_slices=True)
+        stack_slices(agg_slices_paths, save_path, 'urm_ner_scores', delete_all_slices=True)
         
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
