@@ -1116,6 +1116,32 @@ def _preprocessing_article_endorsement_feature(behaviors, period, batch_dim=1000
     #     .rename({"article_ids_inview": "article", "count": f"endorsement_{period}"})
     #     for rows in tqdm.tqdm(df1.iter_slices(10), total=df1.shape[0] // 10)
     # )
+    
+    
+def _preprocessing_normalize_endorsement(articles_endorsement_raw):
+    return articles_endorsement_raw.sort(by='impression_time').with_columns(
+        (
+            pl.col('endorsement_10h') / 
+            pl.col('endorsement_10h').sum().over('impression_time')
+        ).alias('normalized_endorsement_10h'),
+        (
+            pl.col('endorsement_10h') - 
+            pl.col('endorsement_10h').rolling_mean(10, min_periods=1).over('article')
+        ).alias('endorsement_10h_diff_rolling'),
+        (
+            pl.col('endorsement_10h').rolling_mean(5, min_periods=1).over('article') - 
+            pl.col('endorsement_10h').rolling_mean(10, min_periods=1).over('article')
+        ).alias('endorsement_macd'),
+        (
+            pl.col('endorsement_10h') / 
+            pl.col('endorsement_10h').quantile(0.8).over('impression_time')
+        ).alias('endorsement_quantile_norm_10h')
+    ).with_columns(
+        (
+            pl.col('normalized_endorsement_10h') / 
+            pl.col('normalized_endorsement_10h').rolling_max(10, min_periods=1).over('impression_time')
+        ).alias('normalized_endorsement_10h_rolling_max_ratio'),
+    )
 
 
 def add_article_endorsement_feature(df_features, articles_endorsement):
