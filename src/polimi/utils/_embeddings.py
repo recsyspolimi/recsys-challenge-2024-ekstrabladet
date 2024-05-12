@@ -356,12 +356,13 @@ def build_weighted_readtime_embeddings(df, history, embeddings, emb_type):
     return users_embeddings, 'user_embedding_weight_readtime', f'readtime_click_predictor_{emb_type}'
 
 def _build_mean_user_embeddings(df, history, embeddings, emb_type) -> pl.DataFrame:
+    embeddings = embeddings.rename({embeddings.columns[0]: 'article_id', embeddings.columns[1]: 'item_embedding'})
     embedding_len = len(embeddings['item_embedding'].limit(1).item())
 
     print('Building user embeddings...')
     users_embeddings =  pl.concat(
-        rows.select('user_id', 'article_id_fixed').explode('article_id_fixed').rename(
-            {'article_id_fixed': 'article_id'}).join(embeddings, on='article_id')
+        rows.select('user_id', 'article_id_fixed').explode('article_id_fixed')\
+        .rename({'article_id_fixed': 'article_id'}).join(embeddings, on='article_id')\
         .with_columns(pl.col("item_embedding").list.to_struct()).unnest("item_embedding")
         .group_by('user_id').agg(
             [pl.col(f'field_{i}').mean().cast(pl.Float32) for i in range(embedding_len)])
