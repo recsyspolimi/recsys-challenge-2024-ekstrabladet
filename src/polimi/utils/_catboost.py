@@ -1192,7 +1192,7 @@ def _preprocessing_article_endorsement_feature_by_article_and_user(behaviors, pe
         .rolling(index_column="impression_time", period=period, group_by=['article','user_id']).agg(
             pl.col(f'endorsement_{period}_articleuser').sum()
         ).unique(["article","impression_time","user_id"]) \
-        for i in tqdm.tqdm(range(n_batch))                    
+        for i in tqdm(range(n_batch))                    
     )
     
 
