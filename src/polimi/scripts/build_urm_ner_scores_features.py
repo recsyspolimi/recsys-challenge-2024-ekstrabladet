@@ -125,15 +125,17 @@ ALGO_NER_TRAIN_DICT = {
     
 def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path):    
     
-    is_testset = str(dataset_path).split('/')[-1] == 'ebnerd_testset'
+    dtype = str(dataset_path).split('/')[-1]
+    is_testset = dtype == 'ebnerd_testset'
     if is_testset:
-        splits = ['test']
+        splits = ['train']
+        
     else:
         splits = ['train', 'validation']
     
     
     for split in splits:
-        save_path = output_dir / split
+        save_path = output_path / dtype / split
         save_path.mkdir(parents=True, exist_ok=True)
         
         URM = load_sparse_csr(urm_path / f'URM_{split}.npz')
@@ -141,13 +143,16 @@ def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path)
         split_algo_path = algo_path / split
         split_algo_path.mkdir(parents=True, exist_ok=True)
         recs = train_ner_score_algo(URM, split_algo_path, ALGO_NER_TRAIN_DICT)
+        assert len(recs) == len(ALGO_NER_TRAIN_DICT.keys()), 'Some algorithms were not loaded/trained'
         
         del URM
         gc.collect()
 
         history = pl.read_parquet(dataset_path / split / 'history.parquet')
+        unique_users = history['user_id'].unique().to_numpy()
         behaviors = pl.read_parquet(dataset_path / split / 'behaviors.parquet')
         articles = pl.read_parquet(dataset_path / 'articles.parquet')
+        unique_articles = articles['article_id'].unique().to_numpy()
         
         
         user_id_mapping = build_user_id_mapping(history)
@@ -167,17 +172,20 @@ def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path)
         train_ds = reduce_polars_df_memory_size(train_ds)
         start_time = time.time()
         train_ds = train_ds.sort('user_id')
-        BATCH_SIZE = int(5e5)
+        BATCH_SIZE = int(1e6)
         n_slices = math.ceil(len(train_ds) / BATCH_SIZE)
         for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
             logging.info(f'Starting urm ner scores slice {i}...')
             slice = build_urm_ner_score_features(slice, ner_mapping=ner_mapping, recs=recs)
-            logging.info(f'Saving urm ner scores slice {i} to {output_dir}')
-            slice.write_parquet(output_dir / f'urm_ner_scores_slice_{i}.parquet')
-        
+            logging.info(f'Saving urm ner scores slice {i} to {save_path}')
+            slice.write_parquet(save_path / f'urm_ner_scores_slice_{i}.parquet')
+            
+            assert np.all(np.in1d(slice['user_id'].unique().to_numpy(), unique_users)), 'Some users were not found in history'
+            assert np.all(np.in1d(slice['article'].unique().to_numpy(), unique_articles)), 'Some candidates were not found in articles'
         logging.info(f'Built ner scores features slices in {((time.time() - start_time)/60):.1f} minutes')
-        agg_slices_paths = list(output_dir.glob('urm_ner_scores_slice_*.parquet'))
-        stack_slices(agg_slices_paths, output_dir, 'urm_ner_scores.parquet', delete_all_slices=True)
+        agg_slices_paths = list(save_path.glob('urm_ner_scores_slice_*.parquet'))
+        assert len(agg_slices_paths) == n_slices, 'Some slices were not saved'
+        stack_slices(agg_slices_paths, save_path, 'urm_ner_scores', delete_all_slices=True)
         
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
