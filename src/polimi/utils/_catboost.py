@@ -1162,3 +1162,44 @@ def subsample_dataset(original_datset_path: str, dataset_path : str, new_path: s
     behaviors.join(dataset, on = ['impression_id','user_id','article'], how = 'left').write_parquet(new_path)
     
     
+
+def _preprocessing_article_endorsement_feature_by_article_and_user(behaviors, period, batch_dim=10000):
+    # slice the behaviors dataframe in windows based on the article_id_inview
+    exploded_behaviors = behaviors.select(
+        ['impression_time', 'article_ids_inview','user_id']).explode("article_ids_inview")
+
+    # get min and max id of the articles
+    min_article_id = exploded_behaviors.select(
+        "article_ids_inview").min().item()
+    max_article_id = exploded_behaviors.select(
+        "article_ids_inview").max().item()
+    diff = max_article_id - min_article_id
+
+    n_batch = diff // batch_dim
+    if diff % batch_dim != 0:  # If there are remaining items
+        n_batch += 1 
+        
+    
+    return pl.concat(
+        exploded_behaviors.filter(
+            pl.col("article_ids_inview").ge(min_article_id + i * batch_dim)
+            .and_(pl.col("article_ids_inview").lt(min_article_id + (i + 1) * batch_dim)))\
+        .with_columns(pl.col('impression_time').dt.round('1m').alias('impression_time_rounded'))\
+        .group_by(['impression_time_rounded','article_ids_inview','user_id']).len()\
+        .rename({'impression_time_rounded': 'impression_time', 'len':f'endorsement_{period}_articleuser'}) \
+        .sort("impression_time").set_sorted("impression_time") \
+        .rename({'article_ids_inview': 'article'})
+        .rolling(index_column="impression_time", period=period, group_by=['article','user_id']).agg(
+            pl.col(f'endorsement_{period}_articleuser').sum()
+        ).unique(["article","impression_time","user_id"]) \
+        for i in tqdm.tqdm(range(n_batch))                    
+    )
+    
+
+
+def add_article_endorsement_feature_by_article_and_user(df_features, articles_endorsement_articleuser):
+    
+    articles_endorsement_articleuser = articles_endorsement_articleuser.with_columns(pl.col('article').cast(pl.Int32))
+    return df_features.with_columns(pl.col('impression_time').dt.round('1m').alias('rounded_impression_time'))\
+                         .join(articles_endorsement_articleuser.rename({'impression_time' : 'rounded_impression_time'}), on=['user_id','article','rounded_impression_time'], how='left')\
+                         .drop('rounded_impression_time')
