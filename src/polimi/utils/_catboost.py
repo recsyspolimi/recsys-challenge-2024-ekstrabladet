@@ -1118,29 +1118,29 @@ def _preprocessing_article_endorsement_feature(behaviors, period, batch_dim=1000
     # )
     
     
-def _preprocessing_normalize_endorsement(articles_endorsement_raw):
+def _preprocessing_normalize_endorsement(articles_endorsement_raw: pl.DataFrame, endorsement_col='endorsement_10h'):
     return articles_endorsement_raw.sort(by='impression_time').with_columns(
         (
-            pl.col('endorsement_10h') / 
-            pl.col('endorsement_10h').sum().over('impression_time')
-        ).alias('normalized_endorsement_10h'),
+            pl.col(endorsement_col) / 
+            pl.col(endorsement_col).sum().over('impression_time')
+        ).alias(f'normalized_{endorsement_col}'),
         (
-            pl.col('endorsement_10h') - 
-            pl.col('endorsement_10h').rolling_mean(10, min_periods=1).over('article')
-        ).alias('endorsement_10h_diff_rolling'),
+            pl.col(endorsement_col) - 
+            pl.col(endorsement_col).rolling_mean(10, min_periods=1).over('article')
+        ).alias(f'{endorsement_col}_diff_rolling'),
         (
-            pl.col('endorsement_10h').rolling_mean(5, min_periods=1).over('article') - 
-            pl.col('endorsement_10h').rolling_mean(10, min_periods=1).over('article')
-        ).alias('endorsement_macd'),
+            pl.col(endorsement_col).rolling_mean(5, min_periods=1).over('article') - 
+            pl.col(endorsement_col).rolling_mean(10, min_periods=1).over('article')
+        ).alias(f'{endorsement_col}_macd'),
         (
-            pl.col('endorsement_10h') / 
-            pl.col('endorsement_10h').quantile(0.8).over('impression_time')
-        ).alias('endorsement_quantile_norm_10h')
+            pl.col(endorsement_col) / 
+            pl.col(endorsement_col).quantile(0.8).over('impression_time')
+        ).alias(f'{endorsement_col}_quantile_norm')
     ).with_columns(
         (
-            pl.col('normalized_endorsement_10h') / 
-            pl.col('normalized_endorsement_10h').rolling_max(10, min_periods=1).over('impression_time')
-        ).alias('normalized_endorsement_10h_rolling_max_ratio'),
+            pl.col(f'normalized_{endorsement_col}') / 
+            pl.col(f'normalized_{endorsement_col}').rolling_max(10, min_periods=1).over('impression_time')
+        ).alias(f'normalized_{endorsement_col}_rolling_max_ratio'),
     )
 
 
