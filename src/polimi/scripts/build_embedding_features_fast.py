@@ -8,8 +8,7 @@ from pathlib import Path
 import math
 from tqdm import tqdm
 from polimi.utils._polars import reduce_polars_df_memory_size, stack_slices
-from polimi.utils._embeddings import _build_user_embeddings
-from polimi.utils._embeddings import iterator_build_embeddings_similarity, build_normalized_embeddings_matrix, build_embeddings_scores, build_embeddings_agg_scores
+from polimi.utils._embeddings import weight_scores, build_normalized_embeddings_matrix, build_embeddings_scores, build_embeddings_agg_scores, build_history_w
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -29,7 +28,7 @@ def main(input_path, output_dir):
                  'Ekstra_Bladet_image_embeddings': 'image_embeddings',
                  'google_bert_base_multilingual_cased': 'bert_base_multilingual_cased'}
     
-    articles = pl.read_parquet(input_path / 'articles.parquet')    
+    articles = pl.read_parquet(input_path / 'articles.parquet') 
     norm_m_dict = {}
     article_emb_mapping = articles.select('article_id').unique().with_row_index()
     for dir, file_name in emb_name_dict.items():
@@ -45,6 +44,7 @@ def main(input_path, output_dir):
         files_path = input_path / data_type
         behaviors = pl.read_parquet(files_path / 'behaviors.parquet')
         history = pl.read_parquet(files_path / 'history.parquet')
+        history_w = build_history_w(history, articles)
         
         history_m = history\
             .select('user_id', pl.col('article_id_fixed').list.eval(
@@ -67,37 +67,28 @@ def main(input_path, output_dir):
         BATCH_SIZE = int(5e5)
         n_slices = math.ceil(len(train_ds) / BATCH_SIZE)
         for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
-            logging.info(f'Starting embeddings scores slice {i}...')
+            logging.info(f'Start building embeddings scores slice {i}...')
             slice = build_embeddings_scores(slice, history_m, m_dict=norm_m_dict)
-            logging.info(f'Building embeddings scores slice {i} standard aggregations...')
-            scores_col = [col for col in slice.columns if col.endswith('_scores')]
-            slice = build_embeddings_agg_scores(slice, history, emb_names=emb_name_dict.values()).drop(scores_col)
+            
+            logging.info(f'Weightening embeddings scores for slice {i} ...')
+            slice = slice.join(history_w, on='user_id', how='left')
+            weight_cols = [col for col in slice.columns if col.endswith('_l1_w')]
+            scores_cols = [col for col in slice.columns if col.endswith('_scores')]
+            slice = weight_scores(slice, scores_col=scores_cols, weight_cols=weight_cols)         
+            slice = reduce_polars_df_memory_size(slice)
+
+            logging.info(f'Building embeddings scores slice {i} aggregations...')
+            agg_cols = [col for col in slice.columns if '_scores' in col]
+            slice = build_embeddings_agg_scores(slice, agg_cols=agg_cols, last_k=[5, 10, 20])
+            
             logging.info(f'Saving embeddings scores slice {i} aggregations to {save_path}')
-            train_ds = reduce_polars_df_memory_size(train_ds)
-            slice.write_parquet(save_path / f'embeddings_scores_agg_slice_{i}.parquet', compression='zstd')
+            slice = reduce_polars_df_memory_size(slice)
+            slice.write_parquet(save_path / f'embeddings_scores_agg_slice_{i}.parquet')
         
         agg_scores_slices_paths = list(save_path.glob('embeddings_scores_agg_slice_*.parquet'))
-        stack_slices(agg_scores_slices_paths, save_path, 'agg_embeddings_scores.parquet', delete_all_slices=True)
+        stack_slices(agg_scores_slices_paths, save_path, save_name='agg_embeddings_scores', delete_all_slices=True)
         
         
-        # for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=slices)):
-        #     logging.info(f'Starting embeddings scores slice {i}...')
-        #     slice = build_embeddings_scores(slice, history_m, m_dict=norm_m_dict)
-        #     logging.info(f'Saving embeddings scores plain slice {i} to {save_path}...')
-        #     slice.write_parquet(save_path / f'embeddings_scores_slice_{i}.parquet')
-                
-        # for i in range(0, slices):
-        #     slice = pl.read_parquet(save_path / f'embeddings_scores_slice_{i}.parquet')
-        #     logging.info(f'Building embeddings scores slice {i} standard aggregations...')
-        #     slice = build_embeddings_agg_scores(slice, history, emb_names=emb_name_dict.values())
-        #     logging.info(f'Saving embeddings scores slice {i} aggregations to {save_path}')
-        #     slice.write_parquet(save_path / f'embeddings_scores_agg_slice_{i}.parquet')
-        
-        # scores_slices_paths = list(save_path.glob('embeddings_scores_slice_*.parquet'))
-        # stack_slices(scores_slices_paths, save_path, 'embeddings_scores.parquet', delete_all_slices=True)
-        
-        # agg_scores_slices_paths = list(save_path.glob('embeddings_scores_agg_slice_*.parquet'))
-        # stack_slices(agg_scores_slices_paths, save_path, 'agg_embeddings_scores.parquet', delete_all_slices=True)
         
         
 if __name__ == '__main__':

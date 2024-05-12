@@ -420,10 +420,18 @@ def build_normalized_embeddings_matrix(emb_df: pl.DataFrame, article_emb_mapping
     return m
 
 
-def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict[str, np.ndarray]):
+def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict[str, np.ndarray], last_k:list[int] = []):
     df = pl.concat([
         slice.explode(['article_index', 'article']).with_columns(
-            *[pl.lit(np.dot(m[slice['article_index'].explode().to_numpy()], m[history_m[key[0]]].T)).alias(f'{emb_name}_scores') for emb_name, m in m_dict.items()]
+            *[pl.lit(
+                np.dot(
+                    m[slice['article_index'].explode().to_numpy()], 
+                    m[history_m[key[0]]].T
+                    )
+                ).alias(f'{emb_name}_scores') for emb_name, m in m_dict.items()]
+        )\
+        .with_columns(
+            *[pl.col(f'{emb_name}_scores').list.tail(k).alias(f'{emb_name}_scores_tail_{k}') for k in last_k for emb_name in m_dict.keys()]
         )\
         .group_by(['impression_id', 'user_id', 'user_index'])\
         .agg(pl.all())
@@ -431,12 +439,69 @@ def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict
     ]).drop('article_index', 'user_index')
     return df
 
-def build_embeddings_agg_scores(df: pl.DataFrame, history: pl.DataFrame, emb_names: list[str]):
+def build_history_w(history: pl.DataFrame, articles: pl.DataFrame):
+    history_w_articles = history.explode(pl.all().exclude('user_id')).join(
+        articles.select('article_id', 
+            (pl.col('body') + pl.col('title') + pl.col('subtitle')).str.len_chars().alias('article_id_fixed_article_len'),
+            'last_modified_time', 'published_time'), left_on='article_id_fixed', right_on='article_id'
+        )\
+        .with_columns(
+            (pl.col('impression_time_fixed') - pl.col('published_time')).alias('time_to_impression'),
+        ).group_by('user_id').agg(pl.all())
+        
+    
+    history_w = history_w_articles.select('user_id', 'time_to_impression', 
+                                          'impression_time_fixed', 'scroll_percentage_fixed', 
+                                          'read_time_fixed', 'article_id_fixed_article_len')\
+        .explode(pl.all().exclude('user_id'))\
+        .with_columns(pl.col('scroll_percentage_fixed').fill_null(0.0))\
+        .with_columns(
+            pl.col('read_time_fixed').truediv('article_id_fixed_article_len').fill_nan(0.0).alias('read_time_fixed_article_len_ratio'),
+            # scroll_percentage
+            (pl.col('scroll_percentage_fixed') - pl.col('scroll_percentage_fixed').min()).truediv(pl.col('scroll_percentage_fixed').max() - pl.col('scroll_percentage_fixed').min()).over('user_id').alias('scroll_percentage_fixed_mmnorm'),
+            # time_to_impression
+            pl.col('time_to_impression').dt.total_minutes().sqrt().alias('time_to_impression_minutes_sqrt'),
+            pl.lit(1).truediv(pl.col('time_to_impression').dt.total_minutes().sqrt() + 1).alias('time_to_impression_inverse_sqrt'),
+        ).with_columns(
+            pl.when(pl.col('read_time_fixed_article_len_ratio').is_infinite()).then(0.0).otherwise(pl.col('read_time_fixed_article_len_ratio')).alias('read_time_fixed_article_len_ratio')
+        ).group_by('user_id').agg(pl.all())\
+        .with_columns(
+            pl.col('read_time_fixed_article_len_ratio').list.eval(pl.element().truediv(pl.element().sum())).alias('read_time_fixed_article_len_ratio_l1_w'),
+            pl.col('scroll_percentage_fixed_mmnorm').list.eval(pl.element().truediv(pl.element().sum())).alias('scroll_percentage_fixed_mmnorm_l1_w'),
+            pl.col('time_to_impression_minutes_sqrt').list.eval(pl.element().truediv(pl.element().sum())).alias('time_to_impression_minutes_sqrt_l1_w'),
+            pl.col('time_to_impression_inverse_sqrt').list.eval(pl.element().truediv(pl.element().sum())).alias('time_to_impression_inverse_sqrt_l1_w'),
+        )
+    l1_w_cols = [col for col in history_w.columns if col.endswith('_l1_w')]
+    history_w = history_w.select('user_id', *l1_w_cols)
+    return history_w
+
+def weight_scores(df: pl.DataFrame, scores_cols: list[str], weights_cols: list[str]):
+    df = pl.concat([
+        slice.explode(['article'] + scores_cols).with_columns(
+            *[pl.lit(
+                np.array([np.array(i) for i in slice[col_score].explode().to_numpy()]) * slice[col_w][0].to_numpy()
+            ).alias(f'{col_score}_weighted_{col_w}')
+            for col_w in weights_cols for col_score in scores_cols]
+        ).drop(weights_cols).group_by('impression_id', 'user_id').agg(pl.all())
+        for key, slice in tqdm(df.partition_by(by=['user_id'], as_dict=True).items(), total=df['user_id'].n_unique())    
+    ])
+    return df
+
+def build_embeddings_agg_scores(df: pl.DataFrame, agg_cols: list[str] = [], last_k: list[int] = []):
     df = df.with_columns(
-        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.mean()).name.suffix('_mean') for emb_name in emb_names],
-        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.max()).name.suffix('_max') for emb_name in emb_names],
-        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.min()).name.suffix('_min') for emb_name in emb_names],
-        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.std()).name.suffix('_std') for emb_name in emb_names],
-        *[pl.col(f'{emb_name}_scores').list.eval(pl.element().list.median()).name.suffix('_median') for emb_name in emb_names],
+        *[pl.col(col).list.eval(pl.element().list.mean()).name.suffix('_mean') for col in agg_cols],
+        *[pl.col(col).list.eval(pl.element().list.max()).name.suffix('_max') for col in agg_cols],
+        *[pl.col(col).list.eval(pl.element().list.min()).name.suffix('_min') for col in agg_cols],
+        *[pl.col(col).list.eval(pl.element().list.std()).name.suffix('_std') for col in agg_cols],
+        *[pl.col(col).list.eval(pl.element().list.median()).name.suffix('_median') for col in agg_cols],
     )
+    
+    if len(last_k) > 0:
+        df = df.with_columns(
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.mean()).name.suffix(f'_mean_tail_{k}') for col in agg_cols for k in last_k],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.max()).name.suffix(f'_max_tail_{k}') for col in agg_cols for k in last_k],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.min()).name.suffix(f'_min_tail_{k}') for col in agg_cols for k in last_k],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.std()).name.suffix(f'_std_tail_{k}') for col in agg_cols for k in last_k],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.median()).name.suffix(f'_median_tail_{k}') for col in agg_cols for k in last_k],
+        )
     return df
