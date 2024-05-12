@@ -26,7 +26,7 @@ def _get_diff_norm_expression(norm_columns: List[str], over: Union[str, pl.Expr]
         return [(pl.col(c) / pl.col(c).quantile(quantile_p).over(over)).alias(f'{c}_minus_quantile{int(100*quantile_p)}{suffix_name}') 
                 for c in norm_columns]
     else:
-        raise NotImplementedError('Selected norm type is not implemented, choose between [median, mean, quantile]')
+        raise NotImplementedError('Selected diff type is not implemented, choose between [median, mean, quantile]')
     
     
 def _get_list_diversity_expression(columns: List[str], over: Union[str, pl.Expr] = 'impression_id', suffix_name: str = '_impression'):
@@ -59,5 +59,5 @@ def _get_group_stats_expression(stats_columns: List[str], over: Union[str, pl.Ex
         return [pl.col(c).quantile(quantile_p).over(over).alias(f'quantile{int(100*quantile_p)}{suffix_name}_{c}') for c in stats_columns]
     else:
         raise NotImplementedError(
-            'Selected norm type is not implemented, choose between [median, mean, quantile, std, skew, kurtosis, entropy]'
+            'Selected statistic is not implemented, choose between [median, mean, quantile, std, skew, kurtosis, entropy]'
         )
