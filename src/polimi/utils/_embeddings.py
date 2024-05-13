@@ -455,20 +455,18 @@ def build_history_w(history: pl.DataFrame, articles: pl.DataFrame):
         .explode(pl.all().exclude('user_id'))\
         .with_columns(pl.col('scroll_percentage_fixed').fill_null(0.0))\
         .with_columns(
-            pl.col('read_time_fixed').truediv('article_id_fixed_article_len').fill_nan(0.0).alias('read_time_fixed_article_len_ratio'),
+            pl.col('read_time_fixed').truediv(pl.col('article_id_fixed_article_len') + 1).alias('read_time_fixed_article_len_ratio'),
             # scroll_percentage
             (pl.col('scroll_percentage_fixed') - pl.col('scroll_percentage_fixed').min()).truediv(pl.col('scroll_percentage_fixed').max() - pl.col('scroll_percentage_fixed').min()).over('user_id').alias('scroll_percentage_fixed_mmnorm'),
             # time_to_impression
-            pl.col('time_to_impression').dt.total_minutes().sqrt().alias('time_to_impression_minutes_sqrt'),
-            pl.lit(1).truediv(pl.col('time_to_impression').dt.total_minutes().sqrt() + 1).alias('time_to_impression_inverse_sqrt'),
-        ).with_columns(
-            pl.when(pl.col('read_time_fixed_article_len_ratio').is_infinite()).then(0.0).otherwise(pl.col('read_time_fixed_article_len_ratio')).alias('read_time_fixed_article_len_ratio')
+            pl.col('time_to_impression').dt.total_hours().sqrt().alias('time_to_impression_hours_sqrt'),
+            pl.lit(1).truediv(pl.col('time_to_impression').dt.total_hours().sqrt() + 1).alias('time_to_impression_hours_inverse_sqrt'),
         ).group_by('user_id').agg(pl.all())\
         .with_columns(
-            pl.col('read_time_fixed_article_len_ratio').list.eval(pl.element().truediv(pl.element().sum())).alias('read_time_fixed_article_len_ratio_l1_w'),
-            pl.col('scroll_percentage_fixed_mmnorm').list.eval(pl.element().truediv(pl.element().sum())).alias('scroll_percentage_fixed_mmnorm_l1_w'),
-            pl.col('time_to_impression_minutes_sqrt').list.eval(pl.element().truediv(pl.element().sum())).alias('time_to_impression_minutes_sqrt_l1_w'),
-            pl.col('time_to_impression_inverse_sqrt').list.eval(pl.element().truediv(pl.element().sum())).alias('time_to_impression_inverse_sqrt_l1_w'),
+            pl.col('read_time_fixed_article_len_ratio').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('read_time_fixed_article_len_ratio_l1_w'),
+            pl.col('scroll_percentage_fixed_mmnorm').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('scroll_percentage_fixed_mmnorm_l1_w'),
+            pl.col('time_to_impression_hours_sqrt').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('time_to_impression_minutes_sqrt_l1_w'),
+            pl.col('time_to_impression_hours_inverse_sqrt').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('time_to_impression_inverse_sqrt_l1_w'),
         )
     l1_w_cols = [col for col in history_w.columns if col.endswith('_l1_w')]
     history_w = history_w.select('user_id', *l1_w_cols)
@@ -479,14 +477,14 @@ def weight_scores(df: pl.DataFrame, scores_cols: list[str], weights_cols: list[s
         slice.explode(['article'] + scores_cols).with_columns(
             *[pl.lit(
                 np.array([np.array(i) for i in slice[col_score].explode().to_numpy()]) * slice[col_w][0].to_numpy()
-            ).alias(f'{col_score}_weighted_{col_w}')
+            ).cast(pl.List(pl.Float32)).alias(f'{col_score}_weighted_{col_w}')
             for col_w in weights_cols for col_score in scores_cols]
         ).drop(weights_cols).group_by('impression_id', 'user_id').agg(pl.all())
         for slice in tqdm(df.partition_by(by=['user_id']), total=df['user_id'].n_unique())    
     ])
     return df
 
-def build_embeddings_agg_scores(df: pl.DataFrame, agg_cols: list[str] = [], last_k: list[int] = [], batch_size:int=50000):
+def build_embeddings_agg_scores(df: pl.DataFrame, agg_cols: list[str] = [], last_k: list[int] = [], batch_size:int=50000, drop:bool=True):
     df = pl.concat([
         slice.with_columns(
             *[pl.col(col).list.eval(pl.element().list.mean()).name.suffix('_mean') for col in agg_cols],
@@ -494,18 +492,13 @@ def build_embeddings_agg_scores(df: pl.DataFrame, agg_cols: list[str] = [], last
             *[pl.col(col).list.eval(pl.element().list.min()).name.suffix('_min') for col in agg_cols],
             *[pl.col(col).list.eval(pl.element().list.std()).name.suffix('_std') for col in agg_cols],
             *[pl.col(col).list.eval(pl.element().list.median()).name.suffix('_median') for col in agg_cols],
-        )
+            # Last k
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.mean()).name.suffix(f'_mean_tail_{k}') for k in last_k for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.max()).name.suffix(f'_max_tail_{k}') for k in last_k for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.min()).name.suffix(f'_min_tail_{k}') for k in last_k for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.std()).name.suffix(f'_std_tail_{k}') for k in last_k for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.median()).name.suffix(f'_median_tail_{k}') for k in last_k for col in agg_cols],
+        ).drop(agg_cols if drop else [])
         for slice in tqdm(df.iter_slices(batch_size), total=df.shape[0] // batch_size)
-    ])    
-    if len(last_k) > 0:
-        df = pl.concat([
-            slice.with_columns(
-                *[pl.col(col).list.eval(pl.element().list.tail(k).list.mean()).name.suffix(f'_mean_tail_{k}') for col in agg_cols for k in last_k],
-                *[pl.col(col).list.eval(pl.element().list.tail(k).list.max()).name.suffix(f'_max_tail_{k}') for col in agg_cols for k in last_k],
-                *[pl.col(col).list.eval(pl.element().list.tail(k).list.min()).name.suffix(f'_min_tail_{k}') for col in agg_cols for k in last_k],
-                *[pl.col(col).list.eval(pl.element().list.tail(k).list.std()).name.suffix(f'_std_tail_{k}') for col in agg_cols for k in last_k],
-                *[pl.col(col).list.eval(pl.element().list.tail(k).list.median()).name.suffix(f'_median_tail_{k}') for col in agg_cols for k in last_k],
-            )
-            for slice in tqdm(df.iter_slices(batch_size), total=df.shape[0] // batch_size)    
-        ])
+    ])
     return df

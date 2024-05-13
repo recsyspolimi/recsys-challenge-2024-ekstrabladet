@@ -7,6 +7,7 @@ import gc
 from pathlib import Path
 import math
 from tqdm import tqdm
+import time
 from polimi.utils._polars import reduce_polars_df_memory_size, stack_slices
 from polimi.utils._embeddings import weight_scores, build_normalized_embeddings_matrix, build_embeddings_scores, build_embeddings_agg_scores, build_history_w
 
@@ -18,10 +19,12 @@ def main(input_path, output_dir):
     logging.info(f"Dataset path: {input_path}")
     input_path = Path(input_path)
     output_dir = Path(output_dir)
-    if str(input_path).split('/')[-1] == 'ebnerd_testset':
-        dataset_types = ['test']
+    
+    dtype = str(input_path).split('/')[-1]
+    if dtype == 'ebnerd_testset':
+        dataset_splits = ['test']
     else:
-        dataset_types = ['train', 'validation']
+        dataset_splits = ['train', 'validation']
     
     emb_name_dict = {'Ekstra_Bladet_contrastive_vector': 'contrastive_vector',
                  'FacebookAI_xlm_roberta_base': 'xlm_roberta_base',
@@ -39,12 +42,14 @@ def main(input_path, output_dir):
         m = build_normalized_embeddings_matrix(emb_df, article_emb_mapping)
         norm_m_dict[file_name] = m
     
-    for data_type in dataset_types:
-        logging.info(f"Loading {input_path / data_type}")
-        files_path = input_path / data_type
+    for data_split in dataset_splits:
+        logging.info(f"Loading {input_path / data_split}")
+        files_path = input_path / data_split
         behaviors = pl.read_parquet(files_path / 'behaviors.parquet')
         history = pl.read_parquet(files_path / 'history.parquet')
         history_w = build_history_w(history, articles)
+        selected_weight_col = 'read_time_fixed_article_len_ratio_l1_w'
+        history_w = history_w.select('user_id', selected_weight_col)
         
         history_m = history\
             .select('user_id', pl.col('article_id_fixed').list.eval(
@@ -59,7 +64,7 @@ def main(input_path, output_dir):
                 pl.col('article').list.eval(pl.element().replace(article_emb_mapping['article_id'], article_emb_mapping['index'], default=None)).name.suffix('_index'),
             ).drop('impression_time_fixed', 'scroll_percentage_fixed', 'read_time_fixed')
             
-        save_path = output_dir / data_type
+        save_path = output_dir / dtype / data_split
         save_path.mkdir(parents=True, exist_ok=True)
          
         train_ds = reduce_polars_df_memory_size(train_ds)
@@ -68,26 +73,33 @@ def main(input_path, output_dir):
         n_slices = math.ceil(len(train_ds) / BATCH_SIZE)
         for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
             logging.info(f'Start building embeddings scores slice {i}...')
+            t = time.time()
             slice = build_embeddings_scores(slice, history_m=history_m, m_dict=norm_m_dict)
+            logging.info(f'Completed in {((time.time() - t) / 60):.2f} minutes')
             
             logging.info(f'Weightening embeddings scores for slice {i} ...')
+            t = time.time()
             slice = slice.join(history_w, on='user_id', how='left')
             weights_cols = [col for col in slice.columns if col.endswith('_l1_w')]
             scores_cols = [col for col in slice.columns if col.endswith('_scores')]
-            slice = weight_scores(slice, scores_cols=scores_cols, weights_cols=weights_cols)         
+            slice = weight_scores(slice, scores_cols=scores_cols, weights_cols=weights_cols)    
+            logging.info(f'Completed in {((time.time() - t) / 60):.2f} minutes')
+     
             slice = reduce_polars_df_memory_size(slice)
-
             logging.info(f'Building embeddings scores slice {i} aggregations...')
             agg_cols = [col for col in slice.columns if '_scores' in col]
-            slice = build_embeddings_agg_scores(slice, agg_cols=agg_cols, last_k=[5])
+            slice = build_embeddings_agg_scores(slice, agg_cols=agg_cols, last_k=[25, 50, 100])
+            logging.info(f'Completed in {((time.time() - t) / 60):.2f} minutes')
             
             logging.info(f'Saving embeddings scores slice {i} aggregations to {save_path}')
             slice = reduce_polars_df_memory_size(slice)
             slice.write_parquet(save_path / f'embeddings_scores_agg_slice_{i}.parquet')
         
+        t = time.time()
         agg_scores_slices_paths = list(save_path.glob('embeddings_scores_agg_slice_*.parquet'))
-        stack_slices(agg_scores_slices_paths, save_path, save_name='agg_embeddings_scores', delete_all_slices=True)
-        
+        stack_slices(agg_scores_slices_paths, save_path, save_name=f'agg_embeddings_scores_{selected_weight_col}', delete_all_slices=True)
+        logging.info(f'Completed in {((time.time() - t) / 60):.2f} minutes')
+
         
         
         

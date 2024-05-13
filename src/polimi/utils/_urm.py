@@ -155,67 +155,67 @@ def load_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, file_pat
     rec_instance.load_model(folder_path=str(file_path), file_name=file_name)
     return rec_instance
 
-# def build_ner_scores_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], batch_size=BATCH_SIZE):
-#     '''
-#     Builds the score features for ner interactions. For each (impression_id, user_id, article), 
-#     it computes the sum, max and mean of the scores for each recommender in recs. Note that each score
-#     is normalized by the maximum value of the scores for that particular inview (candidate) list (inf norm).
-#     Args:
-#         history: the (raw) users history dataframe
-#         behaviors: the (raw) behaviors dataframe
-#         articles: the (raw) articles dataframe
-#         recs: a list containing all the recommenders to use for computing the scores
-#     Returns:
-#         pl.DataFrame: the dataframe containing the triple (impression_id, user_id, article) and the scores features for each rec in recs.
-#     '''
+def build_ner_scores_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], batch_size=BATCH_SIZE):
+     '''
+     Builds the score features for ner interactions. For each (impression_id, user_id, article), 
+     it computes the sum, max and mean of the scores for each recommender in recs. Note that each score
+     is normalized by the maximum value of the scores for that particular inview (candidate) list (inf norm).
+     Args:
+         history: the (raw) users history dataframe
+         behaviors: the (raw) behaviors dataframe
+         articles: the (raw) articles dataframe
+         recs: a list containing all the recommenders to use for computing the scores
+     Returns:
+         pl.DataFrame: the dataframe containing the triple (impression_id, user_id, article) and the scores features for each rec in recs.
+     '''
     
-#     user_id_mapping = build_user_id_mapping(history)
-#     ap = build_articles_with_processed_ner(articles)
-#     ner_mapping = build_ner_mapping(ap)
-#     ap = ap.with_columns(
-#         pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None).drop_nulls()).alias('ner_clusters_index'),
-#     )
+     user_id_mapping = build_user_id_mapping(history)
+     ap = build_articles_with_processed_ner(articles)
+     ner_mapping = build_ner_mapping(ap)
+     ap = ap.with_columns(
+         pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None).drop_nulls()).alias('ner_clusters_index'),
+     )
     
-#     df = behaviors.rename({'article_ids_inview': 'candidate_ids'})\
-#         .with_columns(
-#             pl.col('candidate_ids').list.eval(pl.element().replace(ap['article_id'], ap['ner_clusters_index'], default=None)).alias('candidate_ner_index'),
-#             pl.col('user_id').replace(user_id_mapping['user_id'], user_id_mapping['user_index'], default=None).alias('user_index'),
-#         ).select('impression_id', 'user_id', 'user_index', 'candidate_ids', 'candidate_ner_index')        
+     df = behaviors.rename({'article_ids_inview': 'candidate_ids'})\
+         .with_columns(
+             pl.col('candidate_ids').list.eval(pl.element().replace(ap['article_id'], ap['ner_clusters_index'], default=None)).alias('candidate_ner_index'),
+             pl.col('user_id').replace(user_id_mapping['user_id'], user_id_mapping['user_index'], default=None).alias('user_index'),
+         ).select('impression_id', 'user_id', 'user_index', 'candidate_ids', 'candidate_ner_index')        
     
     
-#     df = pl.concat([ #remove empty ner_index
-#         slice.explode(['candidate_ids', 'candidate_ner_index'])\
-#             .filter(pl.col('candidate_ner_index').list.len() > 0)\
-#             .group_by(['impression_id', 'user_id', 'user_index']).agg(pl.all())
-#         for slice in tqdm(df.iter_slices(batch_size), total=df.shape[0]//batch_size)
-#     ])
+     df = pl.concat([ #remove empty ner_index
+         slice.explode(['candidate_ids', 'candidate_ner_index'])\
+             .filter(pl.col('candidate_ner_index').list.len() > 0)\
+             .group_by(['impression_id', 'user_id', 'user_index']).agg(pl.all())
+         for slice in tqdm(df.iter_slices(batch_size), total=df.shape[0]//batch_size)
+     ])
     
-#     all_items = ner_mapping['ner_index'].unique().sort().to_list()
-#     df = pl.concat([
-#             slice.with_columns(
-#                     *[pl.col('candidate_ner_index').list.eval(
-#                         pl.element().list.eval(pl.element().replace(all_items, rec._compute_item_score(user_index)[0], default=None))
-#                     ).alias(f"{rec.RECOMMENDER_NAME}_ner_scores") for rec in recs]
-#                 ).drop('user_index', 'candidate_ner_index')
-#         for user_index, slice in tqdm(df.partition_by(['user_index'], as_dict=True).items(), total=df['user_index'].n_unique())
-#         ])
+     all_items = ner_mapping['ner_index'].unique().sort().to_list()
+     df = pl.concat([
+             slice.with_columns(
+                     *[pl.col('candidate_ner_index').list.eval(
+                         pl.element().list.eval(pl.element().replace(all_items, rec._compute_item_score(user_index)[0], default=None))
+                     ).alias(f"{rec.RECOMMENDER_NAME}_ner_scores") for rec in recs]
+                 ).drop('user_index', 'candidate_ner_index')
+         for user_index, slice in tqdm(df.partition_by(['user_index'], as_dict=True).items(), total=df['user_index'].n_unique())
+         ])
     
-#     df = reduce_polars_df_memory_size(df)
-#     scores_cols = [col for col in df.columns if '_ner_scores' in col]
-#     df = df.with_columns(
-#             *[pl.col(col).list.eval(pl.element().list.sum()).alias(f'sum_{col}') for col in scores_cols],
-#             *[pl.col(col).list.eval(pl.element().list.max()).alias(f'max_{col}') for col in scores_cols],
-#             *[pl.col(col).list.eval(pl.element().list.mean()).alias(f'mean_{col}') for col in scores_cols],
-#         ).with_columns(
-#             pl.all().exclude(['impression_id', 'user_id', 'candidate_ids'] + scores_cols).list.eval(pl.element().truediv(pl.element().max()).fill_nan(0.0)), #inf norm
-#         ).drop(scores_cols)
+     df = reduce_polars_df_memory_size(df)
+     scores_cols = [col for col in df.columns if '_ner_scores' in col]
+     df = df.with_columns(
+             *[pl.col(col).list.eval(pl.element().list.sum()).alias(f'sum_{col}') for col in scores_cols],
+             *[pl.col(col).list.eval(pl.element().list.max()).alias(f'max_{col}') for col in scores_cols],
+             *[pl.col(col).list.eval(pl.element().list.mean()).alias(f'mean_{col}') for col in scores_cols],
+         ).with_columns(
+             pl.all().exclude(['impression_id', 'user_id', 'candidate_ids'] + scores_cols).list.eval(pl.element().truediv(pl.element().max()).fill_nan(0.0)), #inf norm
+         ).drop(scores_cols)
         
-#     df = reduce_polars_df_memory_size(df)
-#     df = df.sort(['impression_id', 'user_id'])\
-#         .explode(pl.all().exclude(['impression_id', 'user_id']))\
-#         .rename({'candidate_ids': 'article'})
-            
-#     return df
+     df = reduce_polars_df_memory_size(df)
+     df = df.sort(['impression_id', 'user_id'])\
+         .explode(pl.all().exclude(['impression_id', 'user_id']))\
+         .rename({'candidate_ids': 'article'})
+           
+     return df
 
 
 def build_urm_ner_score_features(df: pl.DataFrame, ner_mapping: pl.DataFrame, recs: list[BaseRecommender], batch_size=BATCH_SIZE):
