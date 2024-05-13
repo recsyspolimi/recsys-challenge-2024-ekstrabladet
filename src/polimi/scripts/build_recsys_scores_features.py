@@ -14,12 +14,13 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 def main(dataset_split: str , output_dir: Path, dataset_type: str, base_path: str, urm_type: str):
 
-    d_path = base_path.joinpath('dataset')
+    #d_path = base_path.joinpath('dataset')
+    d_path = Path('/home/ubuntu/dataset')
     history = load_history(d_path, dataset_type, dataset_split, lazy=False)
     behaviors = load_behaviors(d_path, dataset_type, dataset_split, lazy=False)
     articles = load_articles(d_path, dataset_type, lazy=False)
 
-    recs_path = base_path.joinpath('algo').joinpath(urm_type).joinpath(dataset_type)
+    recs_path = base_path.joinpath('algo').joinpath(urm_type).joinpath(dataset_type).joinpath(dataset_split)
     urm_path = base_path.joinpath('urm').joinpath(urm_type).joinpath(dataset_type).joinpath(f'URM_{dataset_split}.npz')
     
     logging.info(f"Loading recommenders from {recs_path}")

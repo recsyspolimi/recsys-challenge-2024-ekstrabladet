@@ -115,7 +115,7 @@ if __name__ == '__main__':
 
         output_ds = train_ds.select(['user_id', 'article'])
 
-        output_dir = f'/home/ubuntu/tmp/{type}_ds.parquet'
+        output_dir = f'/home/ubuntu/tmp/emb_{type}_ds.parquet'
         output_ds = train_ds
         for em in range(len(emb)):
             logging.info('-------------------------------------')

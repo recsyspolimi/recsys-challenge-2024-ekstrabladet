@@ -40,27 +40,32 @@ def main(input_path, output_dir, dataset_type='train',preprocessing_version='lat
     else:    
         build_features_iterator = BATCH_PREPROCESSING[preprocessing_version]
     
-    dataset_complete = []
-    i = 0
-    for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
-                                                                        sample=sample, n_batches=100 ,previous_version = previous_version,
-                                                                        urm_path=urm_path, ners_models_path=ners_models_path,split_type=dataset_type, output_path=output_dir,
-                                                                        recsys_models_path=recsys_models_path, recsys_urm_path=recsys_urm_path):
-        dataset.write_parquet(os.path.join(slices_dir, f'{dataset_type}_slice_{i}.parquet'))
-        if not is_test_data:
-            dataset_complete.append(dataset)
-        logging.info(f'Slice {i+1} preprocessed.')
-        i += 1
+    # dataset_complete = []
+    # i = 0
+    # for dataset, vectorizer, unique_entities in build_features_iterator(behaviors, history, articles, test=is_test_data, 
+    #                                                                     sample=sample, n_batches=100 ,previous_version = previous_version,
+    #                                                                     urm_path=urm_path, ners_models_path=ners_models_path,split_type=dataset_type, output_path=output_dir,
+    #                                                                     recsys_models_path=recsys_models_path, recsys_urm_path=recsys_urm_path):
+    #     dataset.write_parquet(os.path.join(slices_dir, f'{dataset_type}_slice_{i}.parquet'))
+    #     if not is_test_data:
+    #         dataset_complete.append(dataset)
+    #     logging.info(f'Slice {i+1} preprocessed.')
+    #     i += 1
     
-    if not is_test_data:
-        dataset_complete = pl.concat(dataset_complete, how='vertical_relaxed')
+    # if not is_test_data:
+    #     dataset_complete = pl.concat(dataset_complete, how='vertical_relaxed')
     
+    dataset, vectorizer, unique_entities = build_features_iterator(behaviors, history, articles, test=is_test_data, 
+                                                                   sample=sample, n_batches=100 ,previous_version = previous_version,
+                                                                   urm_path=urm_path, ners_models_path=ners_models_path,split_type=dataset_type, output_path=output_dir,
+                                                                   recsys_models_path=recsys_models_path, recsys_urm_path=recsys_urm_path)
+    dataset.write_parquet(os.path.join(output_dir, f'{dataset_type}_ds.parquet'))
     categorical_columns = get_categorical_columns(preprocessing_version)
     
     categorical_columns += [f'Entity_{entity}_Present' for entity in unique_entities]
     
-    if not is_test_data:
-        dataset_complete.write_parquet(os.path.join(output_dir, f'{dataset_type}_ds.parquet'))
+    # if not is_test_data:
+    #     dataset_complete.write_parquet(os.path.join(output_dir, f'{dataset_type}_ds.parquet'))
     
     logging.info(f'Preprocessing complete. There are {len(dataset.columns)} columns: {np.array(dataset.columns)}')
     vectorizer_path = os.path.join(output_dir, 'tf_idf_vectorizer.joblib')
@@ -88,7 +93,7 @@ if __name__ == '__main__':
     parser.add_argument("-dataset_type", choices=['train', 'validation', 'test'], default='train', type=str,
                         help="Specify the type of dataset: ['train', 'validation', 'test']")
     parser.add_argument("-preprocessing_version", default='latest', type=str,
-                        choices=['68f', '94f', '115f', '127f', '142f','147f', 'latest'],
+                        choices=['68f', '94f', '115f', '127f', '142f','147f', 'new', 'latest'],
                         help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','127f','latest']")
     parser.add_argument("-previous_version", default = None, type=str,
                         help="Specify the path of a previous version of the dataset to use as a reference for the new one. Default is None.\n YOU MUST GUARANTEE THE COMPATIBILITY BETWEEN VERSIONS. ")
