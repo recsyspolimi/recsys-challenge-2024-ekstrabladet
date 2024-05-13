@@ -459,16 +459,16 @@ def build_history_w(history: pl.DataFrame, articles: pl.DataFrame):
             # scroll_percentage
             (pl.col('scroll_percentage_fixed') - pl.col('scroll_percentage_fixed').min()).truediv(pl.col('scroll_percentage_fixed').max() - pl.col('scroll_percentage_fixed').min()).over('user_id').alias('scroll_percentage_fixed_mmnorm'),
             # time_to_impression
-            pl.col('time_to_impression').dt.total_minutes().sqrt().alias('time_to_impression_minutes_sqrt'),
-            pl.lit(1).truediv(pl.col('time_to_impression').dt.total_minutes().sqrt() + 1).alias('time_to_impression_inverse_sqrt'),
+            pl.col('time_to_impression').dt.total_hours().sqrt().alias('time_to_impression_minutes_sqrt'),
+            pl.lit(1).truediv(pl.col('time_to_impression').dt.total_hours().sqrt() + 1).alias('time_to_impression_inverse_sqrt'),
         ).with_columns(
             pl.when(pl.col('read_time_fixed_article_len_ratio').is_infinite()).then(0.0).otherwise(pl.col('read_time_fixed_article_len_ratio')).alias('read_time_fixed_article_len_ratio')
         ).group_by('user_id').agg(pl.all())\
         .with_columns(
-            pl.col('read_time_fixed_article_len_ratio').list.eval(pl.element().truediv(pl.element().sum())).alias('read_time_fixed_article_len_ratio_l1_w'),
-            pl.col('scroll_percentage_fixed_mmnorm').list.eval(pl.element().truediv(pl.element().sum())).alias('scroll_percentage_fixed_mmnorm_l1_w'),
-            pl.col('time_to_impression_minutes_sqrt').list.eval(pl.element().truediv(pl.element().sum())).alias('time_to_impression_minutes_sqrt_l1_w'),
-            pl.col('time_to_impression_inverse_sqrt').list.eval(pl.element().truediv(pl.element().sum())).alias('time_to_impression_inverse_sqrt_l1_w'),
+            pl.col('read_time_fixed_article_len_ratio').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('read_time_fixed_article_len_ratio_l1_w'),
+            pl.col('scroll_percentage_fixed_mmnorm').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('scroll_percentage_fixed_mmnorm_l1_w'),
+            pl.col('time_to_impression_minutes_sqrt').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('time_to_impression_minutes_sqrt_l1_w'),
+            pl.col('time_to_impression_inverse_sqrt').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('time_to_impression_inverse_sqrt_l1_w'),
         )
     l1_w_cols = [col for col in history_w.columns if col.endswith('_l1_w')]
     history_w = history_w.select('user_id', *l1_w_cols)
@@ -479,7 +479,7 @@ def weight_scores(df: pl.DataFrame, scores_cols: list[str], weights_cols: list[s
         slice.explode(['article'] + scores_cols).with_columns(
             *[pl.lit(
                 np.array([np.array(i) for i in slice[col_score].explode().to_numpy()]) * slice[col_w][0].to_numpy()
-            ).alias(f'{col_score}_weighted_{col_w}')
+            ).cast(pl.List(pl.Float32)).alias(f'{col_score}_weighted_{col_w}')
             for col_w in weights_cols for col_score in scores_cols]
         ).drop(weights_cols).group_by('impression_id', 'user_id').agg(pl.all())
         for slice in tqdm(df.partition_by(by=['user_id']), total=df['user_id'].n_unique())    
