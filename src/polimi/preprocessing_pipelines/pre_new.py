@@ -123,7 +123,10 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
 
     print('Building features...')
     df_features = None
+    i = 0
     for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
+        print(f'Preprocessing slice {i}')
+        i += 1
         if previous_version is None:
             slice_features = sliced_df.pipe(_build_features_behaviors, history=history, articles=articles,
                                             cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities,
@@ -189,7 +192,10 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
 
     df_features = None
     iterator = range(0,101) if previous_version is not None else behaviors.iter_slices(behaviors.shape[0] // n_batches)
+    i = 0
     for slice in iterator:
+        print(f'Preprocessing slice {i}')
+        i += 1
         if previous_version is not None:
             slice_features = pl.read_parquet(os.path.join(previous_version, f'Sliced_ds/test_slice_{slice}.parquet'))
         else:
@@ -335,5 +341,5 @@ def _build_normalizations(df_features: pl.DataFrame):
         get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='entropy', suffix_name='_impression'),
         get_diff_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', diff_type='median', suffix_name='_impression'),
         get_list_diversity_expression(LIST_DIVERSITY, over='impression_id', suffix_name='_impression')
-    ])
+    ], [])
     return reduce_polars_df_memory_size(df_features.with_columns(expressions))
