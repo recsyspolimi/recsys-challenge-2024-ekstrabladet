@@ -420,7 +420,8 @@ def build_normalized_embeddings_matrix(emb_df: pl.DataFrame, article_emb_mapping
     return m
 
 
-def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict[str, np.ndarray], last_k:list[int] = []):
+def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray,
+                            m_dict:dict[str, np.ndarray]):
     df = pl.concat([
         slice.explode(['article_index', 'article']).with_columns(
             *[pl.lit(
@@ -430,13 +431,11 @@ def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray, m_dict:dict
                     )
                 ).alias(f'{emb_name}_scores') for emb_name, m in m_dict.items()]
         )\
-        .with_columns(
-            *[pl.col(f'{emb_name}_scores').list.tail(k).alias(f'{emb_name}_scores_tail_{k}') for k in last_k for emb_name in m_dict.keys()]
-        )\
-        .group_by(['impression_id', 'user_id', 'user_index'])\
+        .drop(['article_index', 'user_index'])\
+        .group_by(['impression_id', 'user_id'])\
         .agg(pl.all())
         for key, slice in tqdm(df.partition_by(by=['user_index'], as_dict=True).items(), total=df['user_index'].n_unique())
-    ]).drop('article_index', 'user_index')
+    ])
     return df
 
 def build_history_w(history: pl.DataFrame, articles: pl.DataFrame):
@@ -483,25 +482,30 @@ def weight_scores(df: pl.DataFrame, scores_cols: list[str], weights_cols: list[s
             ).alias(f'{col_score}_weighted_{col_w}')
             for col_w in weights_cols for col_score in scores_cols]
         ).drop(weights_cols).group_by('impression_id', 'user_id').agg(pl.all())
-        for key, slice in tqdm(df.partition_by(by=['user_id'], as_dict=True).items(), total=df['user_id'].n_unique())    
+        for slice in tqdm(df.partition_by(by=['user_id']), total=df['user_id'].n_unique())    
     ])
     return df
 
-def build_embeddings_agg_scores(df: pl.DataFrame, agg_cols: list[str] = [], last_k: list[int] = []):
-    df = df.with_columns(
-        *[pl.col(col).list.eval(pl.element().list.mean()).name.suffix('_mean') for col in agg_cols],
-        *[pl.col(col).list.eval(pl.element().list.max()).name.suffix('_max') for col in agg_cols],
-        *[pl.col(col).list.eval(pl.element().list.min()).name.suffix('_min') for col in agg_cols],
-        *[pl.col(col).list.eval(pl.element().list.std()).name.suffix('_std') for col in agg_cols],
-        *[pl.col(col).list.eval(pl.element().list.median()).name.suffix('_median') for col in agg_cols],
-    )
-    
-    if len(last_k) > 0:
-        df = df.with_columns(
-            *[pl.col(col).list.eval(pl.element().list.tail(k).list.mean()).name.suffix(f'_mean_tail_{k}') for col in agg_cols for k in last_k],
-            *[pl.col(col).list.eval(pl.element().list.tail(k).list.max()).name.suffix(f'_max_tail_{k}') for col in agg_cols for k in last_k],
-            *[pl.col(col).list.eval(pl.element().list.tail(k).list.min()).name.suffix(f'_min_tail_{k}') for col in agg_cols for k in last_k],
-            *[pl.col(col).list.eval(pl.element().list.tail(k).list.std()).name.suffix(f'_std_tail_{k}') for col in agg_cols for k in last_k],
-            *[pl.col(col).list.eval(pl.element().list.tail(k).list.median()).name.suffix(f'_median_tail_{k}') for col in agg_cols for k in last_k],
+def build_embeddings_agg_scores(df: pl.DataFrame, agg_cols: list[str] = [], last_k: list[int] = [], batch_size:int=50000):
+    df = pl.concat([
+        slice.with_columns(
+            *[pl.col(col).list.eval(pl.element().list.mean()).name.suffix('_mean') for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.max()).name.suffix('_max') for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.min()).name.suffix('_min') for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.std()).name.suffix('_std') for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.median()).name.suffix('_median') for col in agg_cols],
         )
+        for slice in tqdm(df.iter_slices(batch_size), total=df.shape[0] // batch_size)
+    ])    
+    if len(last_k) > 0:
+        df = pl.concat([
+            slice.with_columns(
+                *[pl.col(col).list.eval(pl.element().list.tail(k).list.mean()).name.suffix(f'_mean_tail_{k}') for col in agg_cols for k in last_k],
+                *[pl.col(col).list.eval(pl.element().list.tail(k).list.max()).name.suffix(f'_max_tail_{k}') for col in agg_cols for k in last_k],
+                *[pl.col(col).list.eval(pl.element().list.tail(k).list.min()).name.suffix(f'_min_tail_{k}') for col in agg_cols for k in last_k],
+                *[pl.col(col).list.eval(pl.element().list.tail(k).list.std()).name.suffix(f'_std_tail_{k}') for col in agg_cols for k in last_k],
+                *[pl.col(col).list.eval(pl.element().list.tail(k).list.median()).name.suffix(f'_median_tail_{k}') for col in agg_cols for k in last_k],
+            )
+            for slice in tqdm(df.iter_slices(batch_size), total=df.shape[0] // batch_size)    
+        ])
     return df

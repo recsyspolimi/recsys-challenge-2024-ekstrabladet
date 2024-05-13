@@ -68,18 +68,18 @@ def main(input_path, output_dir):
         n_slices = math.ceil(len(train_ds) / BATCH_SIZE)
         for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
             logging.info(f'Start building embeddings scores slice {i}...')
-            slice = build_embeddings_scores(slice, history_m, m_dict=norm_m_dict)
+            slice = build_embeddings_scores(slice, history_m=history_m, m_dict=norm_m_dict)
             
             logging.info(f'Weightening embeddings scores for slice {i} ...')
             slice = slice.join(history_w, on='user_id', how='left')
-            weight_cols = [col for col in slice.columns if col.endswith('_l1_w')]
+            weights_cols = [col for col in slice.columns if col.endswith('_l1_w')]
             scores_cols = [col for col in slice.columns if col.endswith('_scores')]
-            slice = weight_scores(slice, scores_col=scores_cols, weight_cols=weight_cols)         
+            slice = weight_scores(slice, scores_cols=scores_cols, weights_cols=weights_cols)         
             slice = reduce_polars_df_memory_size(slice)
 
             logging.info(f'Building embeddings scores slice {i} aggregations...')
             agg_cols = [col for col in slice.columns if '_scores' in col]
-            slice = build_embeddings_agg_scores(slice, agg_cols=agg_cols, last_k=[5, 10, 20])
+            slice = build_embeddings_agg_scores(slice, agg_cols=agg_cols, last_k=[5])
             
             logging.info(f'Saving embeddings scores slice {i} aggregations to {save_path}')
             slice = reduce_polars_df_memory_size(slice)
