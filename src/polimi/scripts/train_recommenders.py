@@ -15,7 +15,7 @@ def main(urm_path: Path, models: str, urm_split: str ,output_dir: Path, urm_type
     logging.info(f"Loading the URM from {urm_path}")
     URM_train = load_sparse_csr(Path(os.path.join(urm_path, f'URM_{urm_split}.npz')))
     
-    output_dir = output_dir.joinpath(urm_type).joinpath(dataset_type)
+    output_dir = output_dir.joinpath(urm_type).joinpath(dataset_type).joinpath(urm_split)
     models_list = models.split()
     algo_dict = {}
     

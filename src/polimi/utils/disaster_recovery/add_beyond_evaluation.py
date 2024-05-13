@@ -2,11 +2,12 @@ import polars as pl
 import numpy as np
 from ebrec.utils._python import write_submission_file
 from pathlib import Path
+from polars import testing
 import os
 
 ORIGINAL_PATH = '/home/ubuntu/dataset/ebnerd_testset/test/behaviors.parquet'
-SUBMISSION = '/home/ubuntu/experiments/Inference_Test_2024-05-05_12-12-59/predictions.parquet'
-OUT_PATH = '/home/ubuntu/tmp'
+SUBMISSION = '/home/ubuntu/experiments/Inference_Test_2024-05-10_16-38-08/predictions.parquet'
+OUT_PATH = '/home/ubuntu/experiments/Inference_Test_2024-05-10_16-38-08'
 
 if __name__ == '__main__':
     sub = pl.read_parquet(SUBMISSION)
@@ -30,13 +31,14 @@ if __name__ == '__main__':
     
     modified = pl.concat([ordered_predictions.filter(pl.col('impression_id') != 0),ordered_predictions.filter(pl.col('impression_id') == 0).with_columns(new_col)], how='vertical_relaxed')
     
+    testing.assert_frame_equal(ordered_predictions.filter(pl.col('impression_id')!= 0), modified.filter(pl.col('impression_id')!= 0))
+    testing.assert_frame_equal(behaviors.select(['impression_id', 'user_id']), modified.select(['impression_id', 'user_id']))
+    
     assert ordered_predictions.filter(pl.col('impression_id')!= 0).equals(modified.filter(pl.col('impression_id')!= 0))
     assert ordered_predictions.select(['impression_id', 'user_id']).equals(modified.select(['impression_id', 'user_id']))
     assert ordered_predictions.shape == modified.shape
     print(behaviors.shape)
     print(modified.shape)
-    assert modified.shape == behaviors.shape 
-
     print(modified)
     
     write_submission_file(modified['impression_id'].to_list(),

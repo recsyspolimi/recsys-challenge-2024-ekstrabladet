@@ -176,11 +176,6 @@ algo_dict_ner = {
 }
 
 algo_dict_recsys = {
-    SLIMElasticNetRecommender: {
-        'params': {'alpha': 0.047107928170509114, 'l1_ratio': 0.028917204211745425, 'topK': 479},
-        'study_name': 'MultiThreadSLIM_SLIMElasticNetRecommender-recsys-small-ndcg100_new',
-        'load': False
-    },
     SLIM_BPR_Cython: {
         'params': {'topK': 45, 'symmetric': True, 'lambda_i': 0.0015099932905612715, 'lambda_j': 0.0023178589178914234, 'learning_rate': 0.0015923690992811813},
         'study_name': 'SLIM_BPR_Cython-recsys-small-ndcg100_new',
@@ -200,11 +195,6 @@ algo_dict_recsys = {
     RP3betaRecommender: {
         'params': {'topK': 797, 'normalize_similarity': True, 'alpha': 1.892317046771731, 'beta': 0.06992786797723574},
         'study_name': 'RP3betaRecommender-recsys-small-ndcg100_new',
-        'load': False
-    },
-    UserKNNCFRecommender: {
-        'params': {'similarity': 'euclidean', 'topK': 1997, 'shrink': 113, 'normalize_avg_row': False, 'similarity_from_distance_mode': 'lin'},
-        'study_name': 'UserKNNCFRecommender-recsys-small-ndcg100_new',
         'load': False
     },
     PureSVDRecommender: {
