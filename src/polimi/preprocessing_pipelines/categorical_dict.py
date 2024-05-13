@@ -17,6 +17,10 @@ CATEGORICAL_COLUMNS = {
     '147f': ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
                            'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory'],
+    # last version has also postcode and article_type
+    'new': ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
+            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
+            'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory', 'article_type', 'postcode'],
     'latest': ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
                            'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory']
