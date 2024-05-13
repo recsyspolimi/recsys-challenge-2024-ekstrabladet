@@ -320,8 +320,8 @@ def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, arti
                     pl.col('trendiness_score_3d').max().over(pl.col('impression_time').dt.date())
                 ).alias('normalized_trendiness_score_overall'),
             ).join(behaviors.select(['impression_id', 'user_id', 'postcode']), on=['impression_id', 'user_id'], how='left')
-            .join(articles.select(['article_id', 'total_pageviews', 'total_inviews', 
-                                   'total_read_time', 'article_type']).with_columns(pl.col('article_id').cast(pl.Int32)),
+            .join(articles.select(['article_id', 'total_pageviews', 'total_inviews', 'total_read_time', 
+                                   'total_pageviews/inviews', 'article_type']).with_columns(pl.col('article_id').cast(pl.Int32)),
                   left_on='article', right_on='article_id', how='left')
         for rows in tqdm(df_features.iter_slices(20000), total=df_features.shape[0] // 20000))
 
