@@ -190,7 +190,7 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
     behaviors=behaviors.filter(pl.col('impression_time')!= 0), period="20h")
 
     print('Preprocessing leak count features')
-    history_counts,behaviors_counts = _preprocessing_leak_counts(history=history,behaviors=behaviors)
+    history_counts,behaviors_counts = _preprocessing_leak_counts(history=history,behaviors=behaviors.filter(pl.col('impression_time')!= 0))
 
     if previous_version is None:
         print('Computing topic model...')
