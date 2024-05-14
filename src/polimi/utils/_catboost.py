@@ -1312,3 +1312,12 @@ def add_trendiness_feature_leak(df_features: pl.DataFrame, articles: pl.DataFram
     ).drop(
         [f"{topic}_present" for topic in topics]
     ).drop(["topics", "impression_date","published_date"])
+
+def _preprocessing_leak_counts(history, behaviors):
+    history_counts=history.select(['article_id_fixed']).explode('article_id_fixed').group_by('article_id_fixed').len() \
+    .rename({'article_id_fixed':'article','len':'clicked_count'})
+
+    behaviors_counts=behaviors.select('article_ids_inview').explode('article_ids_inview').group_by('article_ids_inview').len() \
+    .rename({'article_ids_inview':'article','len':'inview_count'})
+
+    return history_counts, behaviors_counts

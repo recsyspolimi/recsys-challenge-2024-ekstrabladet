@@ -19,7 +19,10 @@ from polimi.utils._catboost import (
     add_trendiness_feature,
     _preprocessing_article_endorsement_feature_by_article_and_user,
     _preprocessing_normalize_endorsement_by_article_and_user,
-    add_article_endorsement_feature_by_article_and_user
+    add_article_endorsement_feature_by_article_and_user,
+    _preprocessing_leak_counts,
+    add_article_endorsement_feature_leak,
+    add_trendiness_feature_leak
 
 )
 from polimi.utils._topic_model import _compute_topic_model, add_topic_model_features
@@ -99,6 +102,9 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     print('Preprocessing article endorsement by article and user feature...')
     articles_endorsement_articleuser = _preprocessing_article_endorsement_feature_by_article_and_user(
     behaviors=behaviors, period="20h")
+
+    print('Preprocessing leak count features')
+    history_counts,behaviors_counts = _preprocessing_leak_counts(history=history,behaviors=behaviors)
     
     if previous_version is None:
         print('Computing topic model...')
@@ -149,7 +155,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         else:
             slice_features = sliced_df
             
-        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm)
+        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm,history_counts=history_counts,behaviors_counts=behaviors_counts)
         if df_features is None:
             df_features = inflate_polars_df(slice_features)
         else:
@@ -177,6 +183,9 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
     print('Preprocessing article endorsement by article and user feature...')
     articles_endorsement_articleuser = _preprocessing_article_endorsement_feature_by_article_and_user(
     behaviors=behaviors.filter(pl.col('impression_time')!= 0), period="20h")
+
+    print('Preprocessing leak count features')
+    history_counts,behaviors_counts = _preprocessing_leak_counts(history=history,behaviors=behaviors)
 
     if previous_version is None:
         print('Computing topic model...')
@@ -225,7 +234,7 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
                                                   user_category_windows=user_category_windows, user_topics_windows=user_topics_windows, articles_endorsement=articles_endorsement,
                                                   topic_model_columns=topic_model_columns, n_components=n_components)
 
-        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm)
+        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm,history_counts=history_counts,behaviors_counts=behaviors_counts)
         if df_features is None:
             df_features = inflate_polars_df(slice_features)
         else:
@@ -249,6 +258,9 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     
     articles_endorsement_articleuser = _preprocessing_article_endorsement_feature_by_article_and_user(
     behaviors=behaviors, period="20h")
+
+    print('Preprocessing leak count features')
+    history_counts,behaviors_counts = _preprocessing_leak_counts(history=history,behaviors=behaviors)
 
     if previous_version is None:
         articles, topic_model_columns, n_components = _compute_topic_model(
@@ -288,7 +300,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
 
 
     
-    df_features = _build_new_features(df_features, articles, articles_endorsement,articles_endorsement_articleuser_norm)
+    df_features = _build_new_features(df_features, articles, articles_endorsement,articles_endorsement_articleuser_norm,history_counts=history_counts,behaviors_counts=behaviors_counts)
     df_features = _build_normalizations(df_features)
     return reduce_polars_df_memory_size(df_features), vectorizer, unique_entities
 
@@ -317,19 +329,29 @@ def _build_v127_features(df_features: pl.DataFrame, history: pl.DataFrame, artic
     return reduce_polars_df_memory_size(df_features)
 
 
-def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, articles_endorsement: pl.DataFrame,articles_endorsement_articleuser:pl.DataFrame):
+def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, articles_endorsement: pl.DataFrame,
+                        articles_endorsement_articleuser:pl.DataFrame,history_counts:pl.DataFrame, behaviors_counts: pl.DataFrame):
     '''
     articles_endorsement must be without the col endorsment_10, only the normalizations are added in this version
     trendiness_score must be already present in the features dataframe (it will be renamed to trendiness_score_3d)
     '''
     df_features = pl.concat(
         rows.pipe(add_article_endorsement_feature, articles_endorsement=articles_endorsement)
-            .pipe(add_article_endorsement_feature_by_article_and_user, articles_endorsement = articles_endorsement_articleuser)
+            .pipe(add_article_endorsement_feature_by_article_and_user, articles_endorsement_articleuser = articles_endorsement_articleuser)
+            .pipe(add_article_endorsement_feature_leak, articles_endorsement = articles_endorsement)
+            .rename({
+                "endorsement_10h_diff_rolling_right":"endorsement_10h_leak_diff_rolling",
+                "endorsement_macd_right":"endorsement_leak_macd",
+                "endorsement_quantile_norm_10h_right":"endorsement_quantile_norm_10h_leak",
+                "normalized_endorsement_10h_rolling_max_ratio_right":"normalized_endorsement_10h_leak_rolling_max_ratio"
+            })
             .rename({'trendiness_score': 'trendiness_score_3d'})
             .pipe(add_trendiness_feature, articles=articles, period='1d')
             .rename({'trendiness_score': 'trendiness_score_1d'})
             .pipe(add_trendiness_feature, articles=articles, period='5d')
             .rename({'trendiness_score': 'trendiness_score_5d'})
+            .pipe(add_trendiness_feature_leak, articles=articles, period='3d')
+            .rename({'trendiness_score_leak':'trendiness_score_3d_leak'})
             .with_columns(
                 (
                     pl.col('trendiness_score_1d') / 
@@ -347,6 +369,8 @@ def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, arti
             .join(articles.select(['article_id', 'total_pageviews', 'total_inviews', 'total_read_time', 
                                    'total_pageviews/inviews', 'article_type']).with_columns(pl.col('article_id').cast(pl.Int32)),
                   left_on='article', right_on='article_id', how='left')
+            .join(history_counts, on='article',how='left')
+            .join(behaviors_counts , on='article', how='left')
         for rows in tqdm(df_features.iter_slices(20000), total=df_features.shape[0] // 20000))
 
     return reduce_polars_df_memory_size(df_features)
