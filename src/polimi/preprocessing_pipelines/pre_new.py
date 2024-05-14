@@ -17,6 +17,10 @@ from polimi.utils._catboost import (
     get_unique_categories,
     _preprocessing_normalize_endorsement,
     add_trendiness_feature,
+    _preprocessing_article_endorsement_feature_by_article_and_user,
+    _preprocessing_normalize_endorsement_by_article_and_user,
+    add_article_endorsement_feature_by_article_and_user
+
 )
 from polimi.utils._topic_model import _compute_topic_model, add_topic_model_features
 from polimi.utils._polars import reduce_polars_df_memory_size, inflate_polars_df
@@ -92,6 +96,10 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     articles_endorsement = _preprocessing_article_endorsement_feature(
         behaviors=behaviors, period="10h")
     
+    print('Preprocessing article endorsement by article and user feature...')
+    articles_endorsement_articleuser = _preprocessing_article_endorsement_feature_by_article_and_user(
+    behaviors=behaviors, period="20h")
+    
     if previous_version is None:
         print('Computing topic model...')
         articles, topic_model_columns, n_components = _compute_topic_model(
@@ -121,6 +129,8 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     articles_endorsement_norm = _preprocessing_normalize_endorsement(articles_endorsement, 'endorsement_10h')
     articles_endorsement_norm = articles_endorsement_norm.drop('endorsment_10h')
 
+    articles_endorsement_articleuser_norm = _preprocessing_normalize_endorsement_by_article_and_user(articles_endorsement_articleuser,'endorsement_20h_articleuser')
+
     print('Building features...')
     df_features = None
     i = 0
@@ -139,7 +149,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         else:
             slice_features = sliced_df
             
-        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm)
+        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm)
         if df_features is None:
             df_features = inflate_polars_df(slice_features)
         else:
@@ -163,6 +173,10 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
     print('Preprocessing article endorsement feature...')
     articles_endorsement = _preprocessing_article_endorsement_feature(
         behaviors=behaviors.filter(pl.col('impression_time')!= 0), period="10h")
+    
+    print('Preprocessing article endorsement by article and user feature...')
+    articles_endorsement_articleuser = _preprocessing_article_endorsement_feature_by_article_and_user(
+    behaviors=behaviors.filter(pl.col('impression_time')!= 0), period="20h")
 
     if previous_version is None:
         print('Computing topic model...')
@@ -190,6 +204,8 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
     articles_endorsement_norm = _preprocessing_normalize_endorsement(articles_endorsement, 'endorsement_10h')
     articles_endorsement_norm = articles_endorsement_norm.drop('endorsment_10h')
 
+    articles_endorsement_articleuser_norm = _preprocessing_normalize_endorsement_by_article_and_user(articles_endorsement_articleuser,'endorsement_20h_articleuser')
+
     df_features = None
     iterator = range(0,101) if previous_version is not None else behaviors.iter_slices(behaviors.shape[0] // n_batches)
     i = 0
@@ -209,7 +225,7 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
                                                   user_category_windows=user_category_windows, user_topics_windows=user_topics_windows, articles_endorsement=articles_endorsement,
                                                   topic_model_columns=topic_model_columns, n_components=n_components)
 
-        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm)
+        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm)
         if df_features is None:
             df_features = inflate_polars_df(slice_features)
         else:
@@ -230,6 +246,9 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     
     articles_endorsement = _preprocessing_article_endorsement_feature(
         behaviors=behaviors, period="10h")
+    
+    articles_endorsement_articleuser = _preprocessing_article_endorsement_feature_by_article_and_user(
+    behaviors=behaviors, period="20h")
 
     if previous_version is None:
         articles, topic_model_columns, n_components = _compute_topic_model(
@@ -264,8 +283,12 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     articles_endorsement = _preprocessing_normalize_endorsement(articles_endorsement, 'endorsement_10h')
     # dropping column endorsment_10h since it is already in the previous version
     articles_endorsement = articles_endorsement.drop('endorsment_10h')
+
+    articles_endorsement_articleuser_norm = _preprocessing_normalize_endorsement_by_article_and_user(articles_endorsement_articleuser,'endorsement_20h_articleuser')
+
+
     
-    df_features = _build_new_features(df_features, articles, articles_endorsement)
+    df_features = _build_new_features(df_features, articles, articles_endorsement,articles_endorsement_articleuser_norm)
     df_features = _build_normalizations(df_features)
     return reduce_polars_df_memory_size(df_features), vectorizer, unique_entities
 
@@ -294,13 +317,14 @@ def _build_v127_features(df_features: pl.DataFrame, history: pl.DataFrame, artic
     return reduce_polars_df_memory_size(df_features)
 
 
-def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, articles_endorsement: pl.DataFrame):
+def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, articles_endorsement: pl.DataFrame,articles_endorsement_articleuser:pl.DataFrame):
     '''
     articles_endorsement must be without the col endorsment_10, only the normalizations are added in this version
     trendiness_score must be already present in the features dataframe (it will be renamed to trendiness_score_3d)
     '''
     df_features = pl.concat(
         rows.pipe(add_article_endorsement_feature, articles_endorsement=articles_endorsement)
+            .pipe(add_article_endorsement_feature_by_article_and_user, articles_endorsement = articles_endorsement_articleuser)
             .rename({'trendiness_score': 'trendiness_score_3d'})
             .pipe(add_trendiness_feature, articles=articles, period='1d')
             .rename({'trendiness_score': 'trendiness_score_1d'})

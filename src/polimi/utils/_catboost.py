@@ -1151,6 +1151,31 @@ def add_article_endorsement_feature(df_features, articles_endorsement):
                          .join(articles_endorsement.rename({'impression_time' : 'rounded_impression_time'}), on=['article','rounded_impression_time'], how='left')\
                          .drop('rounded_impression_time')
 
+def _preprocessing_normalize_endorsement_by_article_and_user(articles_endorsement_articleuser_raw:pl.DataFrame,endorsement_col='endorsement_20h_articleuser' ):
+    return articles_endorsement_articleuser_raw.sort(by=['user_id','impression_time']).with_columns(
+        (
+            pl.col(endorsement_col) / 
+            pl.col(endorsement_col).sum().over(['user_id','impression_time'])
+        ).alias(f'normalized_{endorsement_col}'),
+        (
+            pl.col(endorsement_col) - 
+            pl.col(endorsement_col).rolling_mean(10, min_periods=1).over(['article','user_id'])
+        ).alias(f'{endorsement_col}_diff_rolling'),
+        (
+            pl.col(endorsement_col).rolling_mean(5, min_periods=1).over(['article','user_id']) - 
+            pl.col(endorsement_col).rolling_mean(10, min_periods=1).over(['article','user_id'])
+        ).alias(f'{endorsement_col}_macd'),
+        (
+            pl.col(endorsement_col) / 
+            pl.col(endorsement_col).quantile(0.8).over(['user_id','impression_time'])
+        ).alias(f'{endorsement_col}_quantile_norm')
+    ).with_columns(
+        (
+            pl.col(endorsement_col) / 
+            pl.col(endorsement_col).rolling_max(10, min_periods=1).over(['user_id','impression_time'])
+        ).alias(f'normalized_{endorsement_col}_rolling_max_ratio'),
+    )
+    
 
 def get_unique_categories(articles: pl.DataFrame):
     '''
