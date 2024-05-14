@@ -176,6 +176,11 @@ algo_dict_ner = {
 }
 
 algo_dict_recsys = {
+    UserKNNCFRecommender: {
+        'params': {'similarity': 'euclidean', 'topK': 1964, 'shrink': 203, 'normalize_avg_row': True, 'similarity_from_distance_mode': 'lin'},
+        'study_name': 'null',
+        'load': False,
+    },
     SLIM_BPR_Cython: {
         'params': {'topK': 45, 'symmetric': True, 'lambda_i': 0.0015099932905612715, 'lambda_j': 0.0023178589178914234, 'learning_rate': 0.0015923690992811813},
         'study_name': 'SLIM_BPR_Cython-recsys-small-ndcg100_new',
