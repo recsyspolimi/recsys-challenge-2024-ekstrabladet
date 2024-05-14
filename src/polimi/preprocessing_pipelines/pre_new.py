@@ -160,7 +160,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         else:
             slice_features = sliced_df
             
-        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm,history_counts=history_counts,behaviors_counts=behaviors_counts)
+        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm,history_counts,behaviors_counts)
         if df_features is None:
             df_features = inflate_polars_df(slice_features)
         else:
@@ -239,7 +239,7 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
                                                   user_category_windows=user_category_windows, user_topics_windows=user_topics_windows, articles_endorsement=articles_endorsement,
                                                   topic_model_columns=topic_model_columns, n_components=n_components)
 
-        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm,history_counts=history_counts,behaviors_counts=behaviors_counts)
+        slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm,history_counts,behaviors_counts)
         if df_features is None:
             df_features = inflate_polars_df(slice_features)
         else:
@@ -305,7 +305,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
 
 
     
-    df_features = _build_new_features(df_features, articles, articles_endorsement,articles_endorsement_articleuser_norm,history_counts=history_counts,behaviors_counts=behaviors_counts)
+    df_features = _build_new_features(df_features, articles, articles_endorsement,articles_endorsement_articleuser_norm,history_counts,behaviors_counts)
     df_features = _build_normalizations(df_features)
     return reduce_polars_df_memory_size(df_features), vectorizer, unique_entities
 
