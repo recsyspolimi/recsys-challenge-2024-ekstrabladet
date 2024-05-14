@@ -42,14 +42,17 @@ CATEGORICAL_COLUMNS = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 
 
 
 NORMALIZE_OVER_IMPRESSION_ID = [
-    'trendiness_score_3d', 'endorsement_10h', 'total_pageviews/inviews', 'mean_JS', 
-    'mean_topic_model_cosine', 'topics_cosine', 'article_delay_hours', 'total_pageviews',
-    'total_inviews', 'trendiness_score_category', 'std_JS', 'trendiness_score_5d', 'total_read_time'
+    'trendiness_score_3d','trendiness_score_5d', 'endorsement_10h', 
+    'total_pageviews/inviews', 'mean_JS','mean_topic_model_cosine', 'topics_cosine',
+    'article_delay_hours', 'total_pageviews','total_inviews', 'trendiness_score_category',
+    'std_JS', 'total_read_time', 'endorsement_10h_leak',"trendiness_score_3d_leak",
+    "clicked_count","inview_count",
 ]
 RANK_IMPRESSION_DESCENDING = [
-    'trendiness_score_3d', 'endorsement_10h', 'total_pageviews/inviews', 'mean_JS', 
-    'mean_topic_model_cosine', 'topics_cosine', 'total_pageviews', 'total_read_time',
-    'total_inviews', 'trendiness_score_category', 'trendiness_score_5d'
+    'trendiness_score_3d','trendiness_score_5d', 'endorsement_10h', 
+    'total_pageviews/inviews', 'mean_JS', 'mean_topic_model_cosine', 'topics_cosine',
+    'total_pageviews', 'total_read_time','total_inviews', 'trendiness_score_category',
+    'endorsement_10h_leak',"trendiness_score_3d_leak","clicked_count","inview_count"
 ]
 RANK_IMPRESSION_ASCENDING = [
     'article_delay_hours', 'std_JS', 'mean_topics_mean_delay_hours'
@@ -63,6 +66,8 @@ NORMALIZE_OVER_ARTICLE = [
 LIST_DIVERSITY = [
     'category', 'sentiment_label', 'article_type'
 ]
+NORMALIZE_OVER_ARTICLE_AND_USER_ID= ['endorsement_20h_articleuser']
+
 
 
 def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
@@ -388,6 +393,7 @@ def _build_normalizations(df_features: pl.DataFrame):
         get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='kurtosis', suffix_name='_impression'),
         get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='entropy', suffix_name='_impression'),
         get_diff_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', diff_type='median', suffix_name='_impression'),
-        get_list_diversity_expression(LIST_DIVERSITY, over='impression_id', suffix_name='_impression')
+        get_list_diversity_expression(LIST_DIVERSITY, over='impression_id', suffix_name='_impression'),
+        get_norm_expression(NORMALIZE_OVER_ARTICLE_AND_USER_ID, over=['article','user_id'], norm_type='infinity', suffix_name='_articleuser'),
     ], [])
     return reduce_polars_df_memory_size(df_features.with_columns(expressions))
