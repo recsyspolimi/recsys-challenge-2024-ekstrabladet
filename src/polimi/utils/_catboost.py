@@ -1254,3 +1254,61 @@ def add_article_endorsement_feature_by_article_and_user(df_features, articles_en
     return df_features.with_columns(pl.col('impression_time').dt.round('1m').alias('rounded_impression_time'))\
                          .join(articles_endorsement_articleuser.rename({'impression_time' : 'rounded_impression_time'}), on=['user_id','article','rounded_impression_time'], how='left')\
                          .drop('rounded_impression_time')
+
+def add_article_endorsement_feature_leak(df_features:pl.DataFrame, articles_endorsement:pl.DataFrame,period:str='10h'):
+    # old return df_features.join(other=articles_endorsement, on=["article", "impression_time"], how="left")
+    articles_endorsement = articles_endorsement.with_columns(pl.col('article').cast(pl.Int32)).rename({f'endorsement_{period}':f'endorsement_{period}_leak'}) \
+                            .with_columns(
+                                pl.col('impression_time') - pl.duration(hours=int(period[:-1]))
+                            ).sort('impression_time').set_sorted('impression_time')
+    
+    return df_features.with_columns(pl.col('impression_time').dt.round('1m').alias('rounded_impression_time'))\
+                        .sort('rounded_impression_time').set_sorted('rounded_impression_time') \
+                         .join_asof(articles_endorsement.rename({'impression_time' : 'rounded_impression_time'}),by='article', left_on='rounded_impression_time',right_on='rounded_impression_time', strategy='nearest')\
+                         .drop('rounded_impression_time') \
+                        .with_columns(
+                            pl.col(f'endorsement_{period}_leak').fill_null(0)
+                        )
+
+def add_trendiness_feature_leak(df_features: pl.DataFrame, articles: pl.DataFrame, period: str = "3d"):
+
+    topics = articles.select("topics").explode("topics").unique()
+    topics = [topic for topic in topics["topics"] if topic is not None]
+    # min_impression_time = df_features.select(pl.col("impression_time")).min().item()
+
+    # topics_total_publications= articles.filter(pl.col("published_time")< min_impression_time ).select("topics") \
+    # .explode("topics").group_by("topics").len()
+
+    topics_popularity = articles.select(["published_time", "topics"]).with_columns(
+        pl.col("published_time").dt.date().alias("published_date")
+    ).drop("published_time").group_by("published_date").agg(
+        pl.col("topics").flatten()
+    ).sort("published_date").set_sorted("published_date").upsample(time_column="published_date", every="1d") \
+        .rolling(index_column="published_date", period=period).agg(
+        [pl.col("topics").list.count_matches(topic).sum().alias(
+            f"{topic}_matches") for topic in topics]
+    )
+
+    return df_features.with_columns(
+        pl.col("impression_time").dt.date().alias("impression_date")
+    ).join(other=articles.select(["article_id", "topics"]), left_on="article", right_on="article_id", how="left") \
+        .with_columns(
+        [pl.col("topics").list.contains(topic).cast(
+            pl.Int8).alias(f"{topic}_present") for topic in topics]
+    ).sort('impression_date').set_sorted('impression_date') \
+    .join_asof(topics_popularity.with_columns(pl.col('published_date') + pl.duration(days=1) - pl.duration(days=int(period[:-1]))) \
+               .sort('published_date').set_sorted('published_date'),
+               left_on="impression_date", right_on="published_date", strategy="nearest") \
+        .with_columns(
+        [pl.col(f"{topic}_present").mul(pl.col(f"{topic}_matches")).alias(
+            f"trendiness_score_{topic}") for topic in topics]
+    ).with_columns(
+        pl.sum_horizontal([pl.col(f"trendiness_score_{topic}") for topic in topics]).alias(
+            "trendiness_score_leak"),
+    ).drop(
+        [f"trendiness_score_{topic}" for topic in topics]
+    ).drop(
+        [f"{topic}_matches" for topic in topics]
+    ).drop(
+        [f"{topic}_present" for topic in topics]
+    ).drop(["topics", "impression_date","published_date"])
