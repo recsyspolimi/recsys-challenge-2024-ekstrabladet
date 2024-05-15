@@ -4,7 +4,7 @@ import polars as pl
 import time
 from src.polimi.utils._polars import reduce_polars_df_memory_size
 from tqdm import tqdm
-
+import gc
 
 def GetMemUsage():
     pid = getpid()
@@ -58,8 +58,7 @@ def add_emotions_scores(df, history):
             [pl.col(f'emotion_{i}').mean().cast(pl.Float32).alias(f'user_emotion{i}') for i in range(embedding_len)])
         for rows in tqdm(history.iter_slices(20000), total=history.shape[0] // 20000)).lazy()
     
-    df = df.join(embedded_history, on = 'user_id')
-    return df.sink_parquet('/mnt/ebs_volume/tmp/tmp.parquet')
+    return embedded_history
 
 
 if __name__ == '__main__':
@@ -90,9 +89,6 @@ if __name__ == '__main__':
         .struct.rename_fields(['emotion_0', 'emotion_1', 'emotion_2', 'emotion_3', 'emotion_4', 'emotion_5']))\
         .unnest("emotion_scores")
 
-    val_ds = val_ds.join(emotion_emb.lazy(), left_on='article',
-                        right_on='article_id', how='left')
-
     print('Processed impressions')
 
     embedding_len = 6
@@ -101,27 +97,52 @@ if __name__ == '__main__':
             emotion_emb, left_on='article_id_fixed', right_on='article_id', how='left')
         .group_by('user_id').agg(
             [pl.col(f'emotion_{i}').mean().cast(pl.Float32).alias(f'user_emotion{i}') for i in range(embedding_len)])
-        for rows in tqdm(history_val.iter_slices(20000), total=history_val.shape[0] // 20000)).lazy()
-    
-    val_ds = val_ds.join(embedded_history, on = 'user_id')
-    
-    print('Processed click_time')
-    val_ds = add_emotions_scores(val_ds, history_val)
+        for rows in tqdm(history_val.iter_slices(20000), total=history_val.shape[0] // 20000))
 
-    print('Processed history')
+    print('Preprocessed history')
     # del emotion_emb
 
     # emb = pl.scan_parquet('/mnt/ebs_volume_2/click_predictors/validation_click_predictor.parquet')
     # emb_col = emb.drop(['user_id','article']).columns
+    print('Preprocessing Click-Predictors ...')
     emb = pl.scan_parquet('/mnt/ebs_volume/click_predictors/validation_click_predictor.parquet')
     emb_col = emb.drop(['user_id','article']).columns
-    normalized_emb = pl.concat( rows.join(emb, on=['user_id','article'], how='left').with_columns(
+    all_emb = val_ds_projection.lazy().join(emb.lazy(), on=['user_id','article'], how='left').collect()
+    print('Joined embeddings')
+    normalized_emb = all_emb.with_columns(
         *[(pl.col(col) / pl.col(col).max().over('user_id')) for col in emb_col],
         *[(pl.col(col) / pl.col(col).max().over('impression_id')).alias(f'imp_norm_{col}') for col in emb_col])
-        for rows in tqdm(val_ds_projection.partition_by('user_id'))).lazy()
-   
-    val_ds = val_ds.join(normalized_emb, on=['user_id','article'], how='left')
-    val_ds.sink_parquet('/mnt/ebs_volume/tmp/tmp.parquet')
-    # val_ds = val_ds.join(normalized_emb, on=['user_id','article'], how='left')
-    # print('Collecting ...')
-    # print(GetMemUsage())
+    
+    del emb,all_emb
+    gc.collect()
+    
+    print('Joining all the features')
+    val_ds = val_ds.join(normalized_emb.lazy(), on=['user_id','article','impression_id'], how='left')
+    val_ds = val_ds.join(embedded_history.lazy(), on = 'user_id')
+    val_ds = val_ds.join(emotion_emb.lazy(), left_on='article',
+                        right_on='article_id', how='left')
+    
+    #print('Sinking dataframe')
+    #val_ds.sink_parquet('/mnt/ebs_volume/tmp/tmp_2.parquet')
+    
+    print('Collecting ...')
+    ds_shape = val_ds.select('impression_id').collect().shape[0]
+    batch_len = ds_shape // 100
+    del normalized_emb, embedded_history, emotion_emb
+    gc.collect()
+    df = []
+    i = 0
+    df = None
+    print('Slicing ...')
+    for slices in tqdm(range(0, ds_shape, batch_len)):
+        print(f'Processing slice {i} ...')
+        if df is None:
+            df = val_ds.slice(slices, slices + batch_len).collect()
+        else :
+            df.vstack(val_ds.slice(slices, slices + batch_len).collect())
+        i += 1
+    
+    print('Writing ...')  
+    val_ds.write_parquet('/mnt/ebs_volume/tmp/tmp.parquet')
+    
+    print(GetMemUsage())
