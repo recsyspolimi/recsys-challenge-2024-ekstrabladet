@@ -88,7 +88,7 @@ if __name__ == '__main__':
     parser.add_argument("-dataset_type", choices=['train', 'validation', 'test'], default='train', type=str,
                         help="Specify the type of dataset: ['train', 'validation', 'test']")
     parser.add_argument("-preprocessing_version", default='latest', type=str,
-                        choices=['68f', '94f', '115f', '127f', '142f','147f', 'latest'],
+                        choices=['68f', '94f', '115f', '127f', '142f','147f','new', 'latest'],
                         help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','127f','latest']")
     parser.add_argument("-previous_version", default = None, type=str,
                         help="Specify the path of a previous version of the dataset to use as a reference for the new one. Default is None.\n YOU MUST GUARANTEE THE COMPATIBILITY BETWEEN VERSIONS. ")

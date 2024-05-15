@@ -429,14 +429,14 @@ def _build_normalizations_trials(df_features: pl.DataFrame):
         get_norm_expression(NORMALIZE_OVER_ARTICLE_AND_USER_ID, over=['article','user_id'], norm_type='infinity', suffix_name='_articleuser'),
     ], [])
     
-    print('Calculating impression_id normalizations')
+    logging.info('Calculating impression_id normalizations')
     df_features = df_features.with_columns(impression_norm_expressions)
     
-    print('Calculating impression_id stats')
+    logging.info('Calculating impression_id stats')
     df_features = df_features.with_columns(impression_stats_expressions)
     
-    print('Calculating impression_id ranks')
+    logging.info('Calculating impression_id ranks')
     df_features = df_features.with_columns(impression_rank_expressions)
     
-    print('Calculating user and article normalizations')
+    logging.info('Calculating user and article normalizations')
     return reduce_polars_df_memory_size(df_features.with_columns(user_article_expressions))
