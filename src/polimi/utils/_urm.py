@@ -230,7 +230,7 @@ def build_urm_ner_score_features(df: pl.DataFrame, ner_mapping: pl.DataFrame, re
     df = pl.concat([
             slice.with_columns(
                     *[pl.col('candidate_ner_index').list.eval(
-                        pl.element().list.eval(pl.element().replace(all_items, rec._compute_item_score(user_index)[0], default=None))
+                        pl.element().list.eval(pl.element().replace(all_items, rec._compute_item_score(user_index, all_items)[0, all_items], default=None))
                     ).alias(f"{rec.RECOMMENDER_NAME}_ner_scores") for rec in recs]
                 ).drop('user_index', 'candidate_ner_index')
         for user_index, slice in tqdm(df.partition_by(['user_index'], as_dict=True).items(), total=df['user_index'].n_unique())
@@ -242,8 +242,6 @@ def build_urm_ner_score_features(df: pl.DataFrame, ner_mapping: pl.DataFrame, re
             *[pl.col(col).list.eval(pl.element().list.sum()).alias(f'sum_{col}') for col in scores_cols],
             *[pl.col(col).list.eval(pl.element().list.max()).alias(f'max_{col}') for col in scores_cols],
             *[pl.col(col).list.eval(pl.element().list.mean()).alias(f'mean_{col}') for col in scores_cols],
-        ).with_columns(
-            pl.all().exclude(['impression_id', 'user_id', 'candidate_ids'] + scores_cols).list.eval(pl.element().truediv(pl.element().max()).fill_nan(0.0)), #inf norm
         ).drop(scores_cols)
         
     df = reduce_polars_df_memory_size(df)

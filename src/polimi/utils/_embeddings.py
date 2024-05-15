@@ -465,8 +465,8 @@ def build_history_w(history: pl.DataFrame, articles: pl.DataFrame):
         .with_columns(
             pl.col('read_time_fixed_article_len_ratio').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('read_time_fixed_article_len_ratio_l1_w'),
             pl.col('scroll_percentage_fixed_mmnorm').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('scroll_percentage_fixed_mmnorm_l1_w'),
-            pl.col('time_to_impression_hours_sqrt').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('time_to_impression_minutes_sqrt_l1_w'),
-            pl.col('time_to_impression_hours_inverse_sqrt').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('time_to_impression_inverse_sqrt_l1_w'),
+            pl.col('time_to_impression_hours_sqrt').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('time_to_impression_hours_sqrt_l1_w'),
+            pl.col('time_to_impression_hours_inverse_sqrt').list.eval(pl.element().truediv(pl.element().sum()).cast(pl.Float32)).alias('time_to_impression_hours_inverse_sqrt_l1_w'),
         )
     l1_w_cols = [col for col in history_w.columns if col.endswith('_l1_w')]
     history_w = history_w.select('user_id', *l1_w_cols)

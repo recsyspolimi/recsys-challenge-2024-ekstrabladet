@@ -33,7 +33,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.SLIM.Cython.SLIM_BPR_Cython import SLI
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.NMFRecommender import NMFRecommender
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from polimi.utils._custom import ALGORITHMS
-from polimi.utils._custom import load_sparse_csr, load_best_optuna_params, load_articles, load_behaviors, load_history, save_json
+from polimi.utils._custom import load_sparse_csr, load_best_optuna_params, load_articles, load_behaviors, load_history, save_json, read_json
 from polimi.utils._custom import load_sparse_csr, load_best_optuna_params, load_articles, load_behaviors, load_history, save_json
 from polimi.utils._urm import train_recommender, build_urm_ner_score_features, load_recommender
 import polars as pl
@@ -50,38 +50,26 @@ def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict):
     for rec, info in algo_dict.items():
         params = info['params']
         study_name = info['study_name']
-        
+           
         is_study_in_dir = f'{study_name}.zip' in os.listdir(rec_dir)
         is_load = 'load' in info and info['load']
         if is_load and is_study_in_dir:
+            params = read_json(rec_dir.joinpath(f'{study_name}_params.json'))
+            logging.info(f'Loading {rec} with params {params}...')
             rec_instance = load_recommender(URM, rec, rec_dir, file_name=study_name)
         else:
             if is_load and not is_study_in_dir:
-                print(f'Study {study_name} not found in {rec_dir}, loading params...')
+                logging.info(f'Study {study_name} not found in {rec_dir}, loading params...')
             if not params:
-                print(f'Params are missing, loading best params for {study_name}...')
+                logging.info(f'Params are missing, loading best params for {study_name}...')
                 params = load_best_optuna_params(study_name)
-                print(f'Loaded params: {params}')
-            
-            save_json(params, rec_dir.joinpath(f'{study_name}_params.json'))
-        
-        is_study_in_dir = f'{study_name}.zip' in os.listdir(rec_dir)
-        is_load = 'load' in info and info['load']
-        if is_load and is_study_in_dir:
-            rec_instance = load_recommender(URM, rec, rec_dir, file_name=study_name)
-        else:
-            if is_load and not is_study_in_dir:
-                print(f'Study {study_name} not found in {rec_dir}, loading params...')
-            if not params:
-                print(f'Params are missing, loading best params for {study_name}...')
-                params = load_best_optuna_params(study_name)
-                print(f'Loaded params: {params}')
+                logging.info(f'Loaded params: {params}')
             
             save_json(params, rec_dir.joinpath(f'{study_name}_params.json'))
             rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_dir) #also saves the model
             
         recs.append(rec_instance)
-    print(f'Loaded/Trained ner scores algorithms in {((time.time() - start_time)/60):.1f} minutes')
+    logging.info(f'Loaded/Trained ner scores algorithms in {((time.time() - start_time)/60):.1f} minutes')
     return recs
     
     
@@ -128,7 +116,7 @@ def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path)
     dtype = str(dataset_path).split('/')[-1]
     is_testset = dtype == 'ebnerd_testset'
     if is_testset:
-        splits = ['train']
+        splits = ['test']
         
     else:
         splits = ['train', 'validation']

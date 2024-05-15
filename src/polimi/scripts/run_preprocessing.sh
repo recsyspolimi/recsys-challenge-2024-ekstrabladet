@@ -4,12 +4,12 @@
 #   - run_train_recommenders.sh
 # da passare come parametri
 
-python ~/RecSysChallenge2024/src/polimi/scripts/batch_preprocessing.py \
-    -output_dir /home/ubuntu/experiments \
-    -dataset_path /home/ubuntu/dataset/ebnerd_testset \
-    -dataset_type test \
-    -previous_version /home/ubuntu/experiments/preprocessing_test_2024-04-25_10-03-50 \
-    -preprocessing_version 127f
+python ~/RecSysChallenge2024/src/polimi/scripts/batch_preprocessing_new.py \
+    -output_dir /mnt/ebs_volume/experiments \
+    -dataset_path /home/ubuntu/dataset/ebnerd_large \
+    -dataset_type train \
+    -previous_version /mnt/ebs_volume/preprocessing_train_2024-04-28_14-28-17/train_ds.parquet \
+    -preprocessing_version new
 
 wait 10
 
