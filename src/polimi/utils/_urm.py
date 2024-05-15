@@ -242,8 +242,6 @@ def build_urm_ner_score_features(df: pl.DataFrame, ner_mapping: pl.DataFrame, re
             *[pl.col(col).list.eval(pl.element().list.sum()).alias(f'sum_{col}') for col in scores_cols],
             *[pl.col(col).list.eval(pl.element().list.max()).alias(f'max_{col}') for col in scores_cols],
             *[pl.col(col).list.eval(pl.element().list.mean()).alias(f'mean_{col}') for col in scores_cols],
-        ).with_columns(
-            pl.all().exclude(['impression_id', 'user_id', 'candidate_ids'] + scores_cols).list.eval(pl.element().truediv(pl.element().max()).fill_nan(0.0)), #inf norm
         ).drop(scores_cols)
         
     df = reduce_polars_df_memory_size(df)
