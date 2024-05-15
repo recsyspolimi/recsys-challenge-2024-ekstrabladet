@@ -41,8 +41,6 @@ CATEGORICAL_COLUMNS = ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 
                        'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
                        'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory', 'article_type', 'postcode']
 
-
-
 NORMALIZE_OVER_IMPRESSION_ID = [
     'trendiness_score_3d','trendiness_score_5d', 'endorsement_10h', 
     'total_pageviews/inviews', 'mean_JS','mean_topic_model_cosine', 'topics_cosine',
@@ -69,7 +67,6 @@ LIST_DIVERSITY = [
     'category', 'sentiment_label', 'article_type'
 ]
 NORMALIZE_OVER_ARTICLE_AND_USER_ID= ['endorsement_20h_articleuser']
-
 
 
 def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
@@ -431,12 +428,15 @@ def _build_normalizations_trials(df_features: pl.DataFrame):
     
     logging.info('Calculating impression_id normalizations')
     df_features = df_features.with_columns(impression_norm_expressions)
+    df_features = reduce_polars_df_memory_size(df_features)
     
     logging.info('Calculating impression_id stats')
     df_features = df_features.with_columns(impression_stats_expressions)
+    df_features = reduce_polars_df_memory_size(df_features)
     
     logging.info('Calculating impression_id ranks')
     df_features = df_features.with_columns(impression_rank_expressions)
+    df_features = reduce_polars_df_memory_size(df_features)
     
     logging.info('Calculating user and article normalizations')
     return reduce_polars_df_memory_size(df_features.with_columns(user_article_expressions))
