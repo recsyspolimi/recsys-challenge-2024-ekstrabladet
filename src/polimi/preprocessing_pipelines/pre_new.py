@@ -28,6 +28,8 @@ from polimi.utils._catboost import (
 from polimi.utils._topic_model import _compute_topic_model, add_topic_model_features
 from polimi.utils._polars import reduce_polars_df_memory_size, inflate_polars_df
 from polimi.utils._norm_and_stats import *
+import gc
+import logging
 '''
 New features:
     - endorsement normalizations
@@ -146,7 +148,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     df_features = None
     i = 0
     for sliced_df in behaviors.iter_slices(behaviors.shape[0] // n_batches):
-        print(f'Preprocessing slice {i}')
+        logging.info(f'Preprocessing slice {i}')
         i += 1
         if previous_version is None:
             slice_features = sliced_df.pipe(_build_features_behaviors, history=history, articles=articles,
@@ -165,8 +167,14 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
             df_features = inflate_polars_df(slice_features)
         else:
             df_features = df_features.vstack(inflate_polars_df(slice_features))
+           
+        gc.collect()
 
-    df_features = _build_normalizations(df_features)
+    del behaviors, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm,history_counts,behaviors_counts
+    gc.collect()
+    
+    # df_features = _build_normalizations(df_features)
+    df_features = _build_normalizations_trials(df_features)
     return df_features, vectorizer, unique_entities
 
 
@@ -340,24 +348,24 @@ def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, arti
     articles_endorsement must be without the col endorsment_10, only the normalizations are added in this version
     trendiness_score must be already present in the features dataframe (it will be renamed to trendiness_score_3d)
     '''
-    df_features = pl.concat(
-        rows.pipe(add_article_endorsement_feature, articles_endorsement=articles_endorsement)
-            .pipe(add_article_endorsement_feature_by_article_and_user, articles_endorsement_articleuser = articles_endorsement_articleuser)
-            .pipe(add_article_endorsement_feature_leak, articles_endorsement = articles_endorsement)
+    df_features = df_features.pipe(add_article_endorsement_feature, articles_endorsement=articles_endorsement) \
+            .pipe(add_article_endorsement_feature_by_article_and_user, 
+                  articles_endorsement_articleuser = articles_endorsement_articleuser) \
+            .pipe(add_article_endorsement_feature_leak, articles_endorsement = articles_endorsement) \
             .rename({
                 "normalized_endorsement_10h_right":"normalized_endorsement_10h_leak",
                 "endorsement_10h_diff_rolling_right":"endorsement_10h_leak_diff_rolling",
                 "endorsement_10h_macd_right":"endorsement_10h_leak_macd",
                 "endorsement_10h_quantile_norm_right":"endorsement_10h_leak_quantile_norm",
                 "normalized_endorsement_10h_rolling_max_ratio_right":"normalized_endorsement_10h_leak_rolling_max_ratio"
-            })
-            .rename({'trendiness_score': 'trendiness_score_3d'})
-            .pipe(add_trendiness_feature, articles=articles, period='1d')
-            .rename({'trendiness_score': 'trendiness_score_1d'})
-            .pipe(add_trendiness_feature, articles=articles, period='5d')
-            .rename({'trendiness_score': 'trendiness_score_5d'})
-            .pipe(add_trendiness_feature_leak, articles=articles, period='3d')
-            .rename({'trendiness_score_leak':'trendiness_score_3d_leak'})
+            }) \
+            .rename({'trendiness_score': 'trendiness_score_3d'}) \
+            .pipe(add_trendiness_feature, articles=articles, period='1d') \
+            .rename({'trendiness_score': 'trendiness_score_1d'}) \
+            .pipe(add_trendiness_feature, articles=articles, period='5d') \
+            .rename({'trendiness_score': 'trendiness_score_5d'}) \
+            .pipe(add_trendiness_feature_leak, articles=articles, period='3d') \
+            .rename({'trendiness_score_leak':'trendiness_score_3d_leak'}) \
             .with_columns(
                 (
                     pl.col('trendiness_score_1d') / 
@@ -371,13 +379,12 @@ def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, arti
                     pl.col('trendiness_score_3d') / 
                     pl.col('trendiness_score_3d').max().over(pl.col('impression_time').dt.date())
                 ).alias('normalized_trendiness_score_overall'),
-            ).join(behaviors.select(['impression_id', 'user_id', 'postcode']), on=['impression_id', 'user_id'], how='left')
+            ).join(behaviors.select(['impression_id', 'user_id', 'postcode']), on=['impression_id', 'user_id'], how='left') \
             .join(articles.select(['article_id', 'total_pageviews', 'total_inviews', 'total_read_time', 
                                    'total_pageviews/inviews', 'article_type']).with_columns(pl.col('article_id').cast(pl.Int32)),
-                  left_on='article', right_on='article_id', how='left')
-            .join(history_counts, on='article',how='left')
+                  left_on='article', right_on='article_id', how='left') \
+            .join(history_counts, on='article',how='left') \
             .join(behaviors_counts , on='article', how='left')
-        for rows in tqdm(df_features.iter_slices(20000), total=df_features.shape[0] // 20000))
 
     return reduce_polars_df_memory_size(df_features)
 
@@ -398,3 +405,38 @@ def _build_normalizations(df_features: pl.DataFrame):
         get_norm_expression(NORMALIZE_OVER_ARTICLE_AND_USER_ID, over=['article','user_id'], norm_type='infinity', suffix_name='_articleuser'),
     ], [])
     return reduce_polars_df_memory_size(df_features.with_columns(expressions))
+
+
+def _build_normalizations_trials(df_features: pl.DataFrame):
+    impression_norm_expressions = sum([
+        get_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', norm_type='infinity', suffix_name='_impression'),
+        get_diff_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', diff_type='median', suffix_name='_impression'),
+    ], [])
+    impression_stats_expressions = sum([
+        get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='std', suffix_name='_impression'),
+        get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='skew', suffix_name='_impression'),
+        get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='kurtosis', suffix_name='_impression'),
+        get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='entropy', suffix_name='_impression'),
+        get_list_diversity_expression(LIST_DIVERSITY, over='impression_id', suffix_name='_impression'),
+    ], [])
+    impression_rank_expressions = sum([
+        get_list_rank_expression(RANK_IMPRESSION_ASCENDING, over='impression_id', suffix_name='_impression', descending=False),
+        get_list_rank_expression(RANK_IMPRESSION_DESCENDING, over='impression_id', suffix_name='_impression', descending=True),
+    ], [])    
+    user_article_expressions = sum([
+        get_norm_expression(NORMALIZE_OVER_USER_ID, over='user_id', norm_type='infinity', suffix_name='_user'),
+        get_norm_expression(NORMALIZE_OVER_ARTICLE, over='article', norm_type='infinity', suffix_name='_article'),
+        get_norm_expression(NORMALIZE_OVER_ARTICLE_AND_USER_ID, over=['article','user_id'], norm_type='infinity', suffix_name='_articleuser'),
+    ], [])
+    
+    print('Calculating impression_id normalizations')
+    df_features = df_features.with_columns(impression_norm_expressions)
+    
+    print('Calculating impression_id stats')
+    df_features = df_features.with_columns(impression_stats_expressions)
+    
+    print('Calculating impression_id ranks')
+    df_features = df_features.with_columns(impression_rank_expressions)
+    
+    print('Calculating user and article normalizations')
+    return reduce_polars_df_memory_size(df_features.with_columns(user_article_expressions))
