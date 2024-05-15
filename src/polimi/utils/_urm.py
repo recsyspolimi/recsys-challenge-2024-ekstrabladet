@@ -230,7 +230,7 @@ def build_urm_ner_score_features(df: pl.DataFrame, ner_mapping: pl.DataFrame, re
     df = pl.concat([
             slice.with_columns(
                     *[pl.col('candidate_ner_index').list.eval(
-                        pl.element().list.eval(pl.element().replace(all_items, rec._compute_item_score(user_index)[0], default=None))
+                        pl.element().list.eval(pl.element().replace(all_items, rec._compute_item_score(user_index, all_items)[0, all_items], default=None))
                     ).alias(f"{rec.RECOMMENDER_NAME}_ner_scores") for rec in recs]
                 ).drop('user_index', 'candidate_ner_index')
         for user_index, slice in tqdm(df.partition_by(['user_index'], as_dict=True).items(), total=df['user_index'].n_unique())
