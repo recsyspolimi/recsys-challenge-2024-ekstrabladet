@@ -345,9 +345,10 @@ def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, arti
             .pipe(add_article_endorsement_feature_by_article_and_user, articles_endorsement_articleuser = articles_endorsement_articleuser)
             .pipe(add_article_endorsement_feature_leak, articles_endorsement = articles_endorsement)
             .rename({
+                "normalized_endorsement_10h_right":"normalized_endorsement_10h_leak",
                 "endorsement_10h_diff_rolling_right":"endorsement_10h_leak_diff_rolling",
-                "endorsement_macd_right":"endorsement_leak_macd",
-                "endorsement_quantile_norm_10h_right":"endorsement_quantile_norm_10h_leak",
+                "endorsement_10h_macd_right":"endorsement_10h_leak_macd",
+                "endorsement_10h_quantile_norm_right":"endorsement_10h_leak_quantile_norm",
                 "normalized_endorsement_10h_rolling_max_ratio_right":"normalized_endorsement_10h_leak_rolling_max_ratio"
             })
             .rename({'trendiness_score': 'trendiness_score_3d'})
