@@ -59,10 +59,10 @@ def main(input_path, output_dir, preprocessing_version='latest', n_folds=5,
         user_info_train = pl.from_pandas(user_info.iloc[train_idx])
         user_info_val = pl.from_pandas(user_info.iloc[test_idx])
         
-        behaviors_train_train = user_info_train.join(behaviors_train, on=['user_id_concat', 'impression_id_concat'], how='left')
-        behaviors_train_val = user_info_val.join(behaviors_train, on=['user_id_concat', 'impression_id_concat'], how='left')
-        behaviors_val_train = user_info_train.join(behaviors_val, on=['user_id_concat', 'impression_id_concat'], how='left')
-        behaviors_val_val = user_info_val.join(behaviors_val, on=['user_id_concat', 'impression_id_concat'], how='left')
+        behaviors_train_train = user_info_train.join(behaviors_train, on=['user_id_concat', 'impression_id_concat'], how='inner')
+        behaviors_train_val = user_info_val.join(behaviors_train, on=['user_id_concat', 'impression_id_concat'], how='inner')
+        behaviors_val_train = user_info_train.join(behaviors_val, on=['user_id_concat', 'impression_id_concat'], how='inner')
+        behaviors_val_val = user_info_val.join(behaviors_val, on=['user_id_concat', 'impression_id_concat'], how='inner')
         
         features_train_train, _, unique_entities = PREPROCESSING[preprocessing_version](
             behaviors_train_train, history_train, articles, test=False, sample=False, previous_version=None,
