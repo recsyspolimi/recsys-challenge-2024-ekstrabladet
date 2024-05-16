@@ -90,8 +90,8 @@ def main(input_path, output_dir, preprocessing_version='latest', n_folds=5,
             urm_path=urm_path, ners_models_path=ners_models_path, split_type='validation', output_path=output_dir, 
             recsys_models_path=recsys_models_path, recsys_urm_path=recsys_urm_path)
         
-        features_train = pl.concat([features_train_train, features_val_train])
-        features_val = pl.concat([features_train_val, features_val_val])
+        features_train = pl.concat([features_train_train, features_val_train], how='diagonal_relaxed')
+        features_val = pl.concat([features_train_val, features_val_val], how='diagonal_relaxed')
         
         features_train.write_parquet(os.path.join(fold_path, f'train_ds.parquet'))
         features_val.write_parquet(os.path.join(fold_path, f'validation_ds.parquet'))
