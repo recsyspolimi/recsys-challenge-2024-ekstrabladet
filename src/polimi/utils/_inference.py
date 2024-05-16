@@ -2,6 +2,7 @@ import pandas as pd
 import polars as pl
 import numpy as np
 import gc
+from tqdm import tqdm
 
 
 def _batch_predict(model, X, batch_size=None):
@@ -9,11 +10,14 @@ def _batch_predict(model, X, batch_size=None):
         return model.predict_proba(X)[:, 1]
     start_idx = 0
     predictions = np.empty((0,), dtype=np.float32)
-    while start_idx < X.shape[0]:
-        end_idx = start_idx + batch_size
-        predictions = np.concatenate(
-            [predictions, model.predict_proba(X.iloc[start_idx:end_idx])[:, 1]])
-        start_idx = end_idx
+    with tqdm(total=X.shape[0] // batch_size) as pbar:
+        while start_idx < X.shape[0]:
+            end_idx = start_idx + batch_size
+            predictions = np.concatenate(
+                [predictions, model.predict_proba(X.iloc[start_idx:end_idx])[:, 1]])
+            start_idx = end_idx
+            pbar.update(1)
+            gc.collect()
     return predictions
 
 

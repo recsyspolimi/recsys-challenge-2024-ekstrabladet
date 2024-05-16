@@ -38,14 +38,17 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
 
     model = joblib.load(model_path)
 
-    if dataset_name == 'validation':
-        evaluation_ds = _inference(os.path.join(
+    evaluation_ds = _inference(os.path.join(
             dataset_path, f'{dataset_name}_ds.parquet'), data_info, model, eval, batch_size)
-    else:
-        evaluation_ds = pl.concat(
-            [_inference(os.path.join(dataset_path, f'Sliced_ds/test_slice_{i}.parquet'), data_info, model, eval, batch_size)
-             for i in tqdm.tqdm(range(0, 101))], how='vertical_relaxed'
-        )
+    
+    # if dataset_name == 'validation':
+    #     evaluation_ds = _inference(os.path.join(
+    #         dataset_path, f'{dataset_name}_ds.parquet'), data_info, model, eval, batch_size)
+    # else:
+    #     evaluation_ds = pl.concat(
+    #         [_inference(os.path.join(dataset_path, f'Sliced_ds/test_slice_{i}.parquet'), data_info, model, eval, batch_size)
+    #          for i in tqdm.tqdm(range(0, 101))], how='vertical_relaxed'
+    #     )
 
     max_impression = evaluation_ds.select(
         pl.col('impression_id').max()).item(0, 0)
