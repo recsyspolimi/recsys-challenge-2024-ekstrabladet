@@ -135,6 +135,8 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     print('Reading old features...')
     if previous_version is not None:
         behaviors = pl.read_parquet(previous_version)
+        if 'impression_time' not in behaviors.columns:
+            behaviors = behaviors.join(old_behaviors.select(['impression_id', 'impression_time']), on='impression_id', how='left')
         
     articles_endorsement_norm = _preprocessing_normalize_endorsement(articles_endorsement, 'endorsement_10h')
     articles_endorsement_norm = articles_endorsement_norm.drop('endorsment_10h')
@@ -171,7 +173,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     gc.collect()
     
     # df_features = _build_normalizations(df_features)
-    df_features = _build_normalizations_trials(df_features)
+    df_features = _build_normalizations_blocks(df_features)
     return df_features, vectorizer, unique_entities
 
 
@@ -249,8 +251,13 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
             df_features = inflate_polars_df(slice_features)
         else:
             df_features = df_features.vstack(inflate_polars_df(slice_features))
+            
+        gc.collect()
 
-    df_features = _build_normalizations(df_features)
+    del behaviors, old_behaviors, articles, articles_endorsement_norm, articles_endorsement_articleuser_norm, history_counts, behaviors_counts
+    gc.collect()
+
+    df_features = _build_normalizations_blocks(df_features)
     return df_features, vectorizer, unique_entities
 
 
@@ -307,8 +314,6 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     articles_endorsement = articles_endorsement.drop('endorsment_10h')
 
     articles_endorsement_articleuser_norm = _preprocessing_normalize_endorsement_by_article_and_user(articles_endorsement_articleuser,'endorsement_20h_articleuser')
-
-
     
     df_features = _build_new_features(df_features, articles, articles_endorsement,articles_endorsement_articleuser_norm,history_counts,behaviors_counts)
     df_features = _build_normalizations(df_features)
@@ -404,7 +409,7 @@ def _build_normalizations(df_features: pl.DataFrame):
     return reduce_polars_df_memory_size(df_features.with_columns(expressions))
 
 
-def _build_normalizations_trials(df_features: pl.DataFrame):
+def _build_normalizations_blocks(df_features: pl.DataFrame):
     impression_norm_expressions = sum([
         get_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', norm_type='infinity', suffix_name='_impression'),
         get_diff_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', diff_type='median', suffix_name='_impression'),
