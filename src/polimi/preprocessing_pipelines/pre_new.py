@@ -410,38 +410,23 @@ def _build_normalizations(df_features: pl.DataFrame):
 
 
 def _build_normalizations_blocks(df_features: pl.DataFrame):
-    impression_norm_expressions = sum([
+    expressions = [
         get_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', norm_type='infinity', suffix_name='_impression'),
-        get_diff_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', diff_type='median', suffix_name='_impression'),
-    ], [])
-    impression_stats_expressions = sum([
+        get_list_rank_expression(RANK_IMPRESSION_ASCENDING, over='impression_id', suffix_name='_impression', descending=False),
+        get_list_rank_expression(RANK_IMPRESSION_DESCENDING, over='impression_id', suffix_name='_impression', descending=True),
+        get_norm_expression(NORMALIZE_OVER_USER_ID, over='user_id', norm_type='infinity', suffix_name='_user'),
+        get_norm_expression(NORMALIZE_OVER_ARTICLE, over='article', norm_type='infinity', suffix_name='_article'),
         get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='std', suffix_name='_impression'),
         get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='skew', suffix_name='_impression'),
         get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='kurtosis', suffix_name='_impression'),
         get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='entropy', suffix_name='_impression'),
+        get_diff_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', diff_type='median', suffix_name='_impression'),
         get_list_diversity_expression(LIST_DIVERSITY, over='impression_id', suffix_name='_impression'),
-    ], [])
-    impression_rank_expressions = sum([
-        get_list_rank_expression(RANK_IMPRESSION_ASCENDING, over='impression_id', suffix_name='_impression', descending=False),
-        get_list_rank_expression(RANK_IMPRESSION_DESCENDING, over='impression_id', suffix_name='_impression', descending=True),
-    ], [])    
-    user_article_expressions = sum([
-        get_norm_expression(NORMALIZE_OVER_USER_ID, over='user_id', norm_type='infinity', suffix_name='_user'),
-        get_norm_expression(NORMALIZE_OVER_ARTICLE, over='article', norm_type='infinity', suffix_name='_article'),
         get_norm_expression(NORMALIZE_OVER_ARTICLE_AND_USER_ID, over=['article','user_id'], norm_type='infinity', suffix_name='_articleuser'),
-    ], [])
+    ]
     
-    logging.info('Calculating impression_id normalizations')
-    df_features = df_features.with_columns(impression_norm_expressions)
-    df_features = reduce_polars_df_memory_size(df_features)
-    
-    logging.info('Calculating impression_id stats')
-    df_features = df_features.with_columns(impression_stats_expressions)
-    df_features = reduce_polars_df_memory_size(df_features)
-    
-    logging.info('Calculating impression_id ranks')
-    df_features = df_features.with_columns(impression_rank_expressions)
-    df_features = reduce_polars_df_memory_size(df_features)
-    
-    logging.info('Calculating user and article normalizations')
-    return reduce_polars_df_memory_size(df_features.with_columns(user_article_expressions))
+    for expressions_group in tqdm(expressions):
+        df_features = df_features.with_columns(expressions_group)
+        df_features = reduce_polars_df_memory_size(df_features)
+        
+    return df_features
