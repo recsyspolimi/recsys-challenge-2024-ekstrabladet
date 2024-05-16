@@ -315,7 +315,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
 
     articles_endorsement_articleuser_norm = _preprocessing_normalize_endorsement_by_article_and_user(articles_endorsement_articleuser,'endorsement_20h_articleuser')
     
-    df_features = _build_new_features(df_features, articles, articles_endorsement,articles_endorsement_articleuser_norm,history_counts,behaviors_counts)
+    df_features = _build_new_features(df_features, behaviors, articles, articles_endorsement, articles_endorsement_articleuser_norm, history_counts, behaviors_counts)
     df_features = _build_normalizations(df_features)
     return reduce_polars_df_memory_size(df_features), vectorizer, unique_entities
 

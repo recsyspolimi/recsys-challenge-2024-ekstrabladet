@@ -40,17 +40,23 @@ def main(input_path, output_dir, preprocessing_version='latest', n_folds=5,
     # even if users have the same id in the train and val, they are considered two "different" users
     # since a different history is used for them
     behaviors_train = behaviors_train.with_columns(
-        pl.concat_str([pl.col('user_id').cast(pl.String), pl.lit('1')], separator='_').alias('user_id_concat'),
-        pl.concat_str([pl.col('impression_id').cast(pl.String), pl.lit('1')], separator='_').alias('impression_id_concat'),
+        pl.concat_str([pl.col('user_id').cast(pl.String), pl.lit('1')], separator='_').alias('user_id'),
+        pl.concat_str([pl.col('impression_id').cast(pl.String), pl.lit('1')], separator='_').alias('impression_id'),
+    )
+    history_train = history_train.with_columns(
+        pl.concat_str([pl.col('user_id').cast(pl.String), pl.lit('1')], separator='_').alias('user_id')
     )
     behaviors_val = behaviors_val.with_columns(
-        pl.concat_str([pl.col('user_id').cast(pl.String), pl.lit('2')], separator='_').alias('user_id_concat'),
-        pl.concat_str([pl.col('impression_id').cast(pl.String), pl.lit('2')], separator='_').alias('impression_id_concat'),
+        pl.concat_str([pl.col('user_id').cast(pl.String), pl.lit('2')], separator='_').alias('user_id'),
+        pl.concat_str([pl.col('impression_id').cast(pl.String), pl.lit('2')], separator='_').alias('impression_id'),
     )
-    user_info = pl.concat([behaviors_train.select(['user_id_concat', 'impression_id_concat']), 
-                           behaviors_val.select(['user_id_concat', 'impression_id_concat'])]).to_pandas()
+    history_val = history_val.with_columns(
+        pl.concat_str([pl.col('user_id').cast(pl.String), pl.lit('2')], separator='_').alias('user_id')
+    )
+    user_info = pl.concat([behaviors_train.select(['user_id', 'impression_id']), 
+                           behaviors_val.select(['user_id', 'impression_id'])]).to_pandas()
     
-    for i, (train_idx, test_idx) in enumerate(GroupKFold(n_splits=n_folds).split(user_info, groups=user_info['user_id_concat'])):
+    for i, (train_idx, test_idx) in enumerate(GroupKFold(n_splits=n_folds).split(user_info, groups=user_info['user_id'])):
         logging.info(f'Preprocessing fold {i}')
         fold_path = os.path.join(output_dir, f'fold_{i+1}')
         if not os.path.exists(fold_path):
@@ -59,10 +65,10 @@ def main(input_path, output_dir, preprocessing_version='latest', n_folds=5,
         user_info_train = pl.from_pandas(user_info.iloc[train_idx])
         user_info_val = pl.from_pandas(user_info.iloc[test_idx])
         
-        behaviors_train_train = user_info_train.join(behaviors_train, on=['user_id_concat', 'impression_id_concat'], how='inner')
-        behaviors_train_val = user_info_val.join(behaviors_train, on=['user_id_concat', 'impression_id_concat'], how='inner')
-        behaviors_val_train = user_info_train.join(behaviors_val, on=['user_id_concat', 'impression_id_concat'], how='inner')
-        behaviors_val_val = user_info_val.join(behaviors_val, on=['user_id_concat', 'impression_id_concat'], how='inner')
+        behaviors_train_train = user_info_train.join(behaviors_train, on=['user_id', 'impression_id'], how='inner')
+        behaviors_train_val = user_info_val.join(behaviors_train, on=['user_id', 'impression_id'], how='inner')
+        behaviors_val_train = user_info_train.join(behaviors_val, on=['user_id', 'impression_id'], how='inner')
+        behaviors_val_val = user_info_val.join(behaviors_val, on=['user_id', 'impression_id'], how='inner')
         
         features_train_train, _, unique_entities = PREPROCESSING[preprocessing_version](
             behaviors_train_train, history_train, articles, test=False, sample=False, previous_version=None,
