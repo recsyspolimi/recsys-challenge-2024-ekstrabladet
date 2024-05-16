@@ -76,7 +76,7 @@ def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity, use
         
     logging.info(f'Model fitted. Saving the model and the feature importances at: {output_dir}')
     joblib.dump(model, os.path.join(output_dir, 'model.joblib'))
-    save_feature_importances_plot(X, y, model, output_dir, data_info['categorical_columns'])
+    # save_feature_importances_plot(X, y, model, output_dir, data_info['categorical_columns'])
     
     
 if __name__ == '__main__':
