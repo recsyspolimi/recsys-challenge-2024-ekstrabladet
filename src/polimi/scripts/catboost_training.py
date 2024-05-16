@@ -4,6 +4,7 @@ from catboost import CatBoostClassifier, CatBoostRanker, Pool
 from datetime import datetime
 import argparse
 import pandas as pd
+import polars as pl
 import joblib
 import json
 import numpy as np
@@ -33,22 +34,26 @@ def save_feature_importances_plot(X, y, model, output_dir, categorical_columns, 
 def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity, use_ranker=False):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
     
-    train_ds = pd.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
+    train_ds = pl.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
     with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
         
     logging.info(f'Data info: {data_info}')
     
     if use_ranker:
-        train_ds = train_ds.sort_values(by='impression_id')
-        groups = train_ds['impression_id'].copy()
+        train_ds = train_ds.sort(by='impression_id')
+        groups = train_ds.select('impression_id').to_numpy().flatten()
+        
+    if 'postcode' in train_ds.columns:
+        train_ds = train_ds.with_columns(pl.col('postcode').fill_null(5))
+    if 'article_type' in train_ds.columns:
+        train_ds = train_ds.with_columns(pl.col('article_type').fill_null('article_default'))
+    if 'impression_time' in train_ds.columns:
+        train_ds = train_ds.drop(['impression_time'])
     
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
+    train_ds = train_ds.drop(['impression_id', 'article', 'user_id']).to_pandas()
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
 
-    if 'impression_time' in train_ds.columns:
-        train_ds = train_ds.drop(columns=['impression_time'])
-        
     X = train_ds.drop(columns=['target'])
     y = train_ds['target']
     
@@ -84,6 +89,8 @@ if __name__ == '__main__':
                         help="File path where the catboost hyperparameters are placed")
     parser.add_argument("-catboost_verbosity", default=50, type=int,
                         help="An integer representing how many iterations will pass between two catboost logs")
+    parser.add_argument("-model_name", default=None, type=str,
+                        help="An integer representing how many iterations will pass between two catboost logs")
     parser.add_argument('--ranker', action='store_true', default=False, 
                         help='Whether to use CarBoostRanker or not')
     
@@ -93,10 +100,14 @@ if __name__ == '__main__':
     CATBOOST_HYPERPARAMS_PATH = args.catboost_params_file
     CATBOOST_VERBOSITY = args.catboost_verbosity
     USE_RANKER = args.ranker
+    model_name = args.model_name
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    model_name = f'Catboost_Training_{timestamp}' if not USE_RANKER else f'CatboostRanker_Training_{timestamp}'
+    if model_name is None:
+        model_name = f'Catboost_Training_{timestamp}' if not USE_RANKER else f'CatboostRanker_Training_{timestamp}'
     output_dir = os.path.join(OUTPUT_DIR, model_name)
+    if os.path.exists(output_dir):
+        raise ValueError(f'Model with name {model_name} already exists, try another name.')
     os.makedirs(output_dir)
     
     log_path = os.path.join(output_dir, "log.txt")

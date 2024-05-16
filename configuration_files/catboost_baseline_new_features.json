@@ -1,5 +1,5 @@
 {
     "iterations": 1000,
-    "subsample": 0.1,
-    "colsample_bylevel": 0.5
+    "subsample": 0.5,
+    "rsm": 0.7
 }
