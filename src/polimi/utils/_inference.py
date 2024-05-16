@@ -3,6 +3,7 @@ import polars as pl
 import numpy as np
 import gc
 from tqdm import tqdm
+import logging
 
 
 def _batch_predict(model, X, batch_size=None):
@@ -22,9 +23,10 @@ def _batch_predict(model, X, batch_size=None):
 
 
 def _inference(dataset_path, data_info, model, eval=False, batch_size=1000):
-
-    inference_ds = pd.read_parquet(dataset_path)
-
+    logging.info(f'Reading dataset from {dataset_path}')
+    inference_ds = pl.read_parquet(dataset_path).to_pandas()
+    logging.info(f'Dataset read complete')
+    
     inference_ds[data_info['categorical_columns']
                  ] = inference_ds[data_info['categorical_columns']].astype('category')
 
