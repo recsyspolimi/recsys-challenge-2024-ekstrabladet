@@ -24,7 +24,7 @@ def _batch_predict(model, X, batch_size=None):
 
 def _inference(dataset_path, data_info, model, eval=False, batch_size=1000):
     logging.info(f'Reading dataset from {dataset_path}')
-    inference_ds = pl.read_parquet(dataset_path).to_pandas()
+    inference_ds = pl.read_parquet(dataset_path)
     logging.info(f'Dataset read complete')
 
     if 'target' not in inference_ds.columns and eval:
