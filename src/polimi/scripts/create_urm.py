@@ -68,9 +68,6 @@ def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, outp
                 URM_recsys = build_recsys_urm(history_train, user_id_mapping, item_mapping, 'article_id_fixed')
             elif urm_split == 'validation':
                 URM_recsys = build_recsys_urm(history_val, user_id_mapping, item_mapping, 'article_id_fixed')
-            elif urm_split == 'train_val':
-                history = history_train.vstack(history_val)
-                URM_recsys = build_recsys_urm(history, user_id_mapping, item_mapping, 'article_id_fixed')
         elif dataset_type == 'testset':
             if urm_split == 'test':
                 history = history_train_large.vstack(history_val_large).vstack(history_testset)
