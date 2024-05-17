@@ -55,9 +55,11 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
             if model_class == CatBoostRanker:
                 model.fit(X_train, y_train, group_id=groups['impression_id'], verbose=100)
             elif model_class in [XGBRanker, LGBMRanker]:
-                model.fit(X_train, y_train, group=groups.groupby('impression_id').size().values, verbose=100)
+                model.fit(X_train, y_train, group=groups.groupby('impression_id').size().values)
+            elif model_class == LGBMClassifier:
+                model.fit(X_train, y_train)
             else:
-                model.fit(X_train, y_train, verbose=50)
+                model.fit(X_train, y_train, verbose=100)
             if model_class in [CatBoostRanker, XGBRanker, LGBMRanker]:
                 prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict(X_val)).alias('prediction')) \
                     .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
@@ -72,6 +74,7 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
                                      prediction_ds['prediction'].to_list())]
             )
             auc.append(auc_fold)
+            print(f'Fold AUC: {auc[-1]}')
         return np.mean(auc)
         
     study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)
@@ -159,7 +162,7 @@ if __name__ == '__main__':
                         help="Optional name of the study. Should be used if a storage is provided")
     parser.add_argument("-storage", default=None, type=str, required=False,
                         help="Optional storage url for saving the trials")
-    parser.add_argument("-model_name", choices=['catboost', 'fast_rgf', 'xgb'], 
+    parser.add_argument("-model_name", choices=['lgbm', 'catboost', 'fast_rgf', 'xgb'], 
                         type=str, default='catboost_cls', help='The type of model to tune')
     parser.add_argument('--is_rank', action='store_true', default=False, 
                         help='Whether to treat the problem as a ranking problem')

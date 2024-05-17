@@ -26,6 +26,7 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             "min_child_samples": trial.suggest_int("min_child_samples", 10, 10000, log=True),
             "extra_trees": trial.suggest_categorical("extra_trees", [True, False]),
             "random_seed": random_seed,
+            "verbose": -1
         }
     elif model in [CatBoostClassifier, CatBoostRanker]:
         params = {
