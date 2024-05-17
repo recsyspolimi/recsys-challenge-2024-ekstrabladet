@@ -26,27 +26,28 @@ def _inference(dataset_path, data_info, model, eval=False, batch_size=1000):
     logging.info(f'Reading dataset from {dataset_path}')
     inference_ds = pl.read_parquet(dataset_path).to_pandas()
     logging.info(f'Dataset read complete')
-    
-    inference_ds[data_info['categorical_columns']
-                 ] = inference_ds[data_info['categorical_columns']].astype('category')
 
     if 'target' not in inference_ds.columns and eval:
         raise ValueError(
             'Target column not found in dataset. Cannot evaluate.')
+        
+    if 'postcode' in inference_ds.columns:
+        inference_ds = inference_ds.with_columns(pl.col('postcode').fill_null(5))
+    if 'article_type' in inference_ds.columns:
+        inference_ds = inference_ds.with_columns(pl.col('article_type').fill_null('article_default'))
+    if 'impression_time' in inference_ds.columns:
+        inference_ds = inference_ds.drop(['impression_time'])
 
     if 'target' in inference_ds.columns:
-        evaluation_ds = pl.from_pandas(
-            inference_ds[['impression_id', 'user_id', 'article', 'target']]) 
-        X = inference_ds.drop(
-            columns=['impression_id', 'target', 'article', 'user_id'])
+        evaluation_ds = inference_ds.select(['impression_id', 'user_id', 'article', 'target'])
+        X = inference_ds.drop(['impression_id', 'target', 'article', 'user_id']).to_pandas()
     else:
-        evaluation_ds = pl.from_pandas(
-            inference_ds[['impression_id', 'user_id', 'article']])
-        X = inference_ds.drop(columns=['impression_id', 'article', 'user_id'])
-
-    if 'impression_time' in X.columns:
-        X = X.drop(columns=['impression_time'])
+        evaluation_ds = inference_ds.select(['impression_id', 'user_id', 'article'])
+        X = inference_ds.drop(['impression_id', 'article', 'user_id']).to_pandas()
         
+    X[data_info['categorical_columns']] = X[data_info['categorical_columns']].astype('category')
+        
+    logging.info('Starting to predict in batches')
     evaluation_ds = evaluation_ds.with_columns(
         pl.Series(_batch_predict(model, X, batch_size)).alias('prediction'))
 
