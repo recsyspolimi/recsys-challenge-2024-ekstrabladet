@@ -81,7 +81,7 @@ ALGO_NER_TRAIN_DICT = {
         },
         PureSVDItemRecommender: {
             'params': None,
-            'study_name': 'PureSVDItemRecommender-ner-small-ndcg100_new',
+            'study_name': 'PureSVDRecommender-ner-small-ndcg100_new',
             'load': True
         },
         ItemKNNCFRecommender: {
@@ -111,7 +111,7 @@ ALGO_NER_TRAIN_DICT = {
         # },
     }
     
-def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path):    
+def main(dataset_path: Path, urm_path: Path, output_path: Path):    
     
     dtype = str(dataset_path).split('/')[-1]
     is_testset = dtype == 'ebnerd_testset'
@@ -122,37 +122,38 @@ def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path)
         splits = ['train', 'validation']
     
     
+    articles = pl.read_parquet(dataset_path / 'articles.parquet')
+    unique_articles = articles['article_id'].unique().to_numpy()
+    
     for split in splits:
         save_path = output_path / dtype / split
         save_path.mkdir(parents=True, exist_ok=True)
         
-        URM = load_sparse_csr(urm_path / f'URM_{split}.npz')
+        URM_train = load_sparse_csr(urm_path / split / f'URM_train.npz')
         
-        split_algo_path = algo_path / split
-        split_algo_path.mkdir(parents=True, exist_ok=True)
-        recs = train_ner_score_algo(URM, split_algo_path, ALGO_NER_TRAIN_DICT)
+        algo_path = urm_path / split / 'algo'
+        algo_path.mkdir(parents=True, exist_ok=True)
+        recs = train_ner_score_algo(URM_train, algo_path, ALGO_NER_TRAIN_DICT)
         assert len(recs) == len(ALGO_NER_TRAIN_DICT.keys()), 'Some algorithms were not loaded/trained'
         
-        del URM
+        del URM_train
         gc.collect()
 
         history = pl.read_parquet(dataset_path / split / 'history.parquet')
         unique_users = history['user_id'].unique().to_numpy()
         behaviors = pl.read_parquet(dataset_path / split / 'behaviors.parquet')
-        articles = pl.read_parquet(dataset_path / 'articles.parquet')
-        unique_articles = articles['article_id'].unique().to_numpy()
         
         
         user_id_mapping = build_user_id_mapping(history)
         ap = build_articles_with_processed_ner(articles)
         ner_mapping = build_ner_mapping(ap)
         ap = ap.with_columns(
-            pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None).drop_nulls()).alias('ner_clusters_index'),
+            pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None)).list.drop_nulls().alias('ner_clusters_index'),
         )
         
         train_ds = behaviors.rename({'article_ids_inview': 'candidate_ids'})\
             .with_columns(
-                pl.col('candidate_ids').list.eval(pl.element().replace(ap['article_id'], ap['ner_clusters_index'], default=None)).alias('candidate_ner_index'),
+                pl.col('candidate_ids').list.eval(pl.element().replace(ap['article_id'], ap['ner_clusters_index'], default=[])).alias('candidate_ner_index'),
                 pl.col('user_id').replace(user_id_mapping['user_id'], user_id_mapping['user_index'], default=None).alias('user_index'),
             ).select('impression_id', 'user_id', 'user_index', 'candidate_ids', 'candidate_ner_index')        
         
@@ -165,11 +166,12 @@ def main(dataset_path: Path, urm_path: Path, algo_path: Path, output_path: Path)
         for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
             logging.info(f'Starting urm ner scores slice {i}...')
             slice = build_urm_ner_score_features(slice, ner_mapping=ner_mapping, recs=recs)
+            slice = reduce_polars_df_memory_size(slice)
             logging.info(f'Saving urm ner scores slice {i} to {save_path}')
             slice.write_parquet(save_path / f'urm_ner_scores_slice_{i}.parquet')
             
             assert np.all(np.in1d(slice['user_id'].unique().to_numpy(), unique_users)), 'Some users were not found in history'
-            assert np.all(np.in1d(slice['article'].unique().to_numpy(), unique_articles)), 'Some candidates were not found in articles'
+            assert np.all(np.in1d(slice['article'].explode().unique().to_numpy(), unique_articles)), 'Some candidates were not found in articles'
         logging.info(f'Built ner scores features slices in {((time.time() - start_time)/60):.1f} minutes')
         agg_slices_paths = list(save_path.glob('urm_ner_scores_slice_*.parquet'))
         assert len(agg_slices_paths) == n_slices, 'Some slices were not saved'
@@ -185,16 +187,12 @@ if __name__ == '__main__':
                         help="Directory where the dataset is placed")
     parser.add_argument("-urm_path", default=None, type=str, required=True,
                         help="Directory where the URM are placed")
-    parser.add_argument("-algo_path", default=None, type=str, required=True,
-                        help="Directory where the rec sys algo are placed")
 
     args = parser.parse_args()
     OUTPUT_DIR = Path(args.output_dir)
     DATASET_DIR = Path(args.dataset_path)
     URM_DIR = Path(args.urm_path)
-    ALGO_DIR = Path(args.algo_path)
-    
-    ALGO_DIR.mkdir(parents=True, exist_ok=True)
+
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     out_name = f'preprocessing_urm_ner_scores_{timestamp}'
@@ -211,4 +209,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
 
-    main(DATASET_DIR, URM_DIR, ALGO_DIR, output_dir)
+    main(DATASET_DIR, URM_DIR, output_dir)

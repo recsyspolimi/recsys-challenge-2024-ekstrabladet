@@ -48,7 +48,7 @@ def main(input_path, output_dir):
         behaviors = pl.read_parquet(files_path / 'behaviors.parquet')
         history = pl.read_parquet(files_path / 'history.parquet')
         history_w = build_history_w(history, articles)
-        selected_weight_col = 'read_time_fixed_article_len_ratio_l1_w'
+        selected_weight_col = 'scroll_percentage_fixed_mmnorm_l1_w'
         history_w = history_w.select('user_id', selected_weight_col)
         
         history_m = history\
@@ -69,7 +69,7 @@ def main(input_path, output_dir):
          
         train_ds = reduce_polars_df_memory_size(train_ds)
         train_ds = train_ds.sort('user_id')
-        BATCH_SIZE = int(5e5)
+        BATCH_SIZE = int(3e5)
         n_slices = math.ceil(len(train_ds) / BATCH_SIZE)
         for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
             logging.info(f'Start building embeddings scores slice {i}...')
@@ -88,7 +88,7 @@ def main(input_path, output_dir):
             slice = reduce_polars_df_memory_size(slice)
             logging.info(f'Building embeddings scores slice {i} aggregations...')
             agg_cols = [col for col in slice.columns if '_scores' in col]
-            slice = build_embeddings_agg_scores(slice, agg_cols=agg_cols, last_k=[25, 50, 100])
+            slice = build_embeddings_agg_scores(slice, agg_cols=agg_cols, last_k=[])
             logging.info(f'Completed in {((time.time() - t) / 60):.2f} minutes')
             
             logging.info(f'Saving embeddings scores slice {i} aggregations to {save_path}')

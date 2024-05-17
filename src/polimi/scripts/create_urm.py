@@ -37,18 +37,21 @@ def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, outp
         ner_mapping = build_ner_mapping(ap)
         output_file_path = output_dir.joinpath(f'URM_{urm_split}')
         if dataset_type in ['demo', 'small', 'large']:
-            user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
             if urm_split == 'train':# URM_train
+                user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
                 URM_ner = build_ner_urm(history_train, ap, user_id_mapping, ner_mapping, 'article_id_fixed')
             elif urm_split == 'validation': # URM_val
+                user_id_mapping = build_user_id_mapping(history_train)
                 URM_ner = build_ner_urm(behaviors_train, ap, user_id_mapping, ner_mapping, 'article_ids_clicked')
             elif urm_split == 'train_val': # URM_train_val
                 history = history_train.vstack(history_val)
+                user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
                 URM_ner = build_ner_urm(history, ap, user_id_mapping, ner_mapping, 'article_id_fixed')
             elif urm_split == 'test': # URM_test
+                user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
                 URM_ner = build_ner_urm(behaviors_val, ap, user_id_mapping, ner_mapping, 'article_ids_clicked')
         elif dataset_type == 'testset':
-            if urm_split == 'train':
+            if urm_split == 'test':
                 history = history_train_large.vstack(history_val_large).vstack(history_testset)
                 user_id_mapping = build_user_id_mapping(history)
                 URM_ner = build_ner_urm(history, ap, user_id_mapping, ner_mapping, 'article_id_fixed')

@@ -80,7 +80,7 @@ def main(urm_folder: Path, output_dir: Path,
          sampler: str, metric: str, jobs: int, cutoff:int):
     
     urm_train_path = urm_folder.joinpath('URM_train.npz')
-    urm_val_path = urm_folder.joinpath('URM_validation.npz')    
+    urm_val_path = urm_folder.joinpath('URM_test.npz')    
     optuna.logging.enable_propagation()  # Propagate logs to the root logger
     optuna.logging.disable_default_handler() # Stop showing logs in sys.stderr (prevents double logs)
     
