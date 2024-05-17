@@ -1213,6 +1213,45 @@ def subsample_dataset(original_datset_path: str, dataset_path : str, new_path: s
     behaviors.join(dataset, on = ['impression_id','user_id','article'], how = 'left').write_parquet(new_path)
     
     
+def subsample_fold(train_behaviors_path: str, val_behaviors_path: str, dataset_path : str, new_path: str, npratio: int = 2):
+    behaviors_train =  pl.read_parquet(train_behaviors_path).select(['impression_id','user_id','article_ids_inview','article_ids_clicked'])
+    behaviors_val =  pl.read_parquet(val_behaviors_path).select(['impression_id','user_id','article_ids_inview','article_ids_clicked'])
+    dataset = pl.read_parquet(dataset_path)
+    
+    behaviors_train = pl.concat(
+        rows.pipe(
+            sampling_strategy_wu2019, npratio=npratio, shuffle=False, with_replacement=True, seed=123
+        ).explode('article_ids_inview').drop(columns = 'article_ids_clicked').rename({'article_ids_inview' : 'article'})\
+        .with_columns(pl.concat_str([pl.col('user_id').cast(pl.String), pl.lit('1')], separator='_').alias('user_id'),
+                      pl.concat_str([pl.col('impression_id').cast(pl.String), pl.lit('1')], separator='_').alias('impression_id'),
+                      pl.col('article').cast(pl.Int32))\
+        
+         for rows in tqdm(behaviors_train.iter_slices(1000), total=behaviors_train.shape[0] // 1000)
+    )
+    
+    behaviors_val = pl.concat(
+        rows.pipe(
+            sampling_strategy_wu2019, npratio=npratio, shuffle=False, with_replacement=True, seed=123
+        ).explode('article_ids_inview').drop(columns = 'article_ids_clicked').rename({'article_ids_inview' : 'article'})\
+        .with_columns(pl.concat_str([pl.col('user_id').cast(pl.String), pl.lit('2')], separator='_').alias('user_id'),
+                      pl.concat_str([pl.col('impression_id').cast(pl.String), pl.lit('2')], separator='_').alias('impression_id'),
+                      pl.col('article').cast(pl.Int32))\
+        
+         for rows in tqdm(behaviors_val.iter_slices(1000), total=behaviors_val.shape[0] // 1000)
+    )
+       
+    # doing inner join since some data might be on the fold test set 
+    fold_part_1 = behaviors_train.join(dataset, on = ['impression_id','user_id','article'], how = 'inner')
+    fold_part_2 = behaviors_val.join(dataset, on = ['impression_id','user_id','article'], how = 'inner')
+    print(fold_part_1.head())
+    print(fold_part_2.head())
+    assert dataset.unique('impression_id').shape[0] == fold_part_1.unique('impression_id').shape[0] + fold_part_2.unique('impression_id').shape[0]
+    if 'impression_time' in dataset.columns:
+        # for sure impression_time should not have nulls if the join is correct
+        assert fold_part_1.select(pl.col('impression_time').is_null().sum()).item(0,0) == 0
+        assert fold_part_2.select(pl.col('impression_time').is_null().sum()).item(0,0) == 0
+    pl.concat([fold_part_1, fold_part_2], how='diagonal_relaxed').write_parquet(new_path)
+    
 
 def _preprocessing_article_endorsement_feature_by_article_and_user(behaviors, period, batch_dim=10000):
     # slice the behaviors dataframe in windows based on the article_id_inview

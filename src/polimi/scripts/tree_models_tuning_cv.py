@@ -128,7 +128,7 @@ def load_folds(folds_path, n_folds, subsampled_train=False):
         data_info = json.load(data_info_file)
     
     folds_data = []
-    for fold_id in tqdm(n_folds):
+    for fold_id in tqdm(range(n_folds)):
         fold_path = os.path.join(folds_path, f'fold_{fold_id+1}')
         train_ds = pl.read_parquet(os.path.join(fold_path, train_ds_name))
         val_ds = pl.read_parquet(os.path.join(fold_path, 'validation_ds.parquet'))
