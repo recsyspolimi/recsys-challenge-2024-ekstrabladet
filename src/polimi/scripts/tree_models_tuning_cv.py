@@ -49,7 +49,7 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
         params = get_models_params(trial, model_class, categorical_features)
         
         auc = []
-        for X_train, X_val, y_train, groups, evaluation_ds in folds_data:
+        for X_train, X_val, y_train, evaluation_ds, groups in folds_data:
             model = model_class(**params)
         
             if model_class == CatBoostRanker:
@@ -77,52 +77,12 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
     study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)
     study.optimize(objective_function, n_trials=n_trials, n_jobs=1)
     return study.best_params, study.trials_dataframe()
-    
-
-def load_datasets(train_dataset_path, validation_dataset_path):
-    logging.info(f"Loading the training dataset from {train_dataset_path}")
-    
-    train_ds = pd.read_parquet(os.path.join(train_dataset_path, 'train_ds.parquet'))
-    group_ids = train_ds['impression_id'].to_frame()
-    with open(os.path.join(train_dataset_path, 'data_info.json')) as data_info_file:
-        data_info = json.load(data_info_file)
-        
-    logging.info(f'Data info: {data_info}')
-    
-    train_ds['impression_id'] = train_ds['impression_id'].astype(str).apply(lambda x: x + '_1')
-    train_ds['user_id'] = train_ds['user_id'].astype(str).apply(lambda x: x + '_1')
-    if 'impression_time' in train_ds.columns:
-        train_ds = train_ds.drop(columns=['impression_time'])
-        
-    logging.info(f"Loading the validation dataset from {validation_dataset_path}")
-    
-    val_ds = pd.read_parquet(os.path.join(validation_dataset_path, 'validation_ds.parquet'))[train_ds.columns]
-    val_ds['impression_id'] = val_ds['impression_id'].astype(str).apply(lambda x: x + '_2')
-    val_ds['user_id'] = val_ds['user_id'].astype(str).apply(lambda x: x + '_2')
-    val_ds[data_info['categorical_columns']] = val_ds[data_info['categorical_columns']].astype('category')
-    
-    complete_ds = pd.concat([train_ds, val_ds], ignore_index=True, axis=0)
-    if 'postcode' in complete_ds.columns:
-        complete_ds['postcode'] = complete_ds['postcode'].fillna(5).astype(int)
-    if 'article_type' in complete_ds.columns:
-        complete_ds['article_type'] = complete_ds['article_type'].fillna('article_default')
-    complete_ds[data_info['categorical_columns']] = complete_ds[data_info['categorical_columns']].astype('category')
-    # impression_id kept to sort values if it is a ranking problem, user_id will be useful for group kfold
-    X = complete_ds.drop(columns=['article', 'target'])
-    y = complete_ds['target']
-    
-    evaluation_ds = complete_ds[['impression_id', 'article', 'user_id', 'target']]
-    group_ids = complete_ds['impression_id'].to_frame()
-    
-    logging.info(f'Features ({len(X.columns)}): {np.array(list(X.columns))}')
-    logging.info(f'Categorical features: {np.array(data_info["categorical_columns"])}')
-    return X, y, evaluation_ds, group_ids, data_info['categorical_columns']
 
 
-def load_folds(folds_path, n_folds, subsampled_train=False):
+def load_folds(folds_path, n_folds, is_ranking=False):
     logging.info(f"Loading the folded dataset from {folds_path}")
     
-    train_ds_name = 'train_ds.parquet' if not subsampled_train else 'train_ds_subsample.parquet'
+    train_ds_name = 'train_ds.parquet' if is_ranking else 'train_ds_subsample.parquet'
     
     with open(os.path.join(folds_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
@@ -142,6 +102,9 @@ def load_folds(folds_path, n_folds, subsampled_train=False):
         if 'impression_time' in train_ds.columns:
             train_ds = train_ds.drop(['impression_time'])
             val_ds = val_ds.drop(['impression_time'])
+            
+        if is_ranking:
+            train_ds = train_ds.sort(by='impression_id')
             
         group_ids = train_ds.select(['impression_id']).to_pandas()
         X_train = train_ds.drop(['impression_id', 'article', 'user_id', 'target']).to_pandas()
@@ -163,7 +126,7 @@ def load_folds(folds_path, n_folds, subsampled_train=False):
 def main(folds_path: str, output_dir: str, model_name: str, n_folds: int = 5,
          is_ranking: bool = False, study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None):
     # X, y, evaluation_ds, group_ids, cat_features = load_datasets(train_dataset_path, validation_dataset_path)
-    folds_data, cat_features = load_folds(folds_path, n_folds, not is_ranking)
+    folds_data, cat_features = load_folds(folds_path, n_folds, is_ranking)
     model_class = get_model_class(model_name, is_ranking)
     
     optuna.logging.enable_propagation()  # Propagate logs to the root logger
