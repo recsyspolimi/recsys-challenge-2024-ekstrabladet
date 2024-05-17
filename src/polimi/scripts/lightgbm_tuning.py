@@ -12,9 +12,11 @@ import seaborn as sns
 from typing_extensions import List, Tuple, Dict
 import optuna
 import polars as pl
+from fastauc.fast_auc import CppAuc
 
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
+sys.path.append('/home/ubuntu/RecSysChallenge2024/src/fastauc')
 
 from ebrec.evaluation.metrics_protocols import *
 from polimi.preprocessing_pipelines.pre_68f import strip_new_features
@@ -48,15 +50,15 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         model.fit(X_train, y_train)
         prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
             .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
-        met_eval = MetricEvaluator(
-            labels=prediction_ds['target'].to_list(),
-            predictions=prediction_ds['prediction'].to_list(),
-            metric_functions=[AucScore()]
+        cpp_auc = CppAuc()
+        return  np.mean(
+            [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
+                for y_t, y_s in zip(prediction_ds['target'].to_list(), 
+                                    prediction_ds['prediction'].to_list())]
         )
-        return met_eval.evaluate().evaluations['auc']
         
     study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)
-    study.optimize(objective_function, n_trials=n_trials, n_jobs=-1)
+    study.optimize(objective_function, n_trials=n_trials, n_jobs=1)
     return study.best_params, study.trials_dataframe()
     
 
