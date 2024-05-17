@@ -4,6 +4,7 @@ except ImportError:
     print("polars not available")
 
 from pathlib import Path
+import time
 import scipy.sparse as sps
 from tqdm import tqdm
 import numpy as np
@@ -182,4 +183,50 @@ def build_urm_ner_score_features(df: pl.DataFrame, ner_mapping: pl.DataFrame, re
         .rename({'candidate_ids': 'article'})
                     
     return df
+
+
+def build_recsys_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], save_path:Path=None ):
+    start_time = time.time()
+    user_id_mapping = build_user_id_mapping(history)
+    item_mapping = build_item_mapping(articles)
+    
+    recsys_scores = behaviors\
+            .select('impression_id', 'article_ids_inview', 'user_id')\
+            .explode('article_ids_inview')\
+            .unique()\
+            .rename({'article_ids_inview': 'article_id'})\
+            .join(item_mapping, on='article_id')\
+            .join(user_id_mapping, on='user_id')\
+            .sort(['user_index', 'item_index'])\
+            .rename({'article_id': 'article'})\
+            .group_by('user_index').map_groups(lambda df: df.pipe(_compute_recommendations, recommenders=recs))\
+            .drop('user_index')\
+            .drop('item_index')
+            
+    recsys_scores = reduce_polars_df_memory_size(recsys_scores)
+
+    if save_path:
+        print(f'Saving scores features ... [{save_path}]')
+        recsys_scores.write_parquet(save_path / 'recsys_scores_features.parquet')
+
+    print(f'Built recsys scores features in {((time.time() - start_time)/60):.1f} minutes')
+    return recsys_scores
+
+    
+
+            
+
+def _compute_recommendations(user_items_df, recommenders):
+    user_index = user_items_df['user_index'].to_list()[0]
+    items = user_items_df['item_index'].to_numpy()
+
+    scores = {}
+    for rec in recommenders:
+        scores[rec.RECOMMENDER_NAME] = rec._compute_item_score([user_index], items)[0, items]
+
+    return user_items_df.with_columns(
+        [
+            pl.Series(model).alias(name) for name, model in scores.items()
+        ]
+    )
     

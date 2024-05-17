@@ -1,4 +1,4 @@
-from polimi.preprocessing_pipelines.pre_147 import build_recsys_features
+from polimi.utils._urm import build_recsys_features
 
 import logging
 from pathlib import Path
@@ -15,10 +15,37 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 def main(dataset_split: str , output_dir: Path, dataset_type: str, base_path: str, urm_type: str):
 
     #d_path = base_path.joinpath('dataset')
-    d_path = Path('/home/ubuntu/dataset')
-    history = load_history(d_path, dataset_type, dataset_split, lazy=False)
-    behaviors = load_behaviors(d_path, dataset_type, dataset_split, lazy=False)
-    articles = load_articles(d_path, dataset_type, lazy=False)
+    dataset_path = Path('/home/ubuntu/dataset')
+
+    if dataset_type in ['demo', 'small', 'large']:
+        dataset_path = dataset_path.joinpath('ebnerd_{}'.format(dataset_type))
+        train_path = dataset_path.joinpath('train')
+        val_path = dataset_path.joinpath('validation')
+        articles = pl.read_parquet(dataset_path.joinpath('articles.parquet'))
+        if dataset_split == 'train':
+            history = pl.read_parquet(train_path.joinpath('history.parquet'))
+            behaviors = pl.read_parquet(train_path.joinpath('behaviors.parquet'))
+        elif dataset_split == 'validation':
+            history = pl.read_parquet(val_path.joinpath('history.parquet'))
+            behaviors = pl.read_parquet(val_path.joinpath('behaviors.parquet'))
+    elif dataset_type == 'testset': # Build final train URM for inference
+        dataset_path = dataset_path.joinpath('ebnerd_{}'.format(dataset_type))
+        # Load all the other large datasets
+        train_path_large = dataset_path.parent.joinpath('ebnerd_large').joinpath('train')
+        val_path_large = dataset_path.parent.joinpath('ebnerd_large').joinpath('validation')
+
+        history_train_large = pl.read_parquet(train_path_large.joinpath('history.parquet'))
+        history_val_large = pl.read_parquet(val_path_large.joinpath('history.parquet'))
+        history_testset = pl.read_parquet(dataset_path.joinpath('test').joinpath('history.parquet'))
+
+        history = history_train_large.vstack(history_val_large).vstack(history_testset)
+        behaviors = pl.read_parquet(dataset_path.joinpath('test').joinpath('behaviors.parquet'))
+        articles = pl.read_parquet(dataset_path.joinpath('articles.parquet'))
+
+    
+
+
+    
 
     recs_path = base_path.joinpath('algo').joinpath(urm_type).joinpath(dataset_type).joinpath(dataset_split)
     urm_path = base_path.joinpath('urm').joinpath(urm_type).joinpath(dataset_type).joinpath(f'URM_{dataset_split}.npz')
