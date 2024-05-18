@@ -23,7 +23,7 @@ sys.path.append('/home/ubuntu/fastauc')
 from ebrec.evaluation.metrics_protocols import *
 from polimi.utils._tuning_params import get_models_params
 from polimi.utils.model_wrappers import FastRGFClassifierWrapper
-from fastauc.fast_auc import CppAuc
+from fastauc.fastauc.fast_auc import CppAuc
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 

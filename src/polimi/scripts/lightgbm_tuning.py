@@ -12,12 +12,12 @@ import seaborn as sns
 from typing_extensions import List, Tuple, Dict
 import optuna
 import polars as pl
-from fastauc.fast_auc import CppAuc
+
 
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
-sys.path.append('/home/ubuntu/RecSysChallenge2024/src/fastauc')
 
+from fastauc.fastauc.fast_auc import CppAuc
 from ebrec.evaluation.metrics_protocols import *
 from polimi.preprocessing_pipelines.pre_68f import strip_new_features
 
@@ -51,7 +51,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
             .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
         cpp_auc = CppAuc()
-        return  np.mean(
+        return np.mean(
             [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
                 for y_t, y_s in zip(prediction_ds['target'].to_list(), 
                                     prediction_ds['prediction'].to_list())]
