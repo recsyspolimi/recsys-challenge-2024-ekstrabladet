@@ -1,6 +1,6 @@
 import os
 import logging
-from lightgbm import LGBMClassifier
+from lightgbm import LGBMClassifier, LGBMRanker
 from datetime import datetime
 import argparse
 import pandas as pd
@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from typing_extensions import List
+import polars as pl
 
 from polimi.preprocessing_pipelines.pre_68f import strip_new_features
 
@@ -31,18 +32,27 @@ def save_feature_importances_plot(model: LGBMClassifier, feature_names: List[str
     plt.close()
 
 
-def main(dataset_path, lgbm_params_path, output_dir):
+def main(dataset_path, lgbm_params_path, output_dir, use_ranker):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
     
-    train_ds = pd.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
+    train_ds = pl.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
     with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
+    if use_ranker:
+        train_ds = train_ds.sort(by='impression_id')
+        groups = train_ds.select(['impression_id']).to_pandas().groupby('impression_id').size()
+        
+    if 'postcode' in train_ds.columns:
+        train_ds = train_ds.with_columns(pl.col('postcode').fill_null(5))
+    if 'article_type' in train_ds.columns:
+        train_ds = train_ds.with_columns(pl.col('article_type').fill_null('article_default'))
     if 'impression_time' in train_ds.columns:
-        train_ds = train_ds.drop(columns=['impression_time'])
+        train_ds = train_ds.drop(['impression_time'])
+    
+    train_ds = train_ds.drop(['impression_id', 'article', 'user_id']).to_pandas()
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
 
     X = train_ds.drop(columns=['target'])
@@ -57,8 +67,14 @@ def main(dataset_path, lgbm_params_path, output_dir):
         
     logging.info(f'Lightgbm params: {params}')
     logging.info(f'Starting to train the lightgbm model')
-    model = LGBMClassifier(**params)
-    model.fit(X, y)
+    
+    if use_ranker:
+        model = LGBMRanker(**params, verbosity=100)
+        model.fit(X, y, group=groups)
+    else:
+        model = LGBMClassifier(**params, verbosity=100)
+        model.fit(X, y)
+        
     logging.info(f'Model fitted. Saving the model and the feature importances at: {output_dir}')
     joblib.dump(model, os.path.join(output_dir, 'model.joblib'))
     save_feature_importances_plot(model, X.columns, output_dir)
@@ -72,14 +88,21 @@ if __name__ == '__main__':
                         help="Directory where the preprocessed dataset is placed")
     parser.add_argument("-lgbm_params_file", default=None, type=str, required=True,
                         help="File path where the catboost hyperparameters are placed")
+    parser.add_argument("-model_name", default=None, type=str,
+                        help="The name of the model")
+    parser.add_argument('--ranker', action='store_true', default=False, 
+                        help='Whether to use LGBMRanker or not')
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
     DATASET_DIR = args.dataset_path
     LGBM_HYPERPARAMS_PATH = args.lgbm_params_file
+    USE_RANKER = args.ranker
+    model_name = args.model_name
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    model_name = f'Lightgbm_Training_{timestamp}'
+    if model_name is None:
+        model_name = f'LGBM_Training_{timestamp}' if not USE_RANKER else f'LGBMRanker_Training_{timestamp}'
     output_dir = os.path.join(OUTPUT_DIR, model_name)
     os.makedirs(output_dir)
     
@@ -92,4 +115,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, LGBM_HYPERPARAMS_PATH, output_dir)
+    main(DATASET_DIR, LGBM_HYPERPARAMS_PATH, output_dir, USE_RANKER)
