@@ -23,10 +23,14 @@ def main(dataset_split: str , output_dir: Path, dataset_type: str, base_path: st
         val_path = dataset_path.joinpath('validation')
         articles = pl.read_parquet(dataset_path.joinpath('articles.parquet'))
         if dataset_split == 'train':
-            history = pl.read_parquet(train_path.joinpath('history.parquet'))
+            history_train = pl.read_parquet(train_path.joinpath('history.parquet'))
+            history_val = pl.read_parquet(val_path.joinpath('history.parquet'))
+            history = history_train.vstack(history_val)
             behaviors = pl.read_parquet(train_path.joinpath('behaviors.parquet'))
         elif dataset_split == 'validation':
-            history = pl.read_parquet(val_path.joinpath('history.parquet'))
+            history_train = pl.read_parquet(train_path.joinpath('history.parquet'))
+            history_val = pl.read_parquet(val_path.joinpath('history.parquet'))
+            history = history_train.vstack(history_val)
             behaviors = pl.read_parquet(val_path.joinpath('behaviors.parquet'))
     elif dataset_type == 'testset': # Build final train URM for inference
         dataset_path = dataset_path.joinpath('ebnerd_{}'.format(dataset_type))
