@@ -27,8 +27,8 @@ from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKN
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
-from polimi.utils._custom import load_sparse_csr, load_best_optuna_params, algo_dict_ner
-from polimi.utils._urm import train_recommender, build_ner_scores_features, load_recommender
+from polimi.utils._custom import load_sparse_csr, load_best_optuna_params
+from polimi.utils._urm import train_recommender, load_recommender
 
 '''
 New features:
