@@ -99,16 +99,6 @@ ALGO_NER_TRAIN_DICT = {
             'study_name': 'P3alphaRecommender-ner-small-ndcg100_new',
             'load': True
         },
-        # SLIM_BPR_Cython: {
-        #     'params': None,
-        #     'study_name': 'SLIM_BPR_Cython-ner-small-ndcg100_new',
-        #     'load': True
-        # },
-        # UserKNNCFRecommender: {
-        #     'params': None,
-        #     'study_name': 'UserKNNCFRecommender-ner-small-ndcg100_new',
-        #     'load': True
-        # },
     }
     
 def main(dataset_path: Path, urm_path: Path, output_path: Path):    
