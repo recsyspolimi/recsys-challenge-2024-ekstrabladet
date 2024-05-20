@@ -23,6 +23,8 @@ from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCFRecommender import UserKN
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.RP3betaRecommender import RP3betaRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCBFRecommender import ItemKNNCBFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCBFRecommender import UserKNNCBFRecommender
 from RecSys_Course_AT_PoliMi.Data_manager.split_functions.split_train_validation_random_holdout import split_train_in_two_percentage_global_sample
 from polimi.utils._custom import ALGORITHMS
 from polimi.utils._custom import load_sparse_csr, save_json, get_algo_params
@@ -39,7 +41,8 @@ def get_sampler_from_name(sampler_name: str, constant_liar: bool = False):
         raise ValueError(f"Sampler {sampler_name} not recognized")
 
 
-def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix, 
+def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix, ICM: sps.csr_matrix,
+                        UCM: sps.csr_matrix,
                         model_name: str, metric: str, 
                         cutoff:int, study_name: str, 
                         n_trials: int, storage: str, 
@@ -53,7 +56,13 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
         params = get_algo_params(trial, model, evaluator_es=evaluator, eval_metric_es=metric)
         is_early_stopping = 'epochs' in params
         
-        rec_instance = model(URM_train)
+        if model == ItemKNNCBFRecommender:
+             rec_instance = model(URM_train,ICM)
+        elif model == UserKNNCBFRecommender:
+            rec_instance = model(URM_train, UCM)
+        else:
+            rec_instance = model(URM_train)
+
         rec_instance.fit(**params)
         
         if is_early_stopping:
@@ -74,20 +83,33 @@ def optimize_parameters(URM_train: sps.csr_matrix, URM_val: sps.csr_matrix,
     return study.best_params, study.trials_dataframe()
     
 
-def main(urm_folder: Path, output_dir: Path,
+def main(urm_folder: Path, icm_folder: Path, ucm_folder: Path, output_dir: Path,
          model_name:str, study_name: str, 
          n_trials: int, storage: str,
          sampler: str, metric: str, jobs: int, cutoff:int):
     
     urm_train_path = urm_folder.joinpath('URM_train.npz')
-    urm_val_path = urm_folder.joinpath('URM_test.npz')    
+    urm_val_path = urm_folder.joinpath('URM_validation_train.npz') 
     optuna.logging.enable_propagation()  # Propagate logs to the root logger
     optuna.logging.disable_default_handler() # Stop showing logs in sys.stderr (prevents double logs)
     
     URM_train = load_sparse_csr(urm_train_path, logger=logging)
     URM_val =  load_sparse_csr(urm_val_path, logger=logging)
+
+    if model_name == 'ItemKNNCBFRecommender':
+        icm_path = icm_folder.joinpath('ICM.npz')
+        ICM = load_sparse_csr(icm_path, logger=logging)
+        UCM = None
+    
+    if model_name == 'UserKNNCBFRecommender':
+        ucm_path = ucm_folder.joinpath('UCM.npz')
+        UCM = load_sparse_csr(ucm_path,logger=logging)
+        ICM = None
+
     best_params, trials_df = optimize_parameters(URM_train=URM_train,
                                                  URM_val=URM_val,
+                                                 ICM= ICM,
+                                                 UCM=UCM,
                                                  model_name=model_name,
                                                  study_name=study_name, 
                                                  n_trials=n_trials, 
@@ -113,6 +135,10 @@ if __name__ == '__main__':
                         help="The directory where the models will be placed")
     parser.add_argument("-urm_folder", default=None, type=str, required=True,
                         help="Folder where URM sps.csr_matrix are placed")
+    parser.add_argument("-icm_folder", default=None, type=str, required=False,
+                        help="Folder where ICM matrix is placed")
+    parser.add_argument("-ucm_folder", default=None, type=str, required=False,
+                        help="Folder where UCM matrix is placed")
     parser.add_argument("-model_name", type=str, required=True,
                         help="Folder where URM sps.csr_matrix are placed")
     parser.add_argument("-n_trials", default=100, type=int, required=False,
@@ -134,6 +160,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
     OUTPUT_DIR = Path(args.output_dir)
     URM_FOLDER = Path(args.urm_folder)
+    if args.icm_folder != None:
+        ICM_FOLDER = Path(args.icm_folder)
+    else:
+        ICM_FOLDER = None
+    if args.ucm_folder != None:
+        UCM_FOLDER = Path(args.ucm_folder)
+    else:
+        UCM_FOLDER = None
     METRIC = args.metric
     MODEL_NAME = args.model_name
     N_TRIALS = args.n_trials
@@ -156,7 +190,7 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(URM_FOLDER, output_dir, 
+    main(URM_FOLDER,ICM_FOLDER,UCM_FOLDER, output_dir, 
          model_name=MODEL_NAME, study_name=STUDY_NAME, 
          n_trials=N_TRIALS, storage=STORAGE,
          metric=METRIC,

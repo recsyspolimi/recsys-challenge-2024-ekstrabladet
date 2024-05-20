@@ -14,6 +14,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.SLIM.SLIMElasticNetRecommender import 
 from RecSys_Course_AT_PoliMi.Recommenders.SLIM.Cython.SLIM_BPR_Cython import SLIM_BPR_Cython
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.NMFRecommender import NMFRecommender
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCBFRecommender import ItemKNNCBFRecommender
 from lightgbm import LGBMClassifier, LGBMRanker
 
 from os import getpid
@@ -143,7 +144,7 @@ def load_best_optuna_params(study_name: str, storage:str=_BASE_OPTUNA_STORAGE) -
 ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
       PureSVDRecommender, MultiThreadSLIM_SLIMElasticNetRecommender, SLIMElasticNetRecommender, 
       MatrixFactorization_AsySVD_Cython, MatrixFactorization_BPR_Cython, MultVAERecommender, SLIM_BPR_Cython, 
-      PureSVDItemRecommender, NMFRecommender]
+      PureSVDItemRecommender, NMFRecommender,ItemKNNCBFRecommender]
 
 ALGORITHMS = {algo.RECOMMENDER_NAME: [algo] for algo in ALGORITHMS_LIST}
 
@@ -176,6 +177,11 @@ algo_dict_ner = {
 }
 
 algo_dict_recsys = {
+    ItemKNNCBFRecommender: {
+        'params': {},
+        'study_name': 'prova',
+        'load': False
+    },
     SLIM_BPR_Cython: {
         'params': {'topK': 45, 'symmetric': True, 'lambda_i': 0.0015099932905612715, 'lambda_j': 0.0023178589178914234, 'learning_rate': 0.0015923690992811813},
         'study_name': 'SLIM_BPR_Cython-recsys-small-ndcg100_new',
@@ -212,6 +218,8 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: E
         "validation_metric": eval_metric_es,
         "evaluator_object": evaluator_es,
     }
+    
+        
     
     if model in [ItemKNNCFRecommender, UserKNNCFRecommender]:
         params = {
@@ -327,6 +335,28 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: E
             "num_factors": trial.suggest_int("num_factors", 1, 1000),
             "topK": trial.suggest_int("topK", 5, 1500),            
         }
+    if model == ItemKNNCBFRecommender:
+        params = {
+            "similarity": trial.suggest_categorical("similarity", ['cosine', 'dice', 'jaccard', 'asymmetric', 'tversky', 'euclidean']),
+            "topK": trial.suggest_int("topK", 5, 1500),
+            "shrink": trial.suggest_int("shrink", 0, 1000),
+            "feature_weighting": trial.suggest_categorical('feature_weighting', ['BM25','TF-IDF']),
+            'icm_bias': trial.suggest_float('icm_bias', 0,1)
+        }
+        if params['similarity'] == "asymmetric":
+            params["asymmetric_alpha"] = trial.suggest_float("asymmetric_alpha", 0, 2, log=False)
+            params["normalize"] = True     
+
+        elif params['similarity'] == "tversky":
+            params["tversky_alpha"] = trial.suggest_float("tversky_alpha", 0, 2, log=False)
+            params["tversky_beta"] = trial.suggest_float("tversky_beta", 0, 2, log=False)
+            params["normalize"] = True 
+
+        elif params['similarity'] == "euclidean":
+            params["normalize_avg_row"] = trial.suggest_categorical("normalize_avg_row", [True, False])
+            params["similarity_from_distance_mode"] = trial.suggest_categorical("similarity_from_distance_mode", ["lin", "log", "exp"])
+            params["normalize"] = trial.suggest_categorical("normalize", [True, False])
+
     else:
         raise ValueError(f"Model {model.RECOMMENDER_NAME} not recognized")
     return params

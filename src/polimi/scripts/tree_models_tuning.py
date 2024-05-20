@@ -1,6 +1,6 @@
 import os
 import logging
-from lightgbm import LGBMClassifier
+from lightgbm import LGBMClassifier, LGBMRanker
 from datetime import datetime
 import argparse
 import pandas as pd
@@ -29,6 +29,8 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 def get_model_class(name: str = 'catboost', ranker: bool = False):
     if name == 'catboost':
         return CatBoostClassifier if not ranker else CatBoostRanker
+    if name == 'lgbm':
+        return LGBMClassifier if not ranker else LGBMRanker
     elif name == 'xgb':
         return XGBClassifier if not ranker else XGBRanker
     elif name == 'fast_rgf':
@@ -49,11 +51,13 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         model = model_class(**params)
         if model_class == CatBoostRanker:
             model.fit(X_train, y_train, group_id=group_ids['impression_id'], verbose=50)
-        elif model_class == XGBRanker:
-            model.fit(X_train, y_train, group=group_ids.groupby('impression_id')['impression_id'].count().values, verbose=50)
+        elif model_class in [XGBRanker, LGBMRanker]:
+            model.fit(X_train, y_train, group=group_ids.groupby('impression_id')['impression_id'].count().values)
+        elif model_class == LGBMClassifier:
+            model.fit(X_train, y_train)
         else:
             model.fit(X_train, y_train, verbose=50)
-        if model_class in [CatBoostRanker, XGBRanker]:
+        if model_class in [CatBoostRanker, XGBRanker, LGBMRanker]:
             prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict(X_val)).alias('prediction')) \
                 .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
         else:
@@ -154,7 +158,7 @@ if __name__ == '__main__':
                         help="Optional name of the study. Should be used if a storage is provided")
     parser.add_argument("-storage", default=None, type=str, required=False,
                         help="Optional storage url for saving the trials")
-    parser.add_argument("-model_name", choices=['catboost', 'fast_rgf', 'xgb'], 
+    parser.add_argument("-model_name", choices=['lgbm', 'catboost', 'fast_rgf', 'xgb'], 
                         type=str, default='catboost_cls', help='The type of model to tune')
     parser.add_argument('--is_rank', action='store_true', default=False, 
                         help='Whether to treat the problem as a ranking problem')

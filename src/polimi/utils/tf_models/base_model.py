@@ -30,7 +30,7 @@ class TabularNNModel(ABC):
     '''
     
     CATEGORICAL_TRANSFORMS = ['embeddings', 'one-hot-encoding', 'target-encoding']
-    NUMERICAL_TRANSOFORMS = [None, 'min-max', 'standard', 'quantile-normal', 'quantile-normal', 'max-abs', 'yeo-johnson']
+    NUMERICAL_TRANSOFORMS = [None, 'min-max', 'standard', 'quantile-normal', 'quantile-uniform', 'max-abs', 'yeo-johnson']
     
     def __init__(
         self, 
@@ -207,7 +207,7 @@ class TabularNNModel(ABC):
     def get_optuna_trial(cls, trial: optuna.Trial):
         params = {
             'use_gaussian_noise': trial.suggest_categorical('use_gaussian_noise', [True, False]),
-            'numerical_transform': trial.suggest_categorical('numerical_transform', cls.NUMERICAL_TRANSOFORMS),
+            'numerical_transform': trial.suggest_categorical('numerical_transform', ['min-max', 'quantile-normal', 'yeo-johnson']),
         }
         if params['use_gaussian_noise']:
             params['gaussian_noise_std'] = trial.suggest_float('gaussian_noise_std', 1e-3, 1)
