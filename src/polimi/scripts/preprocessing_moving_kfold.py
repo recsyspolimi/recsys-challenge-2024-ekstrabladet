@@ -53,8 +53,6 @@ def main(input_path, output_dir, preprocessing_version='latest'):
     del behaviors_train, behaviors_val
     gc.collect()
     
-    
-
     logging.info(
         'Finished to build parquet files. Starting feature engineering')
     
@@ -86,7 +84,7 @@ def main(input_path, output_dir, preprocessing_version='latest'):
     logging.info(f'Preprocessing complete. There are {len(features_k_train.columns)} columns: {np.array(features_k_train.columns)}')
 
     dataset_info = {
-        'type': 'group_kfold',
+        'type': f'mw_w4_wval2_st2_kfold',
         'categorical_columns': categorical_columns,
         'unique_entities': unique_entities,
         'timestamp': datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
