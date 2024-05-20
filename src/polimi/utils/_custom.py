@@ -340,8 +340,6 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: E
             "similarity": trial.suggest_categorical("similarity", ['cosine', 'dice', 'jaccard', 'asymmetric', 'tversky', 'euclidean']),
             "topK": trial.suggest_int("topK", 5, 1500),
             "shrink": trial.suggest_int("shrink", 0, 1000),
-            "feature_weighting": trial.suggest_categorical('feature_weighting', ['BM25','TF-IDF']),
-            'icm_bias': trial.suggest_float('icm_bias', 0,1)
         }
         if params['similarity'] == "asymmetric":
             params["asymmetric_alpha"] = trial.suggest_float("asymmetric_alpha", 0, 2, log=False)
