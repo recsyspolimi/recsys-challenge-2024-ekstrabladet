@@ -57,7 +57,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
             model.fit(X_train, y_train)
         else:
             model.fit(X_train, y_train, verbose=50)
-        if model_class in [CatBoostRanker, XGBRanker]:
+        if model_class in [CatBoostRanker, XGBRanker, LGBMRanker]:
             prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict(X_val)).alias('prediction')) \
                 .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
         else:
