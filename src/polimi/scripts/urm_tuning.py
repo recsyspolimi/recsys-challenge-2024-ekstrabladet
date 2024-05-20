@@ -97,8 +97,7 @@ def main(urm_folder: Path, icm_folder: Path, ucm_folder: Path, output_dir: Path,
     URM_val =  load_sparse_csr(urm_val_path, logger=logging)
 
     if model_name == 'ItemKNNCBFRecommender':
-        icm_path = icm_folder.joinpath('ICM.npz')
-        ICM = load_sparse_csr(icm_path, logger=logging)
+        ICM = load_sparse_csr(icm_folder, logger=logging)
         UCM = None
     
     if model_name == 'UserKNNCBFRecommender':
