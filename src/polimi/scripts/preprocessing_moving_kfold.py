@@ -14,7 +14,7 @@ import gc
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
-from polimi.preprocessing_pipelines.preprocessing_versions import PREPROCESSING
+from polimi.preprocessing_pipelines.preprocessing_versions import BATCH_PREPROCESSING, PREPROCESSING
 from polimi.preprocessing_pipelines.categorical_dict import get_categorical_columns
 from polimi.utils._strategies import _behaviors_to_history, moving_window_split_iterator
 
@@ -66,14 +66,16 @@ def main(input_path, output_dir, preprocessing_version='latest'):
         fold_path = os.path.join(output_dir, f'fold_{i+1}')
         if not os.path.exists(fold_path):
             os.makedirs(fold_path)
-        
+                
+        logging.info(f'Starting training fold {i}...')
         features_k_train, _, unique_entities = PREPROCESSING[preprocessing_version](
             behaviors_k_train, history_k_train, articles, test=False, sample=False, previous_version=None,
             split_type='train', output_path=output_dir)
         
+        logging.info(f'Starting validation fold {i}...')
         features_k_val, _, unique_entities = PREPROCESSING[preprocessing_version](
             behaviors_k_val, history_k_val, articles, test=False, sample=False, previous_version=None,
-            split_type='train', output_path=output_dir)
+            split_type='validation', output_path=output_dir)
                 
         features_k_train.write_parquet(os.path.join(fold_path, f'train_ds.parquet'))
         features_k_val.write_parquet(os.path.join(fold_path, f'validation_ds.parquet'))
