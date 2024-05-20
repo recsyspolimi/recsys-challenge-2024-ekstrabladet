@@ -10,6 +10,7 @@ from polimi.utils._topic_model import _compute_topic_model, add_topic_model_feat
 from polimi.utils._polars import reduce_polars_df_memory_size, inflate_polars_df
 from polimi.utils._norm_and_stats import *
 from polimi.preprocessing_pipelines.pre_new import build_features_iterator as _old_build_features_iterator
+from polimi.preprocessing_pipelines.pre_new import build_features as _old_build_features
 import gc
 import logging
 
@@ -66,12 +67,11 @@ def _get_emotions_embeddings(emotion_emb_path, history):
 def _get_click_predictors(click_predictors_path, df_features):
     
     print('Collecting click predictors...')
-
     emb = pl.read_parquet(click_predictors_path)
-    emb_col = emb.drop(['user_id', 'article']).columns
+    emb_col = emb.limit(1).drop(['user_id', 'article']).columns
     normalized_emb = df_features.select(['impression_id','user_id', 'article']).join(emb, on=['user_id', 'article'], how='left')\
         .with_columns(
-        *[(pl.col(col) / pl.col(col).max().over('user_id')) for col in emb_col])
+        *[(pl.col(col) / pl.col(col).max().over('impression_id')) for col in emb_col])
     return normalized_emb
 
 
@@ -164,17 +164,18 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
 
     # Load old version
     if previous_version is None:
-        df_features, vectorizer, unique_entities = _old_build_features_iterator(behaviors, history, articles,
+        df_features, vectorizer, unique_entities = _old_build_features(behaviors, history, articles,
                                                                                 test=test, sample=sample, npratio=npratio,
-                                                                                tf_idf_vectorizer=tf_idf_vectorizer, n_batches=n_batches, previous_version=previous_version,
+                                                                                tf_idf_vectorizer=tf_idf_vectorizer, previous_version=previous_version,
                                                                                 **kwargs)
     else:
         df_features = pl.read_parquet(previous_version)
         articles, vectorizer, unique_entities = _preprocess_articles(articles)
 
     urm_ner_df = _get_urm_ner(urm_ner_path)
+    
     emb_scores_df = _get_embdeddings_agg(emb_scores_path)
-
+    
     # Emotion Embeddings
     emotion_emb, embedded_history = _get_emotions_embeddings(
         emotion_emb_path, history)
@@ -187,6 +188,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     click_predictors = _get_click_predictors(
         click_predictors_path, df_features)
 
+    
     # slice_features = sliced_df.something()
     # JOIN
     df_features = df_features.join(
