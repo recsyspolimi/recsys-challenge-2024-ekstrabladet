@@ -19,6 +19,7 @@ sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 from ebrec.evaluation.metrics_protocols import *
 from polimi.utils.tf_models import *
 from polimi.utils.tf_models.utils import *
+from fastauc.fastauc.fast_auc import CppAuc
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 T = TypeVar('T', bound=TabularNNModel)
@@ -66,32 +67,38 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         )
         
         prediction_ds = evaluation_ds.with_columns(
-                pl.Series(model.predict(X_val)).alias('prediction')
-            ).group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
-        met_eval = MetricEvaluator(
-            labels=prediction_ds['target'].to_list(),
-            predictions=prediction_ds['prediction'].to_list(),
-            metric_functions=[AucScore()]
+            pl.Series(model.predict(X_val)).alias('prediction')
+        ).group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
+        
+        cpp_auc = CppAuc()
+        return np.mean(
+            [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
+                for y_t, y_s in zip(prediction_ds['target'].to_list(), 
+                                    prediction_ds['prediction'].to_list())]
         )
-        return met_eval.evaluate().evaluations['auc']
         
     study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)
     study.optimize(objective_function, n_trials=n_trials, n_jobs=1)
     return study.best_params, study.trials_dataframe()
-    
 
 def load_datasets(train_dataset_path, validation_dataset_path):
     logging.info(f"Loading the training dataset from {train_dataset_path}")
     
-    train_ds = pd.read_parquet(os.path.join(train_dataset_path, 'train_ds.parquet'))
+    train_ds = pl.read_parquet(os.path.join(train_dataset_path, 'train_ds.parquet'))
     with open(os.path.join(train_dataset_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
         
     logging.info(f'Data info: {data_info}')
     
-    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
+    if 'postcode' in train_ds.columns:
+        train_ds = train_ds.with_columns(pl.col('postcode').fill_null(5))
+    if 'article_type' in train_ds.columns:
+        train_ds = train_ds.with_columns(pl.col('article_type').fill_null('article_default'))
     if 'impression_time' in train_ds.columns:
-        train_ds = train_ds.drop(columns=['impression_time'])
+        train_ds = train_ds.drop(['impression_time'])
+    
+    train_ds = train_ds.to_pandas()
+    train_ds = train_ds.drop(columns=['impression_id', 'article', 'user_id'])
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
     
     X_train = train_ds.drop(columns=['target'])
@@ -105,7 +112,16 @@ def load_datasets(train_dataset_path, validation_dataset_path):
     
     logging.info(f"Loading the validation dataset from {validation_dataset_path}")
     
-    val_ds = pd.read_parquet(os.path.join(validation_dataset_path, 'validation_ds.parquet'))
+    val_ds = pl.read_parquet(os.path.join(validation_dataset_path, 'validation_ds.parquet'))
+    
+    if 'postcode' in val_ds.columns:
+        val_ds = val_ds.with_columns(pl.col('postcode').fill_null(5))
+    if 'article_type' in val_ds.columns:
+        val_ds = val_ds.with_columns(pl.col('article_type').fill_null('article_default'))
+    if 'impression_time' in val_ds.columns:
+        val_ds = val_ds.drop(['impression_time'])
+    
+    val_ds = val_ds.to_pandas()
     val_ds[data_info['categorical_columns']] = val_ds[data_info['categorical_columns']].astype('category')
 
     X_val = val_ds[X_train.columns]
