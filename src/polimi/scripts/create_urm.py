@@ -66,8 +66,12 @@ def main(dataset_path: Path, dataset_type:str, urm_type:str, urm_split:str, outp
             user_id_mapping = build_user_id_mapping(history_train.vstack(history_val))
             if urm_split == 'train':
                 URM_recsys = build_recsys_urm(history_train, user_id_mapping, item_mapping, 'article_id_fixed')
+            if urm_split == 'validation_train':
+                URM_recsys = build_recsys_urm(behaviors_train, user_id_mapping, item_mapping, 'article_ids_clicked')
             elif urm_split == 'validation':
                 URM_recsys = build_recsys_urm(history_val, user_id_mapping, item_mapping, 'article_id_fixed')
+            elif urm_split == 'validation_validation':
+                URM_recsys = build_recsys_urm(behaviors_val, user_id_mapping, item_mapping, 'article_ids_clicked')
         elif dataset_type == 'testset':
             if urm_split == 'test':
                 history = history_train_large.vstack(history_val_large).vstack(history_testset)
@@ -86,8 +90,8 @@ if __name__ == '__main__':
                         help="Specify the type of dataset: ['demo', 'small', 'large']")
     parser.add_argument("-output_dir", default="../../urm/", type=str,
                         help="The directory where the URMs will be placed")
-    parser.add_argument("-urm_split", choices=['train', 'validation', 'train_val', 'test'], default='train', type=str,
-                        help="Specify the type of URM split: ['train', 'validation', 'train_val', 'test']")
+    parser.add_argument("-urm_split", choices=['train', 'validation', 'validation_train','validation_validation', 'test'], default='train', type=str,
+                        help="Specify the type of URM split: ['train', 'validation', 'validation_train','validation_validation', 'test']")
     parser.add_argument("-urm_type", choices=['ner', 'recsys'], default='ner', type=str,
                         help="Specify the type of URM: ['ner', 'recsys']")
     
