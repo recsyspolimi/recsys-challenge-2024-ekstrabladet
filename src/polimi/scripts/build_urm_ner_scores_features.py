@@ -82,7 +82,7 @@ ALGO_NER_TRAIN_DICT = {
         },
         PureSVDItemRecommender: {
             'params': None,
-            'study_name': 'PureSVDRecommender-ner-small-ndcg100_new',
+            'study_name': 'PureSVDItemRecommender-ner-small-ndcg100_new',
             'load': True
         },
         ItemKNNCFRecommender: {

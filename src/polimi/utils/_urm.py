@@ -174,7 +174,7 @@ def build_urm_ner_score_features(df: pl.DataFrame, ner_mapping: pl.DataFrame, re
         for user_index, slice in tqdm(df.partition_by(['user_index'], as_dict=True).items(), total=df['user_index'].n_unique())
         ])
     
-    scores_cols = [col for col in df.columns if '_ner_scores' in col]
+    scores_cols = [col for col in df.columns if col.endswith('_ner_scores')]
     df = df.with_columns(
             *[pl.col(col).list.eval(pl.element().list.sum()).alias(f'sum_{col}') for col in scores_cols],
             *[pl.col(col).list.eval(pl.element().list.max()).alias(f'max_{col}') for col in scores_cols],

@@ -50,7 +50,7 @@ def _get_urm_ner(urm_ner_path: Path, history: pl.DataFrame, behaviors: pl.DataFr
 
     
     logging.info('Normalizing NER scores...')
-    ner_features = [col for col in urm_ner_df.columns if '_scores' in col]
+    ner_features = [col for col in urm_ner_df.columns if '_ner_scores' in col]
     urm_ner_df = urm_ner_df.explode(pl.all().exclude(['impression_id', 'user_id'])).with_columns(
             *[(pl.col(c) / pl.col(c).max().over('impression_id')
         ).alias(f'{c}_l_inf_impression') for c in ner_features],
@@ -109,11 +109,14 @@ def _get_embdeddings_agg(emb_scores_path: Path, emb_path: Path, history: pl.Data
         emb_scores_df = emb_scores_df.join(history_w, on='user_id', how='left')
         weights_cols = [col for col in emb_scores_df.columns if col.endswith('_l1_w')]
         scores_cols = [col for col in emb_scores_df.columns if col.endswith('_scores')]
+        logging.info(f'Weights cols: {weights_cols}')
+        logging.info(f'Scores cols: {scores_cols}')
         emb_scores_df = weight_scores(emb_scores_df, scores_cols=scores_cols, weights_cols=weights_cols)
         emb_scores_df = reduce_polars_df_memory_size(emb_scores_df)
 
         logging.info('Aggregating embeddings scores...')
-        agg_cols = [col for col in emb_scores_df.columns if '_scores' in col]
+        agg_cols = [col for col in emb_scores_df.columns if '_weighted_' in col]
+        logging.info(f'Agg cols: {agg_cols}')
         emb_scores_df = build_embeddings_agg_scores(emb_scores_df, agg_cols=agg_cols, last_k=[])
         emb_scores_df = reduce_polars_df_memory_size(emb_scores_df)
 
@@ -138,9 +141,9 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     urm_ner_path = Path(kwargs['urm_ner_path']) if kwargs['urm_ner_path'] else None
     emb_path = Path(kwargs['emb_path']) if kwargs['emb_path'] else None
 
-    urm_ner_df = _get_urm_ner(urm_ner_path, history, behaviors, articles)
     emb_scores_df = _get_embdeddings_agg(emb_scores_path, emb_path, history, behaviors, articles)
-    
+    urm_ner_df = _get_urm_ner(urm_ner_path, history, behaviors, articles)
+
     # Load old version
     if previous_version is None:
         df_features, vectorizer, unique_entities = _old_build_features(behaviors, history, articles,

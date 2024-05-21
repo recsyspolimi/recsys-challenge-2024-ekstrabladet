@@ -56,8 +56,8 @@ def main(input_path, output_dir, preprocessing_version='latest'):
     
     emb_scores_path=None
     urm_ner_path=None
-    emb_path=Path('/Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset') 
-    
+    emb_path=Path(input_path).parent
+
     logging.info(
         'Finished to build parquet files. Starting feature engineering')
     
