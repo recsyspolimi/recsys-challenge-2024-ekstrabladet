@@ -77,7 +77,9 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
                                      prediction_ds['prediction'].to_list())]
             )
             auc.append(auc_fold)
-            print(f'Fold AUC: {auc[-1]}')
+            logging.info(f'Fold AUC: {auc_fold}')
+        
+        trial.set_user_attr('folds_auc', auc)
         return np.mean(auc)
         
     study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)
