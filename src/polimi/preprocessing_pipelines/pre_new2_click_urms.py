@@ -11,21 +11,46 @@ from polimi.utils._polars import reduce_polars_df_memory_size, inflate_polars_df
 from polimi.utils._norm_and_stats import *
 from polimi.preprocessing_pipelines.pre_new import build_features_iterator as _old_build_features_iterator
 from polimi.preprocessing_pipelines.pre_new import build_features as _old_build_features
+from polimi.utils._urm import build_articles_with_processed_ner, build_ner_mapping, build_ner_urm, build_user_id_mapping
+from polimi.scripts.build_urm_ner_scores_features import ALGO_NER_TRAIN_DICT, train_ner_score_algo
+from polimi.utils._urm import build_urm_ner_score_features
 import gc
 import logging
 
 
-def _get_urm_ner(urm_ner_path):
+def _get_urm_ner(urm_ner_path: Path, history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame):
+    if urm_ner_path:
+        logging.info('Collecting URM for NER...')
     
-    print('Collecting URM for NER...')
-    
-    ner_path = f'{urm_ner_path}/urm_ner_scores.parquet'
-    urm_ner_df = pl.read_parquet(ner_path)
-    ner_features = [col for col in urm_ner_df.columns if '_scores' in col]
+        ner_path = f'{urm_ner_path}/urm_ner_scores.parquet'
+        urm_ner_df = pl.read_parquet(ner_path)
+    else:
+        # Create URM
+        ap = build_articles_with_processed_ner(articles)
+        ner_mapping = build_ner_mapping(ap)
+        user_id_mapping = build_user_id_mapping(history)
+        URM_train = build_ner_urm(history, ap, user_id_mapping, ner_mapping, 'article_id_fixed')
+        recs = train_ner_score_algo(URM_train, None, ALGO_NER_TRAIN_DICT, save_algo=False)
+        user_id_mapping = build_user_id_mapping(history)
+        ap = build_articles_with_processed_ner(articles)
+        ner_mapping = build_ner_mapping(ap)
+        ap = ap.with_columns(
+            pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None)).list.drop_nulls().alias('ner_clusters_index'),
+        )
+        
+        urm_ner_df = behaviors.rename({'article_ids_inview': 'candidate_ids'})\
+            .with_columns(
+                pl.col('candidate_ids').list.eval(pl.element().replace(ap['article_id'], ap['ner_clusters_index'], default=[])).alias('candidate_ner_index'),
+                pl.col('user_id').replace(user_id_mapping['user_id'], user_id_mapping['user_index'], default=None).alias('user_index'),
+            ).select('impression_id', 'user_id', 'user_index', 'candidate_ids', 'candidate_ner_index') 
+        urm_ner_df = build_urm_ner_score_features(urm_ner_df, ner_mapping=ner_mapping, recs=recs)
+        urm_ner_df = reduce_polars_df_memory_size(urm_ner_df)
 
+    
+    ner_features = [col for col in urm_ner_df.columns if '_scores' in col]
     urm_ner_df = urm_ner_df.explode(pl.all().exclude(['impression_id', 'user_id'])).with_columns(
-        *[(pl.col(c) / pl.col(c).max().over('impression_id')
-           ).alias(f'{c}_l_inf_impression') for c in ner_features],
+            *[(pl.col(c) / pl.col(c).max().over('impression_id')
+        ).alias(f'{c}_l_inf_impression') for c in ner_features],
     ).drop(ner_features)
 
     return reduce_polars_df_memory_size(urm_ner_df)
@@ -99,7 +124,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
         articles, vectorizer, unique_entities = _preprocess_articles(articles)
 
     
-    urm_ner_df = _get_urm_ner(urm_ner_path)
+    urm_ner_df = _get_urm_ner(Path('.'), urm_ner_path, history, behaviors, articles)
     emb_scores_df = _get_embdeddings_agg(emb_scores_path)
 
     # Emotion Embeddings
@@ -158,9 +183,9 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
                    tf_idf_vectorizer: TfidfVectorizer = None, previous_version=None, **kwargs) -> pl.DataFrame:
     emb_scores_path = kwargs['emb_scores_path']
     urm_ner_path = kwargs['urm_ner_path']
-    emotion_emb_path = kwargs['emotion_emb_path']
-    click_predictors_path = kwargs['click_predictors_path']
-    recsys_features_path = kwargs['rec_sys_path']
+    # emotion_emb_path = kwargs['emotion_emb_path']
+    # click_predictors_path = kwargs['click_predictors_path']
+    # recsys_features_path = kwargs['rec_sys_path']
 
     # Load old version
     if previous_version is None:
@@ -172,21 +197,20 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         df_features = pl.read_parquet(previous_version)
         articles, vectorizer, unique_entities = _preprocess_articles(articles)
 
-    urm_ner_df = _get_urm_ner(urm_ner_path)
-    
+    urm_ner_df = _get_urm_ner(Path('.'), urm_ner_path, history, behaviors, articles)
     emb_scores_df = _get_embdeddings_agg(emb_scores_path)
     
-    # Emotion Embeddings
-    emotion_emb, embedded_history = _get_emotions_embeddings(
-        emotion_emb_path, history)
+    # # Emotion Embeddings
+    # emotion_emb, embedded_history = _get_emotions_embeddings(
+    #     emotion_emb_path, history)
 
-    # RecSysy
-    print('Collecting RECSYS features...')
-    recsys_features = pl.read_parquet(recsys_features_path)
+    # # RecSysy
+    # print('Collecting RECSYS features...')
+    # recsys_features = pl.read_parquet(recsys_features_path)
 
-    # Click Predictors
-    click_predictors = _get_click_predictors(
-        click_predictors_path, df_features)
+    # # Click Predictors
+    # click_predictors = _get_click_predictors(
+    #     click_predictors_path, df_features)
 
     
     # slice_features = sliced_df.something()
@@ -195,14 +219,14 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
         urm_ner_df, on=['impression_id', 'user_id', 'article'], how='left')
     df_features = df_features.join(
         emb_scores_df, on=['impression_id', 'user_id', 'article'], how='left')
-    df_features = df_features.join(
-        embedded_history, on='user_id', how='left')
-    df_features = df_features.join(
-        emotion_emb, left_on='article', right_on='article_id', how='left')
-    df_features = df_features.join(click_predictors, on=[
-        'user_id', 'article', 'impression_id'], how='left')
-    df_features = df_features.join(
-        recsys_features, on=['impression_id', 'user_id', 'article'], how='left')
+    # df_features = df_features.join(
+    #     embedded_history, on='user_id', how='left')
+    # df_features = df_features.join(
+    #     emotion_emb, left_on='article', right_on='article_id', how='left')
+    # df_features = df_features.join(click_predictors, on=[
+    #     'user_id', 'article', 'impression_id'], how='left')
+    # df_features = df_features.join(
+    #     recsys_features, on=['impression_id', 'user_id', 'article'], how='left')
 
     # Post Processing
     del emb_scores_df, urm_ner_df, embedded_history, emotion_emb

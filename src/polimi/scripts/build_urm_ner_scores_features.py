@@ -44,7 +44,7 @@ from polimi.utils._urm import build_user_id_mapping, build_articles_with_process
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
     
     
-def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict):
+def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict, save_algo:bool=True):
     start_time = time.time()
     recs = []
     for rec, info in algo_dict.items():
@@ -65,8 +65,9 @@ def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict):
                 params = load_best_optuna_params(study_name)
                 logging.info(f'Loaded params: {params}')
             
-            save_json(params, rec_dir.joinpath(f'{study_name}_params.json'))
-            rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_dir) #also saves the model
+            if save_algo and rec_dir:
+                save_json(params, rec_dir / f'{study_name}_params.json')
+            rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_dir if save_algo else None)
             
         recs.append(rec_instance)
     logging.info(f'Loaded/Trained ner scores algorithms in {((time.time() - start_time)/60):.1f} minutes')

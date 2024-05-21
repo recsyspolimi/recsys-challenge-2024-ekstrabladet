@@ -3,6 +3,7 @@ import os
 import logging
 from datetime import datetime
 import argparse
+from pathlib import Path
 import polars as pl
 import joblib
 import json
@@ -53,6 +54,10 @@ def main(input_path, output_dir, preprocessing_version='latest'):
     del behaviors_train, behaviors_val
     gc.collect()
     
+    emb_scores_path=None
+    urm_ner_path=None
+    emb_path=Path('/Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset') 
+    
     logging.info(
         'Finished to build parquet files. Starting feature engineering')
     
@@ -68,12 +73,14 @@ def main(input_path, output_dir, preprocessing_version='latest'):
         logging.info(f'Starting training fold {i}...')
         features_k_train, _, unique_entities = PREPROCESSING[preprocessing_version](
             behaviors_k_train, history_k_train, articles, test=False, sample=False, previous_version=None,
-            split_type='train', output_path=output_dir)
+            split_type='train', output_path=output_dir, emb_scores_path=emb_scores_path, 
+            urm_ner_path=urm_ner_path, emb_path=emb_path)
         
         logging.info(f'Starting validation fold {i}...')
         features_k_val, _, unique_entities = PREPROCESSING[preprocessing_version](
             behaviors_k_val, history_k_val, articles, test=False, sample=False, previous_version=None,
-            split_type='validation', output_path=output_dir)
+            split_type='validation', output_path=output_dir, emb_scores_path=emb_scores_path, 
+            urm_ner_path=urm_ner_path, emb_path=emb_path)
                 
         features_k_train.write_parquet(os.path.join(fold_path, f'train_ds.parquet'))
         features_k_val.write_parquet(os.path.join(fold_path, f'validation_ds.parquet'))
@@ -102,7 +109,7 @@ if __name__ == '__main__':
     parser.add_argument("-dataset_path", default=None, type=str, required=True,
                         help="Directory where the dataset is placed")
     parser.add_argument("-preprocessing_version", default='latest', type=str,
-                        choices=['68f', '94f', '115f', '127f', '142f', '147f', 'new', 'latest'],
+                        choices=['68f', '94f', '115f', '127f', '142f', '147f', 'new', 'new_emb_urm', 'latest'],
                         help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','latest']")
     
     args = parser.parse_args()
