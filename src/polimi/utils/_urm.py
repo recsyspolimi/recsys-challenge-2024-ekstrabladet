@@ -220,13 +220,13 @@ def _compute_recommendations(user_items_df, recommenders):
     user_index = user_items_df['user_index'].to_list()[0]
     items = user_items_df['item_index'].to_numpy()
 
-    scores = {}
+    scores = []
     for rec in recommenders:
-        scores[rec.RECOMMENDER_NAME] = rec._compute_item_score([user_index], items)[0, items]
+        scores.append(rec._compute_item_score([user_index], items)[0, items])
 
     return user_items_df.with_columns(
         [
-            pl.Series(model).alias(name) for name, model in scores.items()
+            pl.Series(model).alias(f'recs{index}') for index, model in enumerate(scores)
         ]
     )
     
