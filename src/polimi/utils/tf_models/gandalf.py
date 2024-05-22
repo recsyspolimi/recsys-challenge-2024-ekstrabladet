@@ -82,7 +82,7 @@ class GANDALF(TabularNNModel):
     def get_optuna_trial(cls, trial: Trial):
         params = TabularNNModel.get_optuna_trial(trial)
         model_params = {
-            'n_stages': trial.suggest_int('n_stages', 2, 18),
+            'n_stages': trial.suggest_int('n_stages', 2, 10),
             'init_t': trial.suggest_float('init_t', 0.1, 1),
             'n_head_layers': trial.suggest_int('n_head_layers', 0, 2),
             'dropout_rate': trial.suggest_float('dropout_rate', 0.01, 0.4),

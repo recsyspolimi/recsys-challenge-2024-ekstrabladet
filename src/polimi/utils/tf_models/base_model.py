@@ -154,6 +154,8 @@ class TabularNNModel(ABC):
             else:
                 callbacks.append(lr_scheduler)
                 
+        callbacks.append(tfk.callbacks.TerminateOnNaN())
+                
         if self.model is None:
             self._build()
                 
