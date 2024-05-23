@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import gc
+import time
 
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
@@ -54,41 +55,46 @@ def main(input_path, output_dir, preprocessing_version='latest'):
     del behaviors_train, behaviors_val
     gc.collect()
     
+    urm_ner_scores_path=None
     emb_scores_path=None
-    urm_ner_path=None
-    emb_path=Path(input_path).parent
+    dataset_path=Path(input_path).parent
+    output_dir = Path(output_dir)
 
     logging.info(
         'Finished to build parquet files. Starting feature engineering')
-    
+    start_time = time.time()
     for i, (history_k_train, behaviors_k_train, history_k_val, behaviors_k_val) in enumerate(
         moving_window_split_iterator(history_all, behaviors_all, window=4, window_val=2, stride=2, verbose=True)
     ):
-        logging.info(f'Preprocessing fold {i}')        
-        
-        fold_path = os.path.join(output_dir, f'fold_{i+1}')
-        if not os.path.exists(fold_path):
-            os.makedirs(fold_path)
+        logging.info(f'Preprocessing fold {i}')   
+           
+        fold_path = output_dir / f'fold_{i+1}'
+        fold_path.mkdir(parents=True, exist_ok=True)
                 
         logging.info(f'Starting training fold {i}...')
         features_k_train, _, unique_entities = PREPROCESSING[preprocessing_version](
             behaviors_k_train, history_k_train, articles, test=False, sample=False, previous_version=None,
             split_type='train', output_path=output_dir, emb_scores_path=emb_scores_path, 
-            urm_ner_path=urm_ner_path, emb_path=emb_path)
+            urm_ner_scores_path=urm_ner_scores_path, dataset_path=dataset_path)
+        features_k_train.write_parquet(fold_path / 'train_ds.parquet')
+        del features_k_train
+        gc.collect()
         
         logging.info(f'Starting validation fold {i}...')
         features_k_val, _, unique_entities = PREPROCESSING[preprocessing_version](
             behaviors_k_val, history_k_val, articles, test=False, sample=False, previous_version=None,
             split_type='validation', output_path=output_dir, emb_scores_path=emb_scores_path, 
-            urm_ner_path=urm_ner_path, emb_path=emb_path)
-                
-        features_k_train.write_parquet(os.path.join(fold_path, f'train_ds.parquet'))
-        features_k_val.write_parquet(os.path.join(fold_path, f'validation_ds.parquet'))
+            urm_ner_scores_path=urm_ner_scores_path, dataset_path=dataset_path)
+        
+        features_k_val.write_parquet(fold_path / 'validation_ds.parquet')
+        del features_k_val
+        gc.collect()
+
         
     categorical_columns = get_categorical_columns(preprocessing_version)
     categorical_columns += [f'Entity_{entity}_Present' for entity in unique_entities]
 
-    logging.info(f'Preprocessing complete. There are {len(features_k_train.columns)} columns: {np.array(features_k_train.columns)}')
+    logging.info(f'Preprocessing moving window finished. {i + 1} folds completed in {((time.time() - start_time) / 60):.2f} minutes.')
 
     dataset_info = {
         'type': f'mw_w4_wval2_st2_kfold',

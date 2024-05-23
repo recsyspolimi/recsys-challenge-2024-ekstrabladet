@@ -24,6 +24,9 @@ CATEGORICAL_COLUMNS = {
     'new_click': ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
             'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
             'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory', 'article_type', 'postcode'],
+    'new_emb_urm': ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
+            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
+            'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory', 'article_type', 'postcode'],
     'latest': ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
                            'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory']
