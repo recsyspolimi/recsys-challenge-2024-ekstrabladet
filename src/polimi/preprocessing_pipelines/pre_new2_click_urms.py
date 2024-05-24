@@ -13,7 +13,6 @@ from polimi.preprocessing_pipelines.pre_new import build_features_iterator as _o
 from polimi.preprocessing_pipelines.pre_new import build_features as _old_build_features
 from polimi.utils._urm import build_articles_with_processed_ner, build_ner_mapping, build_ner_urm, build_user_id_mapping
 from polimi.scripts.build_urm_ner_scores_features import ALGO_NER_TRAIN_DICT, train_ner_score_algo
-from polimi.utils._urm import build_urm_ner_score_features
 import gc
 import logging
 

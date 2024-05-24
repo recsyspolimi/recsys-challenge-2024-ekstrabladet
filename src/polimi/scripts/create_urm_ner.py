@@ -34,18 +34,14 @@ def main(dataset_path: Path, output_dir: Path, urm_type:str):
         logging.info(f'Building the URM {dtype} {split}')
         start_time = time.time()
         if urm_type == 'ner':
-            ap = build_articles_with_processed_ner(articles)
-            ner_mapping = build_ner_mapping(ap)
-            # output_file_path = output_dir.joinpath(f'URM_{split}')
-            user_id_mapping = build_user_id_mapping(history)
-            URM_train = build_ner_urm(history, ap, user_id_mapping, ner_mapping, 'article_id_fixed')
+            URM_train = build_ner_urm(behaviors, history, articles, 'article_id_fixed')
             logging.info(f'Sparsity ratio of the URM_train: {compute_sparsity_ratio(URM_train)}')
             save_sparse_csr(save_path / f'URM_train', URM_train, logger=logging)
 
             del URM_train
             gc.collect()
 
-            URM_test = build_ner_urm(behaviors, ap, user_id_mapping, ner_mapping, 'article_ids_clicked')
+            URM_test = build_ner_urm(behaviors, history, articles, 'article_ids_clicked')
             logging.info(f'Sparsity ratio of the URM_train: {compute_sparsity_ratio(URM_test)}')
             save_sparse_csr(save_path / f'URM_test', URM_test, logger=logging)
         

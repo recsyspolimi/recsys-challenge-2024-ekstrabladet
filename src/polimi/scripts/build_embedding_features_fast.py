@@ -9,7 +9,7 @@ import math
 from tqdm import tqdm
 import time
 from polimi.utils._polars import reduce_polars_df_memory_size, stack_slices
-from polimi.utils._embeddings import weight_scores, build_normalized_embeddings_matrix, build_embeddings_scores, build_embeddings_agg_scores, build_history_w
+from polimi.utils._embeddings import weight_scores, build_normalized_embeddings_matrix, build_embeddings_scores, build_embeddings_agg_scores, build_history_w, build_norm_m_dict
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -25,22 +25,9 @@ def main(input_path, output_dir):
         dataset_splits = ['test']
     else:
         dataset_splits = ['train', 'validation']
-    
-    emb_name_dict = {'Ekstra_Bladet_contrastive_vector': 'contrastive_vector',
-                 'FacebookAI_xlm_roberta_base': 'xlm_roberta_base',
-                 'Ekstra_Bladet_image_embeddings': 'image_embeddings',
-                 'google_bert_base_multilingual_cased': 'bert_base_multilingual_cased'}
-    
+        
     articles = pl.read_parquet(input_path / 'articles.parquet') 
-    norm_m_dict = {}
-    article_emb_mapping = articles.select('article_id').unique().with_row_index()
-    for dir, file_name in emb_name_dict.items():
-        logging.info(f'Processing {file_name} embedding matrix...')
-        emb_df = pl.read_parquet(input_path.parent / dir / f'{file_name}.parquet')
-        emb_df.columns = ['article_id', 'embedding']
-        logging.info(f'Building normalized embeddings matrix for {file_name}...')
-        m = build_normalized_embeddings_matrix(emb_df, article_emb_mapping)
-        norm_m_dict[file_name] = m
+    norm_m_dict = build_norm_m_dict(articles, dataset_path=input_path.parent, logging=logging.info)
     
     for data_split in dataset_splits:
         logging.info(f"Loading {input_path / data_split}")
@@ -50,31 +37,18 @@ def main(input_path, output_dir):
         history_w = build_history_w(history, articles)
         selected_weight_col = 'scroll_percentage_fixed_mmnorm_l1_w'
         history_w = history_w.select('user_id', selected_weight_col)
-        
-        history_m = history\
-            .select('user_id', pl.col('article_id_fixed').list.eval(
-                        pl.element().replace(article_emb_mapping['article_id'], article_emb_mapping['index'], default=None)))\
-            .with_row_index('user_index')
 
-        user_history_map = history_m.select('user_id', 'user_index')
-        history_m = history_m['article_id_fixed'].to_numpy()
-        train_ds = behaviors.select('impression_id', 'user_id', pl.col('article_ids_inview').alias('article'))\
-            .join(user_history_map, on='user_id')\
-            .with_columns(
-                pl.col('article').list.eval(pl.element().replace(article_emb_mapping['article_id'], article_emb_mapping['index'], default=None)).name.suffix('_index'),
-            ).drop('impression_time_fixed', 'scroll_percentage_fixed', 'read_time_fixed')
-            
+                    
         save_path = output_dir / dtype / data_split
         save_path.mkdir(parents=True, exist_ok=True)
          
-        train_ds = reduce_polars_df_memory_size(train_ds)
-        train_ds = train_ds.sort('user_id')
-        BATCH_SIZE = int(3e5)
-        n_slices = math.ceil(len(train_ds) / BATCH_SIZE)
-        for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
+        behaviors = behaviors.sort(['user_id', 'impression_id'])
+        BATCH_SIZE = int(5e5)
+        n_slices = math.ceil(len(behaviors) / BATCH_SIZE)
+        for i, slice in enumerate(tqdm(behaviors.iter_slices(BATCH_SIZE), total=n_slices)):
             logging.info(f'Start building embeddings scores slice {i}...')
             t = time.time()
-            slice = build_embeddings_scores(slice, history_m=history_m, m_dict=norm_m_dict)
+            slice = build_embeddings_scores(slice, history, articles, norm_m_dict=norm_m_dict)
             logging.info(f'Completed in {((time.time() - t) / 60):.2f} minutes')
             
             logging.info(f'Weightening embeddings scores for slice {i} ...')

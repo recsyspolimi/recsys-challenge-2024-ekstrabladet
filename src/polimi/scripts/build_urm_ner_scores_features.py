@@ -35,44 +35,14 @@ from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from polimi.utils._custom import ALGORITHMS
 from polimi.utils._custom import load_sparse_csr, load_best_optuna_params, load_articles, load_behaviors, load_history, save_json, read_json
 from polimi.utils._custom import load_sparse_csr, load_best_optuna_params, load_articles, load_behaviors, load_history, save_json
-from polimi.utils._urm import train_recommender, build_urm_ner_score_features, load_recommender
+from polimi.utils._urm import train_recommender, build_urm_ner_scores, load_recommender
 import polars as pl
 import scipy.sparse as sps
 import time
 import os
 from polimi.utils._urm import build_user_id_mapping, build_articles_with_processed_ner, build_ner_mapping
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
-    
-    
-def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict, save_algo:bool=True):
-    start_time = time.time()
-    recs = []
-    for rec, info in algo_dict.items():
-        params = info['params']
-        study_name = info['study_name']
-           
-        is_study_in_dir = f'{study_name}.zip' in os.listdir(rec_dir)
-        is_load = 'load' in info and info['load']
-        if is_load and is_study_in_dir:
-            params = read_json(rec_dir.joinpath(f'{study_name}_params.json'))
-            logging.info(f'Loading {rec} with params {params}...')
-            rec_instance = load_recommender(URM, rec, rec_dir, file_name=study_name)
-        else:
-            if is_load and not is_study_in_dir:
-                logging.info(f'Study {study_name} not found in {rec_dir}, loading params...')
-            if not params:
-                logging.info(f'Params are missing, loading best params for {study_name}...')
-                params = load_best_optuna_params(study_name)
-                logging.info(f'Loaded params: {params}')
-            
-            if save_algo and rec_dir:
-                save_json(params, rec_dir / f'{study_name}_params.json')
-            rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_dir if save_algo else None)
-            
-        recs.append(rec_instance)
-    logging.info(f'Loaded/Trained ner scores algorithms in {((time.time() - start_time)/60):.1f} minutes')
-    return recs
-    
+
     
 ALGO_NER_TRAIN_DICT = {
         RP3betaRecommender: {
@@ -101,6 +71,37 @@ ALGO_NER_TRAIN_DICT = {
             'load': True
         },
     }
+    
+def train_ner_score_algo(URM: sps.csr_matrix, rec_dir: Path, algo_dict:dict=ALGO_NER_TRAIN_DICT, save_algo:bool=True):
+    start_time = time.time()
+    recs = []
+    for rec, info in algo_dict.items():
+        params = info['params']
+        study_name = info['study_name']
+           
+        is_study_in_dir = f'{study_name}.zip' in os.listdir(rec_dir)
+        is_load = 'load' in info and info['load']
+        if is_load and is_study_in_dir:
+            params = read_json(rec_dir.joinpath(f'{study_name}_params.json'))
+            logging.info(f'Loading {rec} with params {params}...')
+            rec_instance = load_recommender(URM, rec, rec_dir, file_name=study_name)
+        else:
+            if is_load and not is_study_in_dir:
+                logging.info(f'Study {study_name} not found in {rec_dir}, loading params...')
+            if not params:
+                logging.info(f'Params are missing, loading best params for {study_name}...')
+                params = load_best_optuna_params(study_name)
+                logging.info(f'Loaded params: {params}')
+            
+            if save_algo and rec_dir:
+                save_json(params, rec_dir / f'{study_name}_params.json')
+            rec_instance = train_recommender(URM, rec, params, file_name=study_name, output_dir=rec_dir if save_algo else None)
+            
+        recs.append(rec_instance)
+    logging.info(f'Loaded/Trained ner scores algorithms in {((time.time() - start_time)/60):.1f} minutes')
+    return recs
+    
+
     
 def main(dataset_path: Path, urm_path: Path, output_path: Path):    
     
@@ -133,31 +134,18 @@ def main(dataset_path: Path, urm_path: Path, output_path: Path):
         history = pl.read_parquet(dataset_path / split / 'history.parquet')
         unique_users = history['user_id'].unique().to_numpy()
         behaviors = pl.read_parquet(dataset_path / split / 'behaviors.parquet')
-        
-        
-        user_id_mapping = build_user_id_mapping(history)
-        ap = build_articles_with_processed_ner(articles)
-        ner_mapping = build_ner_mapping(ap)
-        ap = ap.with_columns(
-            pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None)).list.drop_nulls().alias('ner_clusters_index'),
-        )
-        
-        train_ds = behaviors.rename({'article_ids_inview': 'candidate_ids'})\
-            .with_columns(
-                pl.col('candidate_ids').list.eval(pl.element().replace(ap['article_id'], ap['ner_clusters_index'], default=[])).alias('candidate_ner_index'),
-                pl.col('user_id').replace(user_id_mapping['user_id'], user_id_mapping['user_index'], default=None).alias('user_index'),
-            ).select('impression_id', 'user_id', 'user_index', 'candidate_ids', 'candidate_ner_index')        
-        
+                
 
-        train_ds = reduce_polars_df_memory_size(train_ds)
         start_time = time.time()
-        train_ds = train_ds.sort('user_id')
+        behaviors = behaviors.sort(['user_id', 'impression_id'])
         BATCH_SIZE = int(1e6)
-        n_slices = math.ceil(len(train_ds) / BATCH_SIZE)
-        for i, slice in enumerate(tqdm(train_ds.iter_slices(BATCH_SIZE), total=n_slices)):
+        n_slices = math.ceil(len(behaviors) / BATCH_SIZE)
+        for i, slice in enumerate(tqdm(behaviors.iter_slices(BATCH_SIZE), total=n_slices)):
             logging.info(f'Starting urm ner scores slice {i}...')
-            slice = build_urm_ner_score_features(slice, ner_mapping=ner_mapping, recs=recs)
+            
+            slice = build_urm_ner_scores(slice, history, articles, recs, batch_size=BATCH_SIZE)
             slice = reduce_polars_df_memory_size(slice)
+            
             logging.info(f'Saving urm ner scores slice {i} to {save_path}')
             slice.write_parquet(save_path / f'urm_ner_scores_slice_{i}.parquet')
             

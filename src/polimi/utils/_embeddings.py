@@ -404,11 +404,28 @@ def iterator_weighted_embedding(df, users_embeddings, embeddings, column_name, n
         
 
 # Embeddings Lorenzo
+EMB_NAME_DICT = {'Ekstra_Bladet_contrastive_vector': 'contrastive_vector',
+                 'FacebookAI_xlm_roberta_base': 'xlm_roberta_base',
+                 'Ekstra_Bladet_image_embeddings': 'image_embeddings',
+                 'google_bert_base_multilingual_cased': 'bert_base_multilingual_cased'}
 
-def build_normalized_embeddings_matrix(emb_df: pl.DataFrame, article_emb_mapping: pl.DataFrame, shrinkage: float = 1e-6):
+
+def build_norm_m_dict(articles: pl.DataFrame, dataset_path: Path, emb_name_dict:dict=EMB_NAME_DICT, logging=print):
+    norm_m_dict = {}
+    article_emb_mapping = articles.select('article_id').unique().with_row_index()
+    for dir, file_name in emb_name_dict.items():
+        logging(f'Processing {file_name} embedding matrix...')
+        emb_df = pl.read_parquet(dataset_path / dir / f'{file_name}.parquet')
+        emb_df.columns = ['article_id', 'embedding']
+        logging(f'Building normalized embeddings matrix for {file_name}...')
+        m = build_normalized_embeddings_matrix(emb_df, article_emb_mapping)
+        norm_m_dict[file_name] = m
+    return norm_m_dict
+
+def build_normalized_embeddings_matrix(emb_df: pl.DataFrame, article_emb_mapping: pl.DataFrame, shrinkage: float = 1e-6, logging=print):
     missing_articles_in_embedding = list(set(article_emb_mapping['article_id'].to_numpy()) - set(emb_df['article_id'].to_numpy()))
     if len(missing_articles_in_embedding) > 0:
-        print(f'[Warning... {len(missing_articles_in_embedding)} missing articles in embedding matrix]')
+        logging(f'[Warning... {len(missing_articles_in_embedding)} missing articles in embedding matrix]')
         emb_size = len(emb_df['embedding'][0])
         null_vector = np.zeros(emb_size, dtype=np.float32)
         emb_df = emb_df.vstack(pl.DataFrame({'article_id': missing_articles_in_embedding, 'embedding': [null_vector] * len(missing_articles_in_embedding)}))
@@ -420,8 +437,26 @@ def build_normalized_embeddings_matrix(emb_df: pl.DataFrame, article_emb_mapping
     return m
 
 
-def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray,
-                            m_dict:dict[str, np.ndarray]):
+def build_embeddings_scores(behaviors:pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, norm_m_dict:dict):
+
+    article_emb_mapping = articles.select('article_id').unique().with_row_index()
+
+    history_m = history\
+        .select('user_id', pl.col('article_id_fixed').list.eval(
+                    pl.element().replace(article_emb_mapping['article_id'], article_emb_mapping['index'], default=None)))\
+        .with_row_index('user_index')
+
+    user_history_map = history_m.select('user_id', 'user_index')
+    history_m = history_m['article_id_fixed'].to_numpy()
+    df = behaviors.select('impression_id', 'user_id', pl.col('article_ids_inview').alias('article'))\
+        .join(user_history_map, on='user_id')\
+        .with_columns(
+            pl.col('article').list.eval(
+                pl.element().replace(article_emb_mapping['article_id'], article_emb_mapping['index'], default=None))\
+                    .name.suffix('_index'),
+        ).drop('impression_time_fixed', 'scroll_percentage_fixed', 'read_time_fixed')\
+        .sort(['user_id', 'impression_id'])
+        
     df = pl.concat([
         slice.explode(['article_index', 'article']).with_columns(
             *[pl.lit(
@@ -429,7 +464,7 @@ def build_embeddings_scores(df: pl.DataFrame, history_m: np.ndarray,
                     m[slice['article_index'].explode().to_numpy()], 
                     m[history_m[key[0]]].T
                     )
-                ).alias(f'{emb_name}_scores') for emb_name, m in m_dict.items()]
+                ).alias(f'{emb_name}_scores') for emb_name, m in norm_m_dict.items()]
         )\
         .drop(['article_index', 'user_index'])\
         .group_by(['impression_id', 'user_id'])\
@@ -473,7 +508,7 @@ def build_history_w(history: pl.DataFrame, articles: pl.DataFrame):
     return history_w
 
 def weight_scores(df: pl.DataFrame, scores_cols: list[str], weights_cols: list[str]):
-    df = pl.concat([
+    return pl.concat([
         slice.explode(['article'] + scores_cols).with_columns(
             *[pl.lit(
                 np.array([np.array(i) for i in slice[col_score].explode().to_numpy()]) * slice[col_w][0].to_numpy(),
@@ -483,7 +518,6 @@ def weight_scores(df: pl.DataFrame, scores_cols: list[str], weights_cols: list[s
         ).drop(weights_cols).group_by('impression_id', 'user_id').agg(pl.all())
         for slice in tqdm(df.partition_by(by=['user_id']), total=df['user_id'].n_unique())    
     ])
-    return df
 
 def build_embeddings_agg_scores(df: pl.DataFrame, agg_cols: list[str] = [], last_k: list[int] = [], batch_size:int=50000, drop:bool=True):
     df = pl.concat([
@@ -494,11 +528,11 @@ def build_embeddings_agg_scores(df: pl.DataFrame, agg_cols: list[str] = [], last
             *[pl.col(col).list.eval(pl.element().list.std()).name.suffix('_std') for col in agg_cols],
             *[pl.col(col).list.eval(pl.element().list.median()).name.suffix('_median') for col in agg_cols],
             # Last k
-            # *[pl.col(col).list.eval(pl.element().list.tail(k).list.mean()).name.suffix(f'_mean_tail_{k}') for k in last_k for col in agg_cols],
-            # *[pl.col(col).list.eval(pl.element().list.tail(k).list.max()).name.suffix(f'_max_tail_{k}') for k in last_k for col in agg_cols],
-            # *[pl.col(col).list.eval(pl.element().list.tail(k).list.min()).name.suffix(f'_min_tail_{k}') for k in last_k for col in agg_cols],
-            # *[pl.col(col).list.eval(pl.element().list.tail(k).list.std()).name.suffix(f'_std_tail_{k}') for k in last_k for col in agg_cols],
-            # *[pl.col(col).list.eval(pl.element().list.tail(k).list.median()).name.suffix(f'_median_tail_{k}') for k in last_k for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.mean()).name.suffix(f'_mean_tail_{k}') for k in last_k for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.max()).name.suffix(f'_max_tail_{k}') for k in last_k for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.min()).name.suffix(f'_min_tail_{k}') for k in last_k for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.std()).name.suffix(f'_std_tail_{k}') for k in last_k for col in agg_cols],
+            *[pl.col(col).list.eval(pl.element().list.tail(k).list.median()).name.suffix(f'_median_tail_{k}') for k in last_k for col in agg_cols],
         ).drop(agg_cols if drop else [])
         for slice in tqdm(df.iter_slices(batch_size), total=df.shape[0] // batch_size)
     ])
