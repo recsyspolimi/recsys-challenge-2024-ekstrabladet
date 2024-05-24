@@ -10,8 +10,8 @@ import gc
 from ebrec.evaluation.metrics_protocols import *
 import catboost
 
-dataset_path = '/home/ubuntu/experiments/preprocessing_train_2024-05-18_09-34-07'
-validation_path = '/home/ubuntu/experiments/preprocessing_validation_2024-05-18_09-43-19'
+dataset_path = '/home/ubuntu/experiments/preprocessing_train_small_new'
+validation_path = '/home/ubuntu/experiments/preprocessing_validation_small_new'
 batch_split_directory = '/home/ubuntu/experiments/test_batch_training/batches/'
 
 # dataset_path = '/home/ubuntu/experiments/preprocessing_train_2024-05-18_09-34-07'
@@ -24,6 +24,7 @@ catboost_params = {
     'colsample_bylevel': 0.5
 }
 EVAL = True
+SAVE_PREDICTIONS = True
 N_BATCH = 10
 
 def load_batch(dataset_path, batch_split_directory, batch_index):
@@ -174,6 +175,8 @@ if __name__ == '__main__':
 
         pred = val_ds.with_columns(
             pl.Series(model.predict(X_val)).alias('prediction'))
+        if SAVE_PREDICTIONS:
+            pred.write_parquet('/home/ubuntu/experiments/test_batch_training/ranker_predictions.parquet')
         gc.collect()
         evaluation_ds = pred.group_by('impression_id').agg(
             pl.col('target'), pl.col('prediction'))
