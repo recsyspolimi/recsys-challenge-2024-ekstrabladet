@@ -50,7 +50,12 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         
         # training hyperparameters
         epochs = trial.suggest_int('epochs', 1, 50)
-        learning_rate = trial.suggest_float('learning_rate', 1e-4, 1e-2)
+        if model_class == GANDALF:
+            learning_rate = trial.suggest_float('learning_rate', 1e-5, 1e-3)
+            clipnorm = 1.0
+        else:
+            learning_rate = trial.suggest_float('learning_rate', 1e-4, 1e-2)
+            clipnorm = 5.0
         weight_decay = trial.suggest_float('weight_decay', 1e-5, 1e-2)
         use_scheduler = trial.suggest_categorical('use_scheduler', [True, False])
         lr_scheduler = get_simple_decay_scheduler(trial.suggest_float('scheduling_rate', 1e-3, 0.1)) if use_scheduler else None
@@ -63,7 +68,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
             lr_scheduler=lr_scheduler,
             loss=tf.keras.losses.BinaryCrossentropy(),
             metrics=[tf.keras.metrics.AUC(curve='ROC', name='auc')],
-            optimizer=tf.keras.optimizers.AdamW(learning_rate, weight_decay=weight_decay, clipnorm=5.0),
+            optimizer=tf.keras.optimizers.AdamW(learning_rate, weight_decay=weight_decay, clipnorm=clipnorm),
         )
         
         prediction_ds = evaluation_ds.with_columns(
