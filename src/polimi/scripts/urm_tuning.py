@@ -101,8 +101,7 @@ def main(urm_folder: Path, icm_folder: Path, ucm_folder: Path, output_dir: Path,
         UCM = None
     
     if model_name == 'UserKNNCBFRecommender':
-        ucm_path = ucm_folder.joinpath('UCM.npz')
-        UCM = load_sparse_csr(ucm_path,logger=logging)
+        UCM = load_sparse_csr(ucm_folder,logger=logging)
         ICM = None
 
     best_params, trials_df = optimize_parameters(URM_train=URM_train,

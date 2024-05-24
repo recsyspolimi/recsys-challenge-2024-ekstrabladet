@@ -1,6 +1,7 @@
 from catboost import CatBoostClassifier, CatBoostRanker
 import polars as pl
 import numpy as np
+import os
 from typing_extensions import List, Type
 from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
 from RecSys_Course_AT_PoliMi.Recommenders.GraphBased.P3alphaRecommender import P3alphaRecommender
@@ -15,6 +16,7 @@ from RecSys_Course_AT_PoliMi.Recommenders.SLIM.Cython.SLIM_BPR_Cython import SLI
 from RecSys_Course_AT_PoliMi.Recommenders.MatrixFactorization.NMFRecommender import NMFRecommender
 from RecSys_Course_AT_PoliMi.Evaluation.Evaluator import EvaluatorHoldout
 from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCBFRecommender import ItemKNNCBFRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.UserKNNCBFRecommender import UserKNNCBFRecommender
 from lightgbm import LGBMClassifier, LGBMRanker
 
 from os import getpid
@@ -144,7 +146,7 @@ def load_best_optuna_params(study_name: str, storage:str=_BASE_OPTUNA_STORAGE) -
 ALGORITHMS_LIST = [RP3betaRecommender, P3alphaRecommender, ItemKNNCFRecommender, UserKNNCFRecommender, 
       PureSVDRecommender, MultiThreadSLIM_SLIMElasticNetRecommender, SLIMElasticNetRecommender, 
       MatrixFactorization_AsySVD_Cython, MatrixFactorization_BPR_Cython, MultVAERecommender, SLIM_BPR_Cython, 
-      PureSVDItemRecommender, NMFRecommender,ItemKNNCBFRecommender]
+      PureSVDItemRecommender, NMFRecommender,ItemKNNCBFRecommender, UserKNNCBFRecommender]
 
 ALGORITHMS = {algo.RECOMMENDER_NAME: [algo] for algo in ALGORITHMS_LIST}
 
@@ -178,6 +180,11 @@ algo_dict_ner = {
 
 algo_dict_recsys = {
     ItemKNNCBFRecommender: {
+        'params': {},
+        'study_name': 'prova',
+        'load': False
+    },
+    UserKNNCBFRecommender: {
         'params': {},
         'study_name': 'prova',
         'load': False
@@ -335,7 +342,7 @@ def get_algo_params(trial: optuna.Trial, model: BaseRecommender, evaluator_es: E
             "num_factors": trial.suggest_int("num_factors", 1, 1000),
             "topK": trial.suggest_int("topK", 5, 1500),            
         }
-    if model == ItemKNNCBFRecommender:
+    if model in [ItemKNNCBFRecommender,UserKNNCBFRecommender]:
         params = {
             "similarity": trial.suggest_categorical("similarity", ['cosine', 'dice', 'jaccard', 'asymmetric', 'tversky', 'euclidean']),
             "topK": trial.suggest_int("topK", 5, 1500),
@@ -373,3 +380,14 @@ def load_recommenders(URM: sps.csr_matrix, file_path: Path):
                     continue
         
         return recs
+
+def load_urms(file_path: Path):
+        URMs = []
+        for file_name in os.listdir(file_path):
+                if os.path.isfile(file_path.joinpath(file_name)):
+                        URM = load_sparse_csr(file_path.joinpath(file_name))
+                        URMs.append(URM)
+                else:
+                        continue
+
+        return URMs
