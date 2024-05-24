@@ -1,0 +1,19 @@
+{
+    "model_hyperparams": {
+        "use_gaussian_noise": false, 
+        "numerical_transform": "yeo-johnson", 
+        "n_layers": 5, 
+        "start_units": 347, 
+        "units_decay": 2.5, 
+        "dropout_rate": 0.19604024471398585, 
+        "l1_lambda": 1.3054583284275335e-05, 
+        "l2_lambda": 1.4351656634276699e-05, 
+        "activation": "relu"
+    },
+    "model_name": "MLP",
+    "epochs": 19, 
+    "learning_rate": 0.00013398199937460708, 
+    "weight_decay": 0.0047202398552130655, 
+    "use_scheduler": true, 
+    "scheduling_rate": 0.07337666545661066
+}
