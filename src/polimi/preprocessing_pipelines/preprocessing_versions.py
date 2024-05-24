@@ -15,6 +15,8 @@ from polimi.preprocessing_pipelines.pre_142 import build_features as build_featu
 from polimi.preprocessing_pipelines.pre_147 import build_features as build_features_147f
 from polimi.preprocessing_pipelines.pre_new import build_features as build_features_new
 from polimi.preprocessing_pipelines.pre_new2_click_urms import build_features as build_features_new_click
+from polimi.preprocessing_pipelines.pre_new_emb_urm import build_features as build_features_new_emb_urm
+
 
 from polimi.preprocessing_pipelines.pre_127 import build_features_iterator_test as build_features_iterator_test_127f
 from polimi.preprocessing_pipelines.pre_142 import build_features_iterator_test as build_features_iterator_test_142f
@@ -22,7 +24,7 @@ from polimi.preprocessing_pipelines.pre_147 import build_features_iterator_test 
 from polimi.preprocessing_pipelines.pre_new import build_features_iterator_test as build_features_iterator_test_new
 from polimi.preprocessing_pipelines.pre_new2_click_urms import build_features as build_features_iterator_test_new_click
 
-PREPROCESSING_VERSIONS = ['68f','94f','115f','127f','142f', '147f', 'latest']
+
 
 PREPROCESSING = {
     '68f': build_features_68f,
@@ -33,8 +35,11 @@ PREPROCESSING = {
     '147f': build_features_147f,
     'new': build_features_new,
     'new_click': build_features_new_click,
+    'new_emb_urm': build_features_new_emb_urm,
     'latest': build_features_127f
 }
+PREPROCESSING_VERSIONS = list(PREPROCESSING.keys())
+
 
 BATCH_PREPROCESSING = {
     '68f': build_features_iterator_68f,

@@ -63,7 +63,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
             lr_scheduler=lr_scheduler,
             loss=tf.keras.losses.BinaryCrossentropy(),
             metrics=[tf.keras.metrics.AUC(curve='ROC', name='auc')],
-            optimizer=tf.keras.optimizers.AdamW(learning_rate, weight_decay=weight_decay),
+            optimizer=tf.keras.optimizers.AdamW(learning_rate, weight_decay=weight_decay, clipnorm=5.0),
         )
         
         prediction_ds = evaluation_ds.with_columns(

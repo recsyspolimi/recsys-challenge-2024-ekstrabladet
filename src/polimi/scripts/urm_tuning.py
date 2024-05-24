@@ -97,13 +97,11 @@ def main(urm_folder: Path, icm_folder: Path, ucm_folder: Path, output_dir: Path,
     URM_val =  load_sparse_csr(urm_val_path, logger=logging)
 
     if model_name == 'ItemKNNCBFRecommender':
-        icm_path = icm_folder.joinpath('ICM.npz')
-        ICM = load_sparse_csr(icm_path, logger=logging)
+        ICM = load_sparse_csr(icm_folder, logger=logging)
         UCM = None
     
     if model_name == 'UserKNNCBFRecommender':
-        ucm_path = ucm_folder.joinpath('UCM.npz')
-        UCM = load_sparse_csr(ucm_path,logger=logging)
+        UCM = load_sparse_csr(ucm_folder,logger=logging)
         ICM = None
 
     best_params, trials_df = optimize_parameters(URM_train=URM_train,

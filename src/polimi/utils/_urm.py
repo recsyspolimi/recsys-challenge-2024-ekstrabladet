@@ -102,18 +102,19 @@ def _build_batch_ner_interactions(df: pl.DataFrame,
         
     return reduce_polars_df_memory_size(df)
     
-    
 
-def build_ner_urm(df: pl.DataFrame, 
-                  articles: pl.DataFrame, 
-                  user_id_mapping: pl.DataFrame,
-                  ner_mapping: pl.DataFrame,
-                  articles_id_col = 'article_id_fixed',
-                  batch_size=BATCH_SIZE):
-        
-    ner_interactions = _build_batch_ner_interactions(df, articles, user_id_mapping, ner_mapping, articles_id_col, batch_size=batch_size)
+
+def build_ner_urm(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, articles_id_col='article_id_fixed', batch_size=BATCH_SIZE):
+    ap = build_articles_with_processed_ner(articles)
+    ner_mapping = build_ner_mapping(ap)
+    user_id_mapping = build_user_id_mapping(history)
+    if articles_id_col == 'article_id_fixed':
+        ner_interactions = _build_batch_ner_interactions(history, articles, user_id_mapping, ner_mapping, articles_id_col, batch_size=batch_size)
+    else:
+        ner_interactions = _build_batch_ner_interactions(behaviors, articles, user_id_mapping, ner_mapping, articles_id_col, batch_size=batch_size)
+
     return _build_implicit_urm(ner_interactions, 'user_index', 'ner_index', user_id_mapping, ner_mapping)
-
+    
 def _build_recsys_interactions(
                 history: pl.DataFrame,
                 user_id_mapping: pl.DataFrame,
@@ -156,34 +157,47 @@ def load_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, file_pat
     rec_instance.load_model(folder_path=str(file_path), file_name=file_name)
     return rec_instance
 
-def build_urm_ner_score_features(df: pl.DataFrame, ner_mapping: pl.DataFrame, recs: list[BaseRecommender], batch_size=BATCH_SIZE):
+def build_urm_ner_scores(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], batch_size=BATCH_SIZE):
+    user_id_mapping = build_user_id_mapping(history)
+    ap = build_articles_with_processed_ner(articles)
+    ner_mapping = build_ner_mapping(ap)
+    ap = ap.with_columns(
+        pl.col('ner_clusters').list.eval(pl.element().replace(ner_mapping['ner'], ner_mapping['ner_index'], default=None)).list.drop_nulls().alias('ner_clusters_index'),
+    )
+    
+    df = behaviors.rename({'article_ids_inview': 'candidate_ids'})\
+        .with_columns(
+            pl.col('candidate_ids').list.eval(pl.element().replace(ap['article_id'], ap['ner_clusters_index'], default=[])).alias('candidate_ner_index'),
+            pl.col('user_id').replace(user_id_mapping['user_id'], user_id_mapping['user_index'], default=None).alias('user_index'),
+        ).select('impression_id', 'user_id', 'user_index', 'candidate_ids', 'candidate_ner_index').sort('user_id') 
+          
+    df = reduce_polars_df_memory_size(df)
+    
     df = pl.concat([ #remove caidates with empty ner_index list
         slice.explode(['candidate_ids', 'candidate_ner_index'])\
             .filter(pl.col('candidate_ner_index').list.len() > 0)\
             .group_by(['impression_id', 'user_id', 'user_index']).agg(pl.all())
         for slice in tqdm(df.iter_slices(batch_size), total=df.shape[0]//batch_size)
     ])
-    
     all_items = ner_mapping['ner_index'].unique().sort().to_list()
     df = pl.concat([
-            slice.with_columns(
-                    *[pl.col('candidate_ner_index').list.eval(
-                        pl.element().list.eval(pl.element().replace(all_items, rec._compute_item_score(user_index, all_items)[0, all_items], default=None)).cast(pl.List(pl.Float32))
-                    ).alias(f"{rec.RECOMMENDER_NAME}_ner_scores") for rec in recs]
-                ).drop('user_index', 'candidate_ner_index')
+        slice.explode(['candidate_ids', 'candidate_ner_index']).with_columns(
+                *[pl.col('candidate_ner_index').list.eval(
+                    pl.element().replace(all_items, rec._compute_item_score(user_index, all_items)[0, all_items], default=None)
+                ).alias(f"{rec.RECOMMENDER_NAME}_ner_scores") for rec in recs]
+            ).drop('user_index', 'candidate_ner_index')\
+            .group_by(['impression_id', 'user_id']).agg(pl.all())
         for user_index, slice in tqdm(df.partition_by(['user_index'], as_dict=True).items(), total=df['user_index'].n_unique())
-        ])
+    ])
     
-    scores_cols = [col for col in df.columns if '_ner_scores' in col]
+    scores_cols = [col for col in df.columns if col.endswith('_ner_scores')]
     df = df.with_columns(
             *[pl.col(col).list.eval(pl.element().list.sum()).alias(f'sum_{col}') for col in scores_cols],
             *[pl.col(col).list.eval(pl.element().list.max()).alias(f'max_{col}') for col in scores_cols],
             *[pl.col(col).list.eval(pl.element().list.mean()).alias(f'mean_{col}') for col in scores_cols],
         ).drop(scores_cols)\
         .rename({'candidate_ids': 'article'})
-                    
     return df
-
 
 def build_recsys_features(history: pl.DataFrame, behaviors: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], save_path:Path=None ):
     start_time = time.time()
@@ -220,13 +234,13 @@ def _compute_recommendations(user_items_df, recommenders):
     user_index = user_items_df['user_index'].to_list()[0]
     items = user_items_df['item_index'].to_numpy()
 
-    scores = {}
+    scores = []
     for rec in recommenders:
-        scores[rec.RECOMMENDER_NAME] = rec._compute_item_score([user_index], items)[0, items]
+        scores.append(rec._compute_item_score([user_index], items)[0, items])
 
     return user_items_df.with_columns(
         [
-            pl.Series(model).alias(name) for name, model in scores.items()
+            pl.Series(model).alias(f'recs{index}') for index, model in enumerate(scores)
         ]
     )
     

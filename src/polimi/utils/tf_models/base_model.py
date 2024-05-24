@@ -154,6 +154,8 @@ class TabularNNModel(ABC):
             else:
                 callbacks.append(lr_scheduler)
                 
+        callbacks.append(tfk.callbacks.TerminateOnNaN())
+                
         if self.model is None:
             self._build()
                 
@@ -180,24 +182,28 @@ class TabularNNModel(ABC):
         self.model.summary(expand_nested=expand_nested, **kwargs)
 
     def save(self, directory):
-        self.model.save(os.path.join(directory, self.model_name))
-        if self.categorical_transform is not None:
-            joblib.dump(self.categorical_transform, os.path.join(directory, 'categorical_encoder.joblib'))
+        self.model.save(os.path.join(directory, f'{self.model_name}.keras'))
+        if self.encoder is not None:
+            joblib.dump(self.encoder, os.path.join(directory, 'categorical_encoder.joblib'))
         if self.xformer is not None:
             joblib.dump(self.xformer, os.path.join(directory, 'numerical_transformer.joblib'))
 
     def load(self, directory):
-        self.model = tfk.models.load_model(os.path.join(directory, self.model_name))
+        self.model = tfk.models.load_model(os.path.join(directory, f'{self.model_name}.keras'))
         if len(self.numerical_features) > 0:
             try:
                 self.xformer = joblib.load(os.path.join(directory, 'numerical_transformer.joblib'))
             except Exception:
                 raise ValueError(f'Numerical transformer not found in {directory}')
+            # reorder feature names based on the order that the xformer and the nn wants
+            self.numerical_features = self.xformer.feature_names_in_
         if len(self.categorical_features) > 0:
             try:
-                self.categorical_transform = joblib.load(os.path.join(directory, 'categorical_encoder.joblib'))
+                self.encoder = joblib.load(os.path.join(directory, 'categorical_encoder.joblib'))
             except Exception:
                 raise ValueError(f'Categorical encoder not found in {directory}')
+            self.categories = self.encoder.categories_
+            self.categorical_features = self.encoder.feature_names_in_
         
     @abstractmethod
     def _build(self):
