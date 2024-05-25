@@ -5,8 +5,8 @@ python ~/RecSysChallenge2024/src/polimi/scripts/inference.py \
     -model_path /home/ubuntu/experiments/Lightgbm_Training_2024-05-05_10-30-49/model.joblib \
     -batch_size 1000000 \
     --eval \
-    -behaviors_path /home/ubuntu/dataset/ebnerd_small/validation/behaviors.parquet
-    #--submit \
+    -behaviors_path /home/ubuntu/dataset/ebnerd_small/validation/behaviors.parquet \
+    # --submit 
     
 
 wait 10

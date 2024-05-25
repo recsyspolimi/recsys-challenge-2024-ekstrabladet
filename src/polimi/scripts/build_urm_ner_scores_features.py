@@ -111,7 +111,7 @@ def main(dataset_path: Path, urm_path: Path, output_path: Path):
         splits = ['test']
         
     else:
-        splits = ['train', 'validation']
+        splits = ['validation']
     
     
     articles = pl.read_parquet(dataset_path / 'articles.parquet')
@@ -141,8 +141,7 @@ def main(dataset_path: Path, urm_path: Path, output_path: Path):
         BATCH_SIZE = int(1e6)
         n_slices = math.ceil(len(behaviors) / BATCH_SIZE)
         for i, slice in enumerate(tqdm(behaviors.iter_slices(BATCH_SIZE), total=n_slices)):
-            logging.info(f'Starting urm ner scores slice {i}...')
-            
+            logging.info(f'Starting urm ner scores slice {i}...')            
             slice = build_urm_ner_scores(slice, history, articles, recs, batch_size=BATCH_SIZE)
             slice = reduce_polars_df_memory_size(slice)
             

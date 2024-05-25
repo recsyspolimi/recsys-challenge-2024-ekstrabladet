@@ -66,7 +66,9 @@ def main(input_path, output_dir, preprocessing_version='latest'):
     for i, (history_k_train, behaviors_k_train, history_k_val, behaviors_k_val) in enumerate(
         moving_window_split_iterator(history_all, behaviors_all, window=4, window_val=2, stride=2, verbose=True)
     ):
-        logging.info(f'Preprocessing fold {i}')   
+        logging.info(f'Preprocessing fold {i}')
+        if i != 1:
+            continue
            
         fold_path = output_dir / f'fold_{i+1}'
         fold_path.mkdir(parents=True, exist_ok=True)
