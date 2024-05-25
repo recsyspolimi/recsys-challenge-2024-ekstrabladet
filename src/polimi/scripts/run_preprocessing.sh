@@ -8,13 +8,15 @@ python ~/RecSysChallenge2024/src/polimi/scripts/preprocessing.py \
     -output_dir /home/ubuntu/experiments \
     -dataset_path /home/ubuntu/dataset/ebnerd_small \
     -dataset_type train \
-    -preprocessing_version new_click \
-    -previous_version /home/ubuntu/experiments/preprocessing_train_small_new/train_ds.parquet \
-    -emb_scores_path /home/ubuntu/features/embedding_scores/ebnerd_small/train \
-    -urm_ner_path /home/ubuntu/features/urm_ner_scores/ebnerd_small/train\
-    -emotion_emb_path /home/ubuntu/dataset/emotions_embedding.parquet \
-    -click_predictors_path /home/ubuntu/dataset/click_predictors/train_click_predictor.parquet \
-    -rec_sys_path /home/ubuntu/franci_features/features/small/train/recsys_scores_features.parquet
+    -preprocessing_version new 
+
+
+
+# python /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/src/polimi/scripts/preprocessing.py \
+#     -output_dir /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/experiments \
+#     -dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/ebnerd_demo \
+#     -dataset_type train \
+#     -preprocessing_version new 
 
 
 wait 10

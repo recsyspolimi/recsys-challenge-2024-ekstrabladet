@@ -515,8 +515,8 @@ def weight_scores(df: pl.DataFrame, scores_cols: list[str], weights_cols: list[s
                 dtype=pl.List(pl.Float32)
             ).alias(f'{col_score}_weighted_{col_w}')
             for col_w in weights_cols for col_score in scores_cols]
-        ).drop(weights_cols).group_by('impression_id', 'user_id').agg(pl.all())
-        for slice in tqdm(df.partition_by(by=['user_id']), total=df['user_id'].n_unique())    
+        ).drop(weights_cols).drop(scores_cols).group_by('impression_id', 'user_id').agg(pl.all())
+        for slice in tqdm(df.partition_by('user_id'), total=df['user_id'].n_unique())    
     ])
 
 def build_embeddings_agg_scores(df: pl.DataFrame, agg_cols: list[str] = [], last_k: list[int] = [], batch_size:int=50000, drop:bool=True):
