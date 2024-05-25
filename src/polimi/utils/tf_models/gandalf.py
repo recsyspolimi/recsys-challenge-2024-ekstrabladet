@@ -82,16 +82,16 @@ class GANDALF(TabularNNModel):
     def get_optuna_trial(cls, trial: Trial):
         params = TabularNNModel.get_optuna_trial(trial)
         model_params = {
-            'n_stages': trial.suggest_int('n_stages', 2, 10),
+            'n_stages': trial.suggest_int('n_stages', 1, 10),
             'init_t': trial.suggest_float('init_t', 0.1, 1),
             'n_head_layers': trial.suggest_int('n_head_layers', 0, 2),
-            'dropout_rate': trial.suggest_float('dropout_rate', 0.01, 0.4),
+            'dropout_rate': trial.suggest_float('dropout_rate', 0.01, 0.3),
             'l1_lambda': trial.suggest_float('l1_lambda', 1e-5, 1e-2, log=True),
             'l2_lambda': trial.suggest_float('l2_lambda', 1e-5, 1e-2, log=True),
-            'activation': trial.suggest_categorical('activation', ['relu', 'sigmoid', 'tanh', 'swish'])
+            'activation': trial.suggest_categorical('activation', ['relu', 'swish'])
         }
         params.update(model_params)
         if params['n_head_layers'] > 0:
-            params['start_units_head'] = trial.suggest_int('start_units_head', 16, 256)
+            params['start_units_head'] = trial.suggest_int('start_units_head', 16, 192)
             params['head_units_decay'] = trial.suggest_categorical('head_units_decay', [1, 1.5, 2, 2.5, 3, 3.5, 4])
         return params

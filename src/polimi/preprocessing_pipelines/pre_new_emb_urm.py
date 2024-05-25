@@ -94,8 +94,8 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     emb_scores_path = Path(kwargs.get('emb_scores_path')) if kwargs.get('emb_scores_path') else None
     dataset_path = Path(kwargs.get('dataset_path')) if kwargs.get('dataset_path') else None
 
-    urm_ner_df = _get_urm_ner(urm_ner_scores_path, behaviors, history, articles)
     emb_scores_df = _get_embdeddings_agg(emb_scores_path, behaviors, history, articles, dataset_path)
+    urm_ner_df = _get_urm_ner(urm_ner_scores_path, behaviors, history, articles)
 
     # Load old version
     if previous_version is None:
