@@ -51,7 +51,7 @@ def main(dataset_path, numerical_transform, dataset_type, fit, load_path, output
         X_train_numerical = xformer.transform(dataset.select(xformer.feature_names_in_).to_numpy()).astype(np.float32)
     
     logging.info('Preprocessing complete.')
-    for i, col in tqdm.tqdm(numerical_columns):
+    for i, col in tqdm.tqdm(enumerate(numerical_columns)):
         dataset = dataset.with_columns(pl.Series(X_train_numerical[:, i]).alias(col))
         
     logging.info(f'Saving dataset and numerical transformer at: {output_dir}')
