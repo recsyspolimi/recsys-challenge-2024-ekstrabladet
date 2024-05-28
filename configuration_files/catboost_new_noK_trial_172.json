@@ -1,0 +1,16 @@
+{
+    "iterations": 4648, 
+    "learning_rate": 0.00940692561666741,
+    "rsm": 0.23234648308448685, 
+    "reg_lambda": 10.122555521780928, 
+    "grow_policy": "Depthwise", 
+    "bootstrap_type": "Bernoulli", 
+    "subsample": 0.6994875944281512, 
+    "random_strength": 0.0005368413451443827, 
+    "fold_permutation_block": 38, 
+    "border_count": 21, 
+    "sampling_frequency": "PerTree", 
+    "score_function": "Cosine", 
+    "depth": 10, 
+    "min_data_in_leaf": 415.138664786357
+}
