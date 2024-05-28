@@ -42,13 +42,15 @@ def main(dataset_path, numerical_transform, dataset_type, fit, load_path, output
             xformer = PowerTransformer(method='yeo-johnson')
         else:
             raise ValueError('Not recognized numerical transformer')
-        X_train_numerical = xformer.fit_transform(dataset.select(numerical_columns).to_pandas()).astype(np.float32)
+        X_train_numerical = xformer.fit_transform(
+            dataset.select(numerical_columns).to_pandas().replace([-np.inf, np.inf], np.nan)).astype(np.float32)
     else:
         xformer = joblib.load(load_path)
         missing_columns = [x for x in numerical_columns if x not in xformer.feature_names_in_]
         if len(missing_columns):
             raise ValueError(f'These columns are missing in the dataset: {missing_columns}')
-        X_train_numerical = xformer.transform(dataset.select(xformer.feature_names_in_).to_pandas()).astype(np.float32)
+        X_train_numerical = dataset.select(xformer.feature_names_in_).to_pandas().replace([-np.inf, np.inf], np.nan)
+        X_train_numerical = xformer.transform(X_train_numerical).astype(np.float32)
     
     logging.info('Preprocessing complete.')
     for i, col in tqdm.tqdm(enumerate(numerical_columns)):
