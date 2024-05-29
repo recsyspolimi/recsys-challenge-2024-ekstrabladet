@@ -54,7 +54,8 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             if params['langevin']:
                 params['diffusion_temperature'] = trial.suggest_float('diffusion_temperature', 1e2, 1e6, log=True)
         else: # for Lossguide, Cosine is not supported. Newton and NewtonL2 are only supported in GPU
-            params['sampling_frequency'] = trial.suggest_categorical('sampling_frequency', ['PerTree', 'PerTreeLevel'])
+            if not use_gpu: # sampling_frequency only supported in CPU
+                params['sampling_frequency'] = trial.suggest_categorical('sampling_frequency', ['PerTree', 'PerTreeLevel'])
             params['score_function'] = trial.suggest_categorical('score_function', ['Cosine', 'L2'])
             params['depth'] = trial.suggest_int("depth", 2, 10)
 

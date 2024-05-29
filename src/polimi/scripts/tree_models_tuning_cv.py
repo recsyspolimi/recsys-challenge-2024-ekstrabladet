@@ -26,7 +26,7 @@ sys.path.append('/home/ubuntu/fastauc')
 from ebrec.evaluation.metrics_protocols import *
 from polimi.utils._tuning_params import get_models_params
 from polimi.utils.model_wrappers import FastRGFClassifierWrapper
-from fastauc.fastauc.fast_auc import CppAuc
+from fastauc.fastauc.fast_auc import CppAuc, fast_numba_auc
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -45,11 +45,12 @@ def get_model_class(name: str = 'catboost', ranker: bool = False):
 
 
 def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pl.DataFrame, pd.DataFrame],
-                        categorical_features: List[str], model_class: Type = CatBoostClassifier,
+                        categorical_features: List[str], model_class: Type = CatBoostClassifier, use_gpu: bool = False,
                         study_name: str = 'catboost_cls_tuning', n_trials: int = 100, storage: str = None) -> Tuple[Dict, pd.DataFrame]:
     
     def objective_function(trial: optuna.Trial):
-        params = get_models_params(trial, model_class, categorical_features)
+        logging.info('GPU enabled' if use_gpu else 'GPU disabled')
+        params = get_models_params(trial, model_class, categorical_features, use_gpu=use_gpu)
         
         auc = []
         for X_train, X_val, y_train, evaluation_ds, groups in folds_data:
@@ -70,9 +71,9 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
                 prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
                     .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
                     
-            cpp_auc = CppAuc()
+            # cpp_auc = CppAuc()
             auc_fold = np.mean(
-                [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
+                [fast_numba_auc(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
                  for y_t, y_s in zip(prediction_ds['target'].to_list(), 
                                      prediction_ds['prediction'].to_list())]
             )
@@ -147,7 +148,7 @@ def load_folds(folds_path, dataset_path, is_ranking=False):
     return folds_data, data_info["categorical_columns"]
 
 
-def main(folds_path: str, dataset_path:str, output_dir: str, model_name: str,
+def main(folds_path: str, dataset_path:str, output_dir: str, model_name: str, use_gpu:bool=False,
          is_ranking: bool = False, study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None):
     # X, y, evaluation_ds, group_ids, cat_features = load_datasets(train_dataset_path, validation_dataset_path)
     folds_data, cat_features = load_folds(folds_path, dataset_path, is_ranking)
@@ -157,7 +158,7 @@ def main(folds_path: str, dataset_path:str, output_dir: str, model_name: str,
     optuna.logging.disable_default_handler() # Stop showing logs in sys.stderr (prevents double logs)
 
     best_params, trials_df = optimize_parameters(folds_data, categorical_features=cat_features, model_class=model_class,
-                                                 study_name=study_name, n_trials=n_trials, storage=storage)
+                                                 study_name=study_name, n_trials=n_trials, storage=storage, use_gpu=use_gpu)
     
     params_file_path = os.path.join(output_dir, 'lightgbm_best_params.json')
     logging.info(f'Best parameters: {best_params}')
@@ -187,6 +188,8 @@ if __name__ == '__main__':
                         type=str, default='catboost_cls', help='The type of model to tune')
     parser.add_argument('--is_rank', action='store_true', default=False, 
                         help='Whether to treat the problem as a ranking problem')
+    parser.add_argument('--use_gpu', action='store_true', default=False, 
+                        help='Whether to train the tree model using GPUs')
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
@@ -197,6 +200,7 @@ if __name__ == '__main__':
     STORAGE = args.storage
     MODEL_NAME = args.model_name
     IS_RANK = args.is_rank
+    USE_GPU = args.use_gpu
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     model_name = f'{MODEL_NAME}_tuning_{timestamp}_cv' if not IS_RANK else f'{MODEL_NAME}_ranker_tuning_{timestamp}_cv'
@@ -213,4 +217,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
     
     main(FOLDS_DATASET_DIR, DATASET_PATH, output_dir, MODEL_NAME, is_ranking=IS_RANK, 
-         study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE)
+         study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE, use_gpu=USE_GPU)
