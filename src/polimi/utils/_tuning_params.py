@@ -6,7 +6,7 @@ from xgboost import XGBClassifier, XGBRanker
 from polimi.utils.model_wrappers import FastRGFClassifierWrapper
 
 
-def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: List[str] = None, random_seed: int = 42):
+def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: List[str] = None, random_seed: int = 42, use_gpu: bool = False):
     # todo: xgboost, fastrgf
     if model in [LGBMClassifier, LGBMRanker]:
         params = {
@@ -26,13 +26,13 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             "min_child_samples": trial.suggest_int("min_child_samples", 10, 10000, log=True),
             "extra_trees": trial.suggest_categorical("extra_trees", [True, False]),
             "random_seed": random_seed,
+            "device_type": "gpu" if use_gpu else "cpu",
             "verbose": -1
         }
     elif model in [CatBoostClassifier, CatBoostRanker]:
         params = {
             'iterations': trial.suggest_int('iterations', 100, 5000),
             'learning_rate': trial.suggest_float("learning_rate", 0.005, 0.2, log=True),
-            'rsm': trial.suggest_float("rsm", 0.05, 0.8, log=True),
             'reg_lambda': trial.suggest_float("reg_lambda", 1e-5, 1000, log=True),
             'grow_policy': trial.suggest_categorical('grow_policy', ['SymmetricTree', 'Depthwise', 'Lossguide']),
             'bootstrap_type': trial.suggest_categorical('bootstrap_type', ['Bernoulli', 'MVS']),
@@ -42,7 +42,11 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             'border_count': trial.suggest_int('border_count', 8, 512, log=True),
             'cat_features': categorical_columns,
             'random_seed': random_seed,
+            'task_type': 'GPU' if use_gpu else 'CPU',
         }
+        if not use_gpu or (use_gpu and model == CatBoostRanker): # rsm -> CPU; GPU for pairwise ranking
+            params['rsm'] = trial.suggest_float("rsm", 0.05, 0.8, log=True)
+        
         if params['grow_policy'] == 'Lossguide':
             params['max_leaves'] = trial.suggest_int("max_leaves", 8, 64, log=True)
             params['depth'] = trial.suggest_int("depth", 2, 14)
@@ -50,7 +54,8 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             if params['langevin']:
                 params['diffusion_temperature'] = trial.suggest_float('diffusion_temperature', 1e2, 1e6, log=True)
         else: # for Lossguide, Cosine is not supported. Newton and NewtonL2 are only supported in GPU
-            params['sampling_frequency'] = trial.suggest_categorical('sampling_frequency', ['PerTree', 'PerTreeLevel'])
+            if not use_gpu: # sampling_frequency only supported in CPU
+                params['sampling_frequency'] = trial.suggest_categorical('sampling_frequency', ['PerTree', 'PerTreeLevel'])
             params['score_function'] = trial.suggest_categorical('score_function', ['Cosine', 'L2'])
             params['depth'] = trial.suggest_int("depth", 2, 10)
 
@@ -75,6 +80,7 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             'subsample': trial.suggest_float('subsample', 0.05, 0.5),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.1, 0.8),
             "enable_categorical": True,
+            "device": "gpu" if use_gpu else "cpu",
         }
             
     elif model == FastRGFClassifierWrapper:
