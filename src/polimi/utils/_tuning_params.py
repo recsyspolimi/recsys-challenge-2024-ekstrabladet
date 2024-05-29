@@ -47,7 +47,7 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
         if not use_gpu or (use_gpu and model == CatBoostRanker): # rsm -> CPU; GPU for pairwise ranking
             params['rsm'] = trial.suggest_float("rsm", 0.05, 0.8, log=True)
             if model == CatBoostRanker:
-                params['loss_function'] = 'YetiRankPairwise'
+                params['loss_function'] = 'PairLogitPairwise'
         
         if params['grow_policy'] == 'Lossguide':
             params['max_leaves'] = trial.suggest_int("max_leaves", 8, 64, log=True)
