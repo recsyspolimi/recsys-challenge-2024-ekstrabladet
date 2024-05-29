@@ -40,14 +40,14 @@ def get_model_class(name: str = 'catboost', ranker: bool = False):
 
 
 def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.DataFrame, evaluation_ds: pl.DataFrame, 
-                        categorical_features: List[str], group_ids: pd.DataFrame, model_class: Type = CatBoostClassifier, 
+                        categorical_features: List[str], group_ids: pd.DataFrame, model_class: Type = CatBoostClassifier, use_gpu: bool = False,
                         study_name: str = 'catboost_cls_tuning', n_trials: int = 100, storage: str = None) -> Tuple[Dict, pd.DataFrame]:
     '''
     The X_train dataframe must be sorted by the impression_id for the ranking problems
     '''
     
     def objective_function(trial: optuna.Trial):
-        params = get_models_params(trial, model_class, categorical_features)
+        params = get_models_params(trial, model_class, categorical_features, use_gpu=use_gpu)
         model = model_class(**params)
         if model_class == CatBoostRanker:
             model.fit(X_train, y_train, group_id=group_ids['impression_id'], verbose=50)
@@ -123,7 +123,7 @@ def load_datasets(train_dataset_path, validation_dataset_path):
 
 
 def main(train_dataset_path: str, validation_dataset_path: str, output_dir: str, model_name: str,
-         is_ranking: bool = False, study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None):
+         is_ranking: bool = False, use_gpu: bool = False, study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None):
     X_train, y_train, X_val, evaluation_ds, group_ids, cat_features = load_datasets(train_dataset_path, validation_dataset_path)
     model_class = get_model_class(model_name, is_ranking)
     
@@ -132,7 +132,7 @@ def main(train_dataset_path: str, validation_dataset_path: str, output_dir: str,
 
     best_params, trials_df = optimize_parameters(X_train=X_train, y_train=y_train, X_val=X_val, evaluation_ds=evaluation_ds,
                                                  categorical_features=cat_features, group_ids=group_ids, model_class=model_class,
-                                                 study_name=study_name, n_trials=n_trials, storage=storage)
+                                                 study_name=study_name, n_trials=n_trials, storage=storage, use_gpu=use_gpu)
     
     params_file_path = os.path.join(output_dir, 'lightgbm_best_params.json')
     logging.info(f'Best parameters: {best_params}')
@@ -162,6 +162,8 @@ if __name__ == '__main__':
                         type=str, default='catboost_cls', help='The type of model to tune')
     parser.add_argument('--is_rank', action='store_true', default=False, 
                         help='Whether to treat the problem as a ranking problem')
+    parser.add_argument('--is_gpu', action='store_true', default=False, 
+                        help='Whether to train the tree model using GPUs')
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
@@ -172,6 +174,7 @@ if __name__ == '__main__':
     STORAGE = args.storage
     MODEL_NAME = args.model_name
     IS_RANK = args.is_rank
+    IS_GPU = args.is_gpu
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     model_name = f'{MODEL_NAME}_tuning_{timestamp}' if not IS_RANK else f'{MODEL_NAME}_ranker_tuning_{timestamp}'
@@ -188,4 +191,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
     
     main(TRAIN_DATASET_DIR, VALIDATION_DATASET_DIR, output_dir, MODEL_NAME, is_ranking=IS_RANK, 
-         study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE)
+         study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE, is_gpu=IS_GPU)
