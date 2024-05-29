@@ -34,6 +34,7 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             'iterations': trial.suggest_int('iterations', 100, 5000),
             'learning_rate': trial.suggest_float("learning_rate", 0.005, 0.2, log=True),
             'reg_lambda': trial.suggest_float("reg_lambda", 1e-5, 1000, log=True),
+            'grow_policy' : trial.suggest_categorical('grow_policy', ['SymmetricTree', 'Depthwise', 'Lossguide']),
             'bootstrap_type': trial.suggest_categorical('bootstrap_type', ['Bernoulli', 'MVS']),
             'subsample': trial.suggest_float("subsample", 0.05, 0.7),
             'random_strength': trial.suggest_float('random_strength', 1e-4, 1e2, log=True),
@@ -47,9 +48,9 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             params['rsm'] = trial.suggest_float("rsm", 0.05, 0.8, log=True)
             if model == CatBoostRanker:
                 params['loss_function'] = 'PairLogitPairwise'
-                params['grow_policy'] = trial.suggest_categorical('grow_policy', ['SymmetricTree', 'Depthwise']),
-            else:
-                params['grow_policy'] = trial.suggest_categorical('grow_policy', ['SymmetricTree', 'Depthwise', 'Lossguide']),
+                del params['grow_policy'] 
+                params['grow_policy'] = trial.suggest_categorical('grow_policy_gpu_rank', ['SymmetricTree', 'Depthwise']),
+            
         if params['grow_policy'] == 'Lossguide':
             params['max_leaves'] = trial.suggest_int("max_leaves", 8, 64, log=True)
             if use_gpu and model == CatBoostRanker:
