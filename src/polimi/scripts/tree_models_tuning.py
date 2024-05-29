@@ -191,4 +191,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
     
     main(TRAIN_DATASET_DIR, VALIDATION_DATASET_DIR, output_dir, MODEL_NAME, is_ranking=IS_RANK, 
-         study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE, is_gpu=IS_GPU)
+         study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE, use_gpu=IS_GPU)

@@ -31,7 +31,7 @@ def get_model_class(name: str = 'mlp') -> T:
         return GANDALF
 
 
-def train_predict_nn_model(train_ds, val_ds, data_info, **params):
+def train_predict_nn_model(train_ds, val_ds, data_info, params):
  
     if 'postcode' in train_ds.columns:
         train_ds = train_ds.with_columns(pl.col('postcode').fill_null(5))
@@ -84,6 +84,5 @@ def train_predict_nn_model(train_ds, val_ds, data_info, **params):
         
     prediction_ds = evaluation_ds.with_columns(
             pl.Series(model.predict(X_val)).alias('prediction')
-        ).group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
-    
+        )
     return prediction_ds

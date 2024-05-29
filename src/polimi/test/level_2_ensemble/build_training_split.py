@@ -18,8 +18,8 @@ sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 PREPROCESSING_VERSION = 'new'
-INPUT_PATH = '/home/ubuntu/dataset/ebnerd_small' 
-OUTPUT_PATH = '/home/ubuntu/experiments/hybrid_level2'
+INPUT_PATH = '/home/ubuntu/dataset/ebnerd_demo' 
+OUTPUT_PATH = '/home/ubuntu/experiments/hybrid_level2_demo'
 
 def main(input_path, output_dir, preprocessing_version='new'):
     print(f"Preprocessing version: ----{preprocessing_version}----")

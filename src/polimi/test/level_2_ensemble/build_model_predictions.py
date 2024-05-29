@@ -2,7 +2,7 @@ from polimi.test.level_2_ensemble.training_predict_scripts.tree_model_training i
 from polimi.test.level_2_ensemble.training_predict_scripts.nn_model_training import train_predict_nn_model
 model_list = ['catboost_ranker', 'catboost_classifier', 'light_gbm_classifier']
 
-catboost_ranker_params = catboost_params = {
+catboost_ranker_params  = {
     'iterations': 2000,
     'depth': 8,
     'colsample_bylevel': 0.5
@@ -22,10 +22,10 @@ light_gbm_classifier_params = {
     "colsample_bytree": 0.7
 }
 
-gandalf = {
+gandalf_params = {
     "model_hyperparams" : {
      'use_gaussian_noise': True,
-     'numerical_transform': 'min-max',
+     'numerical_transform': 'quantile-normal',
      'gaussian_noise_std': 0.01, 
      'n_stages': 6, 
      'init_t': 0.5,
@@ -41,8 +41,78 @@ gandalf = {
     'epochs': 20, 
     'learning_rate': 1e-3,
     'weight_decay': 5e-5, 
-    'use_scheduler': False,
+    'use_scheduler': True,
+    'scheduling_rate': 0.1
 }
+
+deep_cross_params = {
+    "model_hyperparams" : {
+     'use_gaussian_noise': True,
+     'numerical_transform': 'quantile-normal',
+     'gaussian_noise_std': 0.01, 
+     'dropout_rate': 0.2, 
+     'l1_lambda': 1e-4, 
+     'l2_lambda': 1e-4, 
+     'activation': 'relu',
+     'units_decay' : 2,
+     'n_layers' : 1,
+     'start_units': 512, 
+     'units_decay': 2, 
+    },
+    'model_name': "DeepCrossNetwork",
+    'epochs': 20, 
+    'learning_rate': 1e-3,
+    'weight_decay': 5e-5, 
+    'use_scheduler': True,
+    'scheduling_rate': 0.1
+}
+
+mlp_params = {
+    "model_hyperparams" : {
+     'use_gaussian_noise': True,
+     'numerical_transform': 'quantile-normal',
+     'gaussian_noise_std': 0.01, 
+     'dropout_rate': 0.2, 
+     'l1_lambda': 1e-4, 
+     'l2_lambda': 1e-4, 
+     'activation': 'relu',
+     'units_decay' : 2,
+     'n_layers' : 4,
+     'start_units': 512, 
+     'units_decay': 2, 
+    },
+    'model_name': "MLP",
+    'epochs': 20, 
+    'learning_rate': 1e-3,
+    'weight_decay': 5e-5, 
+    'use_scheduler': True,
+    'scheduling_rate': 0.1
+}
+
+wide_deep_params = {
+    "model_hyperparams" : {
+     'use_gaussian_noise': True,
+     'numerical_transform': 'quantile-normal',
+     'gaussian_noise_std': 0.01, 
+     'dropout_rate': 0.2, 
+     'l1_lambda': 1e-4, 
+     'l2_lambda': 1e-4, 
+     'activation': 'relu',
+     'units_decay' : 2,
+     'n_layers' : 4,
+     'start_units': 512, 
+     'units_decay': 2, 
+    },
+    'model_name': "WideDeepNetwork",
+    'epochs': 20, 
+    'learning_rate': 1e-3,
+    'weight_decay': 5e-5, 
+    'use_scheduler': True,
+    'scheduling_rate': 0.1
+}
+
+
+
 
 MODEL_DICT = {
     'catboost_ranker' : {
@@ -66,6 +136,31 @@ MODEL_DICT = {
                                 'subsample' : True,
                                 'param' : light_gbm_classifier_params,
                             },
+    'mlp' : {
+                                'model_class' : 'MLP',
+                                'type' : 'nn_model',
+                                'subsample' : True,
+                                'param' : mlp_params,
+                            },
+    'GANDALF' : {
+                                'model_class' : 'GANDALF',
+                                'type' : 'nn_model',
+                                'subsample' : True,
+                                'param' : gandalf_params,
+                            },
+    'dcn' : {
+                                'model_class' : 'DeepCrossNetwork',
+                                'type' : 'nn_model',
+                                'subsample' : True,
+                                'param' : deep_cross_params,
+                            },
+    'wd' : {
+                                'model_class' : 'WideDeepNetwork',
+                                'type' : 'nn_model',
+                                'subsample' : True,
+                                'param' : deep_cross_params,
+                            },
+    
 }
 
 def get_hyperparameters(model_name):

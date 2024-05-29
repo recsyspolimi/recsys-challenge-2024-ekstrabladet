@@ -3,11 +3,13 @@ import pandas as pd
 import os
 import json
 import numpy as np
-from catboost import CatBoostClassifier, CatBoostRanker, Pool, sum_models
+from sklearn.utils import resample
+from polimi.utils._inference import _inference
 import gc
 from ebrec.evaluation.metrics_protocols import *
+from lightgbm import LGBMRanker
+import joblib
 
-RANKER = False
 dataset_path = '/home/ubuntu/experiments/preprocessing_train_small_new'
 validation_path = '/home/ubuntu/experiments/preprocessing_validation_small_new'
 batch_split_directory = '/home/ubuntu/experiments/test_batch_training/batches/'
@@ -16,16 +18,22 @@ batch_split_directory = '/home/ubuntu/experiments/test_batch_training/batches/'
 # validation_path = '/home/ubuntu/experiments/preprocessing_validation_2024-05-18_09-43-19'
 
 model_path = '/home/ubuntu/experiments/test_batch_training'
-# catboost_params = {
-#     'iterations': 2000,
-#     'depth': 8,
-#     'colsample_bylevel': 0.5
-# }
-
-catboost_params = {
-    "iterations": 1000,
-    "subsample": 0.5,
-    "rsm": 0.7
+params = {
+    'n_estimators': 4161,
+    'max_depth': 11, 
+    'num_leaves': 610,
+    'subsample_freq': 1, 
+    'subsample': 0.6552618946933639, 
+    'learning_rate': 0.008575570828554459,
+    'colsample_bytree': 0.7355889468729234,
+    'colsample_bynode': 0.31281682604526095, 
+    'reg_lambda': 11.407621501254667,
+    'reg_alpha': 0.6125928057452898,
+    'max_bin': 22, 
+    'min_split_gain': 0.007803071843359968,
+    'min_child_weight': 6.305938301704642e-07,
+    'min_child_samples': 2533, 
+    'extra_trees': False
 }
 EVAL = True
 SAVE_PREDICTIONS = True
@@ -39,16 +47,21 @@ def load_batch(dataset_path, batch_split_directory, batch_index):
     subsampled_train = train_ds.filter(pl.col('impression_id').is_in(
             batch.select('impression_id'))).collect()
     
+    with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
+        data_info = json.load(data_info_file)
+        
     if 'postcode' in subsampled_train.columns:
-            subsampled_train = subsampled_train.with_columns(pl.col('postcode').fill_null(5))
+        subsampled_train = subsampled_train.with_columns(pl.col('postcode').fill_null(5))
     if 'article_type' in subsampled_train.columns:
-            subsampled_train = subsampled_train.with_columns(pl.col('article_type').fill_null('article_default'))
+        subsampled_train = subsampled_train.with_columns(pl.col('article_type').fill_null('article_default'))
+    if 'impression_time' in subsampled_train.columns:
+        subsampled_train = subsampled_train.drop(['impression_time'])
             
-    subsampled_train = subsampled_train.sort(by='impression_id')
-    groups = subsampled_train.select('impression_id').to_numpy().flatten()
-    subsampled_train = subsampled_train.drop(
-            ['impression_id', 'article', 'user_id', 'impression_time']).to_pandas()
-
+    subsampled_train = subsampled_train.to_pandas()
+    group_ids = subsampled_train['impression_id'].to_frame()
+    subsampled_train = subsampled_train.drop(columns=['impression_id', 'article', 'user_id'])
+    subsampled_train[data_info['categorical_columns']] = subsampled_train[data_info['categorical_columns']].astype('category')
+    
     X = subsampled_train.drop(columns=['target'])
     y = subsampled_train['target']
     print(X.shape)
@@ -59,49 +72,25 @@ def load_batch(dataset_path, batch_split_directory, batch_index):
     del train_ds,batch,subsampled_train
     gc.collect()
         
-    return X, y, groups
+    return X, y, group_ids
 
-    
+# started at 12.58    
 
-def batch_training(model_path, catboost_params, data_info, dataset_path, batch_split_directory, RANKER):
+def batch_training(model_path, catboost_params, data_info, dataset_path, batch_split_directory):
 
     for batch in range(N_BATCH):
         print(f'-------------BATCH {batch}-----------')
         output_dir = model_path + f'/model_{batch}.cbm'
-        if RANKER:
-            model = CatBoostRanker(
-                **catboost_params, cat_features=data_info['categorical_columns'])
-        else:
-            model = CatBoostClassifier(**catboost_params, cat_features=data_info['categorical_columns'])
+        model = LGBMRanker(**params,verbosity=-1)
         
         print(f'Collecting batch...')
         X, y, groups = load_batch(dataset_path, batch_split_directory, batch)
         
         print('Fitting Model...')
-        
-        if RANKER:
-            model.fit(X, y, group_id=groups, verbose=20)
-        else : 
-            model.fit(X, y, verbose=20)
-
-        model.save_model(output_dir)
+        model.fit(X, y, group=groups.groupby('impression_id')['impression_id'].count().values)
+        joblib.dump(model, output_dir)
         del model, X, y, groups
         gc.collect()
-
-    models = []
-    for batch in range(N_BATCH):
-        if RANKER:
-            model = CatBoostRanker(
-                **catboost_params, cat_features=data_info['categorical_columns'])
-        else:
-            model = CatBoostClassifier(**catboost_params, cat_features=data_info['categorical_columns'])
-            
-        model.load_model(model_path + f'/model_{batch}.cbm', format='cbm')
-        models.append(model)
-    weights = [1/N_BATCH] * N_BATCH
-
-    model = sum_models(models, weights=weights,
-                       ctr_merge_policy='IntersectingCountersAverage')
 
     return model
 
@@ -115,10 +104,16 @@ if __name__ == '__main__':
 
     print(f'Starting to train the catboost model')
 
-    model = batch_training(model_path, catboost_params, data_info, dataset_path, batch_split_directory, RANKER)
+    model = batch_training(model_path, params, data_info, dataset_path, batch_split_directory)
     # model = incremental_training(model_path, train_ds, impression_time_ds, catboost_params, data_info)
             
     if EVAL:
+        models = []
+        for batch in range(N_BATCH):
+            model = joblib.load(model_path + f'/model_{batch}.cbm')
+            models.append(model)
+        weights = [1/N_BATCH] * N_BATCH
+
         with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
             data_info = json.load(data_info_file)
 
@@ -142,14 +137,19 @@ if __name__ == '__main__':
         X_val = val_ds_pandas.drop(columns=['target'])
         y_val = val_ds_pandas['target']
 
-        if RANKER:
+        for model_index in range(len(models)):
             pred = val_ds.with_columns(
-                pl.Series(model.predict(X_val)).alias('prediction'))
-        else:
-            pred = val_ds.with_columns(
-                pl.Series(model.predict_proba(X_val)).alias('prediction'))
+                pl.Series(models[model_index].predict(X_val)).alias(f'prediction_{model_index}'))
+        
+        pred = pred.with_columns(
+                    *[(weights[i] * pl.col(f'prediction_{i}')).alias(f'prediction_{i}') for i in range(len(models))]
+                ).with_columns(
+                    pl.sum_horizontal([f"prediction_{i}" for i in range(len(models))]).alias('prediction')
+                ).drop([f"prediction_{i}" for i in range(len(models))]).rename({'final_pred' : 'prediction'})
+        
         if SAVE_PREDICTIONS:
             pred.write_parquet('/home/ubuntu/experiments/test_batch_training/ranker_predictions.parquet')
+            
         gc.collect()
         evaluation_ds = pred.group_by('impression_id').agg(
             pl.col('target'), pl.col('prediction'))

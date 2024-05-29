@@ -11,30 +11,35 @@ from tqdm import tqdm
 import optuna
 
 predictions = [
-    '/home/ubuntu/experiments_1/models_predictions/ranker_predictions.parquet',
-    '/home/ubuntu/experiments_1/models_predictions/catboost_predictions.parquet',
-    '/home/ubuntu/experiments_1/models_predictions/mlp_predictions.parquet',
-    '/home/ubuntu/experiments_1/models_predictions/deep_cross_predictions.parquet',
-    '/home/ubuntu/experiments_1/models_predictions/fast_rgf_predictions.parquet',
-    '/home/ubuntu/experiments_1/models_predictions/gandalf_predictions.parquet',
-    '/home/ubuntu/experiments_1/models_predictions/lgbm_rf_predictions.parquet',
-    '/home/ubuntu/experiments_1/models_predictions/logistic_regression_predictions.parquet',
-    '/home/ubuntu/experiments_1/models_predictions/wide_deep_predictions.parquet'
+    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/catboost_classifier_predictions.parquet',
+    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/catboost_ranker_predictions.parquet',
+    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/dcn_predictions.parquet',
+    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/GANDALF_predictions.parquet',
+    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/light_gbm_classifier_predictions.parquet',
+    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/mlp_predictions.parquet',
+    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/wd_predictions.parquet',
+    # '/home/ubuntu/experiments_1/models_predictions/logistic_regression_predictions.parquet',
+    # '/home/ubuntu/experiments_1/models_predictions/wide_deep_predictions.parquet'
 ]
 
-names = ['ranker', 'catboost', 'mlp', 'deep', 'fast', 'gandalf', 'lgbm', 'logistic', 'wide_deep']
+names = ['catboost_classifier', 'catboost_ranker', 'dcn', 'GANDALF', 'light_gbm_classifier', 'mlp', 'wd']
+# names = ['ranker', 'catboost', 'mlp', 'deep', 'fast', 'gandalf', 'lgbm', 'logistic', 'wide_deep']
 
 N_TRIALS = 500
 
 def prepare_data(df, index):
+    if index in ['mlp', 'GANDALF', 'wd', 'dcn']:
+        df = df.with_columns(
+                pl.col(f'prediction_{index}').list.first()    
+            )
     df = df.with_columns(
-        (pl.col('prediction')-pl.col('prediction').min().over('impression_id')) / 
-        (pl.col('prediction').max().over('impression_id')-pl.col('prediction').min().over('impression_id'))
-    ).rename({'prediction' : f'prediction_{index}'})
+        (pl.col(f'prediction_{index}')-pl.col(f'prediction_{index}').min().over('impression_id')) / 
+        (pl.col(f'prediction_{index}').max().over('impression_id')-pl.col(f'prediction_{index}').min().over('impression_id'))
+    )
     
     if 'user_id' in df.columns:
         df = df.drop('user_id')
-        
+    print(df)
     return df
 
 def join_dfs(dfs):
@@ -46,10 +51,10 @@ def join_dfs(dfs):
 def build_weighted_sum(dfs_pred, weights):
     order = len(weights)
     return dfs_pred.with_columns(
-                    *[(weights[i] * pl.col(f'prediction_{i}')).alias(f'prediction_{i}') for i in range(order)]
+                    *[(weights[i] * pl.col(f'prediction_{names[i]}')).alias(f'prediction_{names[i]}') for i in range(order)]
                 ).with_columns(
-                    pl.sum_horizontal([f"prediction_{i}" for i in range(order)]).alias('final_pred')
-                ).drop([f"prediction_{i}" for i in range(order)]).rename({'final_pred' : 'prediction'})
+                    pl.sum_horizontal([f"prediction_{names[i]}" for i in range(order)]).alias('final_pred')
+                ).drop([f"prediction_{names[i]}" for i in range(order)]).rename({'final_pred' : 'prediction'})
                 
 def eval_pred(pred ,cpp_auc):
     pred = pred.group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))     
@@ -76,7 +81,6 @@ def optimize_parameters(df, n_models, cpp_auc, study_name: str = 'lightgbm_tunin
     def objective_function(trial: optuna.Trial):     
         perc_list = [trial.suggest_float(f"residual_{i}", 0, 1) for i in range(n_models - 1)]
         weights = build_weights(perc_list)
-        print(weights)
         pred = build_weighted_sum(df, weights)
         return eval_pred(pred,cpp_auc)
         
@@ -89,7 +93,7 @@ if __name__ == "__main__":
     n_models = len(predictions)
     dfs_pred = []
     for pred in range(n_models):
-        dfs_pred.append(prepare_data(pl.read_parquet(predictions[pred]), pred))
+        dfs_pred.append(prepare_data(pl.read_parquet(predictions[pred]), names[pred]))
     
     df_pred = join_dfs(dfs_pred)
     

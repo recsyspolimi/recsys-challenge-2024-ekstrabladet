@@ -47,6 +47,11 @@ def train_predict_tree_model(train_ds, val_ds, data_info, model_class, ranker, p
         model = model_class(**params)
         model.fit(X_train, y_train, group_id=groups, verbose=50)
         
+    elif model_class == CatBoostClassifier:
+        params['cat_features'] =  data_info['categorical_columns']
+        model = model_class(**params)
+        model.fit(X_train, y_train, verbose=50)
+        
     elif model_class in [XGBRanker, LGBMRanker]:
         model = model_class(**params)
         model.fit(X_train, y_train, group=group_ids.groupby('impression_id')['impression_id'].count().values)
@@ -56,8 +61,8 @@ def train_predict_tree_model(train_ds, val_ds, data_info, model_class, ranker, p
         model.fit(X_train, y_train)
         
     else:
+        model = model_class(**params)
         model.fit(X_train, y_train, verbose=50)
-        
         
     if 'postcode' in val_ds.columns:
         val_ds = val_ds.with_columns(pl.col('postcode').fill_null(5))
@@ -73,10 +78,8 @@ def train_predict_tree_model(train_ds, val_ds, data_info, model_class, ranker, p
     evaluation_ds = pl.from_pandas(val_ds[['impression_id', 'article', 'target']])
     
     if model_class in [CatBoostRanker, XGBRanker, LGBMRanker]:
-        prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict(X_val)).alias('prediction')) \
-                .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
+        prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict(X_val)).alias('prediction'))
     else:
-        prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
-                .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
+        prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction'))
                 
     return prediction_ds

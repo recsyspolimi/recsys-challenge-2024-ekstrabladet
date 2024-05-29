@@ -19,9 +19,9 @@ from polimi.utils._polars import reduce_polars_df_memory_size
 
 # TARGET DEMO 0.7916280544043559
 
-dataset_path = '/home/ubuntu/experiments/preprocessing_train_2024-05-20_14-40-50'
+dataset_path = '/home/ubuntu/experiments/preprocessing_train_small_new'
 original_datset_path = '/home/ubuntu/dataset/ebnerd_small/train/behaviors.parquet'
-validation_path = '/home/ubuntu/experiments/preprocessing_validation_2024-05-20_14-30-21'
+validation_path = '/home/ubuntu/experiments/subsample_validation_small_new'
 
 # dataset_path = '/home/ubuntu/experiments/preprocessing_train_2024-05-18_09-34-07'
 # validation_path = '/home/ubuntu/experiments/preprocessing_validation_2024-05-18_09-43-19'
@@ -128,7 +128,7 @@ def build_topic_endorsement(dataset, type):
 if __name__ == '__main__':
     
     train_ds = reduce_polars_df_memory_size(pl.read_parquet(os.path.join(dataset_path, 'train_ds.parquet')), verbose=False)
-    train_ds = train_ds.drop(columns = drop_me)
+    # train_ds = train_ds.drop(columns = drop_me)
     
     # self_ds = reduce_polars_df_memory_size(pl.read_parquet('/home/ubuntu/experiments/test_batch_training/self_supervised_ds.parquet'), verbose=False)
     
