@@ -21,7 +21,7 @@ sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 from ebrec.evaluation.metrics_protocols import *
 from polimi.utils._tuning_params import get_models_params
 from polimi.utils.model_wrappers import FastRGFClassifierWrapper
-from fastauc.fastauc.fast_auc import CppAuc
+from fastauc.fastauc.fast_auc import CppAuc, fast_numba_auc
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -63,9 +63,9 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         else:
             prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
                 .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
-        cpp_auc = CppAuc()
+        # cpp_auc = CppAuc()
         return np.mean(
-            [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
+            [fast_numba_auc(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
                 for y_t, y_s in zip(prediction_ds['target'].to_list(), 
                                     prediction_ds['prediction'].to_list())]
         )
