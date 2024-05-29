@@ -162,7 +162,7 @@ if __name__ == '__main__':
                         type=str, default='catboost_cls', help='The type of model to tune')
     parser.add_argument('--is_rank', action='store_true', default=False, 
                         help='Whether to treat the problem as a ranking problem')
-    parser.add_argument('--is_gpu', action='store_true', default=False, 
+    parser.add_argument('--use_gpu', action='store_true', default=False, 
                         help='Whether to train the tree model using GPUs')
     
     args = parser.parse_args()
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     STORAGE = args.storage
     MODEL_NAME = args.model_name
     IS_RANK = args.is_rank
-    IS_GPU = args.is_gpu
+    USE_GPU = args.use_gpu
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     model_name = f'{MODEL_NAME}_tuning_{timestamp}' if not IS_RANK else f'{MODEL_NAME}_ranker_tuning_{timestamp}'
@@ -191,4 +191,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
     
     main(TRAIN_DATASET_DIR, VALIDATION_DATASET_DIR, output_dir, MODEL_NAME, is_ranking=IS_RANK, 
-         study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE, use_gpu=IS_GPU)
+         study_name=STUDY_NAME, n_trials=N_TRIALS, storage=STORAGE, use_gpu=USE_GPU)
