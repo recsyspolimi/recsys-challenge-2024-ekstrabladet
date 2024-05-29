@@ -51,7 +51,10 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
         
         if params['grow_policy'] == 'Lossguide':
             params['max_leaves'] = trial.suggest_int("max_leaves", 8, 64, log=True)
-            params['depth'] = trial.suggest_int("depth", 2, 14)
+            if use_gpu and model == CatBoostRanker:
+                params['depth'] = trial.suggest_int("depth", 2, 8)
+            else :
+                params['depth'] = trial.suggest_int("depth", 2, 14)
             params['langevin'] = trial.suggest_categorical("langevin", [True, False])
             if params['langevin']:
                 params['diffusion_temperature'] = trial.suggest_float('diffusion_temperature', 1e2, 1e6, log=True)

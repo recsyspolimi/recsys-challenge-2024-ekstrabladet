@@ -147,7 +147,7 @@ if __name__ == '__main__':
                 pl.Series(model.predict(X_val)).alias('prediction'))
         else:
             pred = val_ds.with_columns(
-                pl.Series(model.predict_proba(X_val)).alias('prediction'))
+                pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction'))
         if SAVE_PREDICTIONS:
             pred.write_parquet('/home/ubuntu/experiments/test_batch_training/ranker_predictions.parquet')
         gc.collect()
