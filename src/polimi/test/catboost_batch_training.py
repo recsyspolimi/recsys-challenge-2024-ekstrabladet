@@ -6,6 +6,7 @@ import numpy as np
 from catboost import CatBoostClassifier, CatBoostRanker, Pool, sum_models
 import gc
 from ebrec.evaluation.metrics_protocols import *
+from fastauc.fastauc.fast_auc import CppAuc
 
 RANKER = False
 dataset_path = '/home/ubuntu/experiments/preprocessing_train_small_new'
@@ -115,10 +116,27 @@ if __name__ == '__main__':
 
     print(f'Starting to train the catboost model')
 
-    model = batch_training(model_path, catboost_params, data_info, dataset_path, batch_split_directory, RANKER)
+    # model = batch_training(model_path, catboost_params, data_info, dataset_path, batch_split_directory, RANKER)
     # model = incremental_training(model_path, train_ds, impression_time_ds, catboost_params, data_info)
             
     if EVAL:
+        print('Reading models...')
+        models = []
+        for batch in range(N_BATCH):
+            if RANKER:
+                model = CatBoostRanker(
+                    **catboost_params, cat_features=data_info['categorical_columns'])
+            else:
+                model = CatBoostClassifier(**catboost_params, cat_features=data_info['categorical_columns'])
+                
+            model.load_model(model_path + f'/model_{batch}.cbm', format='cbm')
+            models.append(model)
+        weights = [1/N_BATCH] * N_BATCH
+    
+        model = sum_models(models, weights=weights,
+                       ctr_merge_policy='IntersectingCountersAverage')
+        
+        print('Reading DF...')
         with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
             data_info = json.load(data_info_file)
 
@@ -141,26 +159,29 @@ if __name__ == '__main__':
 
         X_val = val_ds_pandas.drop(columns=['target'])
         y_val = val_ds_pandas['target']
-
-        if RANKER:
-            pred = val_ds.with_columns(
+        
+        print('Running Model...')
+        pred = val_ds.with_columns(
                 pl.Series(model.predict(X_val)).alias('prediction'))
-        else:
-            pred = val_ds.with_columns(
-                pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction'))
+        # if RANKER:
+        #     pred = val_ds.with_columns(
+        #         pl.Series(model.predict(X_val)).alias('prediction'))
+        # else:
+        #     pred = val_ds.with_columns(
+        #         pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction'))
         if SAVE_PREDICTIONS:
             pred.write_parquet('/home/ubuntu/experiments/test_batch_training/ranker_predictions.parquet')
         gc.collect()
+        
         evaluation_ds = pred.group_by('impression_id').agg(
             pl.col('target'), pl.col('prediction'))
-        met_eval = MetricEvaluator(
-            labels=evaluation_ds['target'].to_list(),
-            predictions=evaluation_ds['prediction'].to_list(),
-            metric_functions=[
-                AucScore(),
-                MrrScore(),
-                NdcgScore(k=5),
-                NdcgScore(k=10),
-            ],
-        )
-        print(met_eval.evaluate())
+        cpp_auc = CppAuc()
+        
+        print('Scoring...')
+        result = np.mean(
+                [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
+                    for y_t, y_s in zip(evaluation_ds['target'].to_list(), 
+                                        evaluation_ds['prediction'].to_list())]
+            )
+        print(result)
+    
