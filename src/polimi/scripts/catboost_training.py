@@ -72,13 +72,17 @@ def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity, use
         model.fit(X, y, group_id=groups, verbose=catboost_verbosity)
     else:
         model = CatBoostClassifier(**params, cat_features=data_info['categorical_columns'])
-        model.fit(X, y, verbose=catboost_verbosity)
+        model.fit(X, y, verbose=catboost_verbosity, 
+                  save_snapshot= True,
+                  snapshot_file= os.path.join(output_dir, 'snapshot'),
+                  snapshot_interval = 1800
+        )
         
     logging.info(f'Model fitted. Saving the model and the feature importances at: {output_dir}')
     joblib.dump(model, os.path.join(output_dir, 'model.joblib'))
     # save_feature_importances_plot(X, y, model, output_dir, data_info['categorical_columns'])
     
-    
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Training script for catboost")
     parser.add_argument("-output_dir", default="../../experiments/", type=str,
@@ -93,12 +97,15 @@ if __name__ == '__main__':
                         help="An integer representing how many iterations will pass between two catboost logs")
     parser.add_argument('--ranker', action='store_true', default=False, 
                         help='Whether to use CarBoostRanker or not')
+    parser.add_argument('--resume_training', action='store_true', default=False, 
+                        help='Whether to resume an existing training')
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
     DATASET_DIR = args.dataset_path
     CATBOOST_HYPERPARAMS_PATH = args.catboost_params_file
     CATBOOST_VERBOSITY = args.catboost_verbosity
+    RESUME_TRAINING = args.resume_training
     USE_RANKER = args.ranker
     model_name = args.model_name
     
@@ -107,8 +114,12 @@ if __name__ == '__main__':
         model_name = f'Catboost_Training_{timestamp}' if not USE_RANKER else f'CatboostRanker_Training_{timestamp}'
     output_dir = os.path.join(OUTPUT_DIR, model_name)
     if os.path.exists(output_dir):
-        raise ValueError(f'Model with name {model_name} already exists, try another name.')
-    os.makedirs(output_dir)
+        if not (RESUME_TRAINING and not USE_RANKER):
+            raise ValueError(f'Model with name {model_name} already exists, try another name.')
+        else :
+            print('Resuming Training for Catboost Classifier')
+    else :
+        os.makedirs(output_dir)
     
     log_path = os.path.join(output_dir, "log.txt")
     logging.basicConfig(filename=log_path, filemode="w", format=LOGGING_FORMATTER, level=logging.INFO, force=True)
