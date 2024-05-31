@@ -21,14 +21,14 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 def main(dataset_path, output_dir):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
     
-    train_ds = pl.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
+    train_ds = pl.scan_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
     with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
         
     logging.info(f'Data info: {data_info}')
     
     train_ds = train_ds.sort(by='impression_id')
-    groups = train_ds.select(['impression_id']).to_pandas().groupby('impression_id').size()
+    groups = train_ds.select(['impression_id']).collect().to_pandas().groupby('impression_id').size()
         
     if 'postcode' in train_ds.columns:
         train_ds = train_ds.with_columns(pl.col('postcode').fill_null(5))
@@ -53,11 +53,11 @@ def main(dataset_path, output_dir):
         batch_features = features[start_batch:end_batch]
         categorical_batch_features = [f for f in batch_features if f in categorical_features]
         
-        batch_data = train_ds.select(batch_features).to_pandas()
+        batch_data = train_ds.select(batch_features).collect().to_pandas()
         batch_data[categorical_batch_features] = batch_data[categorical_batch_features].astype('category')
         batch_dataset = Dataset(
             batch_data,
-            label=train_ds['target'].to_numpy().flatten(),
+            label=train_ds.select(['target']).collect().to_numpy().flatten(),
             feature_name=batch_features,
             categorical_feature=categorical_batch_features,
             group=groups,
