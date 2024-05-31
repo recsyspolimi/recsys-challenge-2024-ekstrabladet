@@ -37,7 +37,7 @@ def main(dataset_path, output_dir):
     if 'impression_time' in train_ds.columns:
         train_ds = train_ds.drop(['impression_time'])
         
-    features = [col for col in train_ds.columns if col not in ['impression_id', 'article', 'user_id', 'impression_time']]
+    features = [col for col in train_ds.columns if col not in ['impression_id', 'article', 'user_id', 'impression_time', 'target']]
     categorical_features = data_info['categorical_columns']
     
     logging.info(f'Features ({len(features)}): {np.array(features)}')
@@ -47,19 +47,22 @@ def main(dataset_path, output_dir):
     start_batch = 0
     lgbm_dataset = None
     while start_batch < len(features):
-        logging.info(f'Adding features ({start_batch}, {end_batch}) to the dataset')
         end_batch = min(len(features), start_batch + features_per_batch)
+        logging.info(f'Adding features ({start_batch}, {end_batch}) to the dataset')
         
         batch_features = features[start_batch:end_batch]
         categorical_batch_features = [f for f in batch_features if f in categorical_features]
         
+        batch_data = train_ds.select(batch_features).to_pandas()
+        batch_data[categorical_batch_features] = batch_data[categorical_batch_features].astype('category')
         batch_dataset = Dataset(
-            train_ds.select(batch_features + ['target']).to_pandas(),
-            label='target',
+            batch_data,
+            label=train_ds['target'].to_numpy().flatten(),
             feature_name=batch_features,
             categorical_feature=categorical_batch_features,
             group=groups,
-        )
+            free_raw_data=False
+        ).construct()
         
         if lgbm_dataset is None:
             lgbm_dataset = batch_dataset
@@ -68,20 +71,24 @@ def main(dataset_path, output_dir):
             
         start_batch = end_batch
         
+    lgbm_dataset = lgbm_dataset.set_categorical_feature(categorical_features)
     logging.info(f'Saving converted dataset at: {os.path.join(output_dir, "lgbm_dataset.bin")}')
     lgbm_dataset.save_binary(os.path.join(output_dir, 'lgbm_dataset.bin'))
     
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Training script for catboost")
-    parser.add_argument("-output_dir", default="../../experiments/", type=str,
-                        help="The directory where the models will be placed")
-    parser.add_argument("-dataset_path", default=None, type=str, required=True,
-                        help="Directory where the preprocessed dataset is placed")
+    # parser = argparse.ArgumentParser(description="Training script for catboost")
+    # parser.add_argument("-output_dir", default="../../experiments/", type=str,
+    #                     help="The directory where the models will be placed")
+    # parser.add_argument("-dataset_path", default=None, type=str, required=True,
+    #                     help="Directory where the preprocessed dataset is placed")
     
-    args = parser.parse_args()
-    OUTPUT_DIR = args.output_dir
-    DATASET_PATH = args.dataset_path
+    # args = parser.parse_args()
+    # OUTPUT_DIR = args.output_dir
+    # DATASET_PATH = args.dataset_path
+    
+    OUTPUT_DIR = '/home/ubuntu/experiments'
+    DATASET_PATH = '/home/ubuntu/experiments/preprocessing_train_small_new'
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_dir = os.path.join(OUTPUT_DIR, f'LGBM_Ranker_Dataset_{timestamp}')
