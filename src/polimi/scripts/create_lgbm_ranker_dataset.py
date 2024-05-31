@@ -77,18 +77,15 @@ def main(dataset_path, output_dir):
     
     
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(description="Training script for catboost")
-    # parser.add_argument("-output_dir", default="../../experiments/", type=str,
-    #                     help="The directory where the models will be placed")
-    # parser.add_argument("-dataset_path", default=None, type=str, required=True,
-    #                     help="Directory where the preprocessed dataset is placed")
+    parser = argparse.ArgumentParser(description="Training script for catboost")
+    parser.add_argument("-output_dir", default="../../experiments/", type=str,
+                        help="The directory where the models will be placed")
+    parser.add_argument("-dataset_path", default=None, type=str, required=True,
+                        help="Directory where the preprocessed dataset is placed")
     
-    # args = parser.parse_args()
-    # OUTPUT_DIR = args.output_dir
-    # DATASET_PATH = args.dataset_path
-    
-    OUTPUT_DIR = '/home/ubuntu/experiments'
-    DATASET_PATH = '/home/ubuntu/experiments/preprocessing_train_small_new'
+    args = parser.parse_args()
+    OUTPUT_DIR = args.output_dir
+    DATASET_PATH = args.dataset_path
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_dir = os.path.join(OUTPUT_DIR, f'LGBM_Ranker_Dataset_{timestamp}')
