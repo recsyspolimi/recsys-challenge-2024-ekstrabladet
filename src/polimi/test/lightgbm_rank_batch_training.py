@@ -9,6 +9,7 @@ import gc
 from ebrec.evaluation.metrics_protocols import *
 from lightgbm import LGBMRanker
 import joblib
+from fastauc.fastauc.fast_auc import CppAuc
 
 dataset_path = '/home/ubuntu/experiments/preprocessing_train_small_new'
 validation_path = '/home/ubuntu/experiments/preprocessing_validation_small_new'
@@ -92,8 +93,6 @@ def batch_training(model_path, catboost_params, data_info, dataset_path, batch_s
         del model, X, y, groups
         gc.collect()
 
-    return model
-
 if __name__ == '__main__':
 
     train_ds = pl.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
@@ -104,12 +103,13 @@ if __name__ == '__main__':
 
     print(f'Starting to train the catboost model')
 
-    model = batch_training(model_path, params, data_info, dataset_path, batch_split_directory)
+    # model = batch_training(model_path, params, data_info, dataset_path, batch_split_directory)
     # model = incremental_training(model_path, train_ds, impression_time_ds, catboost_params, data_info)
             
     if EVAL:
         models = []
         for batch in range(N_BATCH):
+            print(f'Loading model {batch}')
             model = joblib.load(model_path + f'/model_{batch}.cbm')
             models.append(model)
         weights = [1/N_BATCH] * N_BATCH
@@ -136,16 +136,18 @@ if __name__ == '__main__':
 
         X_val = val_ds_pandas.drop(columns=['target'])
         y_val = val_ds_pandas['target']
-
-        for model_index in range(len(models)):
-            pred = val_ds.with_columns(
-                pl.Series(models[model_index].predict(X_val)).alias(f'prediction_{model_index}'))
         
+        pred = val_ds
+        for model_index in range(len(models)):
+            print(f'Predicting using model {model_index}')
+            pred = pred.with_columns(
+                pl.Series(models[model_index].predict(X_val)).alias(f'prediction_{model_index}'))
+        print(pred)
         pred = pred.with_columns(
                     *[(weights[i] * pl.col(f'prediction_{i}')).alias(f'prediction_{i}') for i in range(len(models))]
                 ).with_columns(
                     pl.sum_horizontal([f"prediction_{i}" for i in range(len(models))]).alias('prediction')
-                ).drop([f"prediction_{i}" for i in range(len(models))]).rename({'final_pred' : 'prediction'})
+                ).drop([f"prediction_{i}" for i in range(len(models))])
         
         if SAVE_PREDICTIONS:
             pred.write_parquet('/home/ubuntu/experiments/test_batch_training/ranker_predictions.parquet')
@@ -153,14 +155,13 @@ if __name__ == '__main__':
         gc.collect()
         evaluation_ds = pred.group_by('impression_id').agg(
             pl.col('target'), pl.col('prediction'))
-        met_eval = MetricEvaluator(
-            labels=evaluation_ds['target'].to_list(),
-            predictions=evaluation_ds['prediction'].to_list(),
-            metric_functions=[
-                AucScore(),
-                MrrScore(),
-                NdcgScore(k=5),
-                NdcgScore(k=10),
-            ],
-        )
-        print(met_eval.evaluate())
+        print(evaluation_ds)
+        cpp_auc = CppAuc()
+        
+        print('Scoring...')
+        result = np.mean(
+                [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
+                    for y_t, y_s in zip(evaluation_ds['target'].to_list(), 
+                                        evaluation_ds['prediction'].to_list())]
+            )
+        print(result)

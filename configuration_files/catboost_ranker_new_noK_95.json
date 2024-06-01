@@ -1,0 +1,16 @@
+{
+    "iterations": 2421,
+    "learning_rate": 0.061372161824290145,
+    "rsm": 0.681769606695633,
+    "reg_lambda": 0.4953354255208565,
+    "grow_policy": "SymmetricTree",
+    "bootstrap_type": "MVS",
+    "subsample": 0.5108219602277233,
+    "random_strength": 14.089062269780399,
+    "fold_permutation_block": 39,
+    "border_count": 34,
+    "sampling_frequency": "PerTreeLevel",
+    "score_function": "Cosine",
+    "depth": 8,
+    "mvs_reg": 0.0015341832942953422
+}

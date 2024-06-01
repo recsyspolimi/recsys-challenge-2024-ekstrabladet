@@ -67,7 +67,7 @@ def main(input_path, output_dir, preprocessing_version='latest'):
         moving_window_split_iterator(history_all, behaviors_all, window=4, window_val=2, stride=2, verbose=True)
     ):
         logging.info(f'Preprocessing fold {i}')
-        if i != 1:
+        if i != 2:
             continue
            
         fold_path = output_dir / f'fold_{i+1}'

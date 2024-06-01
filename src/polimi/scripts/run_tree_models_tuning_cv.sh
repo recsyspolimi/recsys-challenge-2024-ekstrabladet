@@ -10,13 +10,12 @@
 
 python ~/RecSysChallenge2024/src/polimi/scripts/tree_models_tuning_cv.py \
         -output_dir /home/ubuntu/experiments \
-        -folds_dataset_path /home/ubuntu/preprocesssing/preprocessing_moving_window_small_new \
+        -folds_dataset_path /home/ubuntu/experiments/preprocessing_moving_window_new_urm/ebnerd_small \
         -n_trials 500 \
         -dataset_path /home/ubuntu/dataset/ebnerd_small \
-        -study_name catboost_cls_mw_w4_wval2_st2_new_small \
+        -study_name lgbm_cls_mw_w4_wval2_st2_new_urm_small \
         -storage mysql+pymysql://admin:MLZwrgaib8iha7DU9jgP@recsys2024-db.crio26omekmi.eu-west-1.rds.amazonaws.com/recsys2024 \
-        -model_name catboost \
-        --use_gpu
+        -model_name lgbm
 
 
 
