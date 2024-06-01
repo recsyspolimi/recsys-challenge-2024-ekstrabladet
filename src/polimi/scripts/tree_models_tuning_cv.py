@@ -54,6 +54,8 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
         
         auc = []
         for X_train, X_val, y_train, evaluation_ds, groups in folds_data:
+            X_val = X_val[X_train.columns] # In case of wrong order of features
+            
             model = model_class(**params)
         
             if model_class == CatBoostRanker:
@@ -71,7 +73,6 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
                 prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
                     .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
                     
-            # cpp_auc = CppAuc()
             auc_fold = np.mean(
                 [fast_numba_auc(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
                  for y_t, y_s in zip(prediction_ds['target'].to_list(), 
