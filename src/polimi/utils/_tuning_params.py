@@ -7,7 +7,6 @@ from polimi.utils.model_wrappers import FastRGFClassifierWrapper
 
 
 def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: List[str] = None, random_seed: int = 42, use_gpu: bool = False):
-    # todo: xgboost, fastrgf
     if model in [LGBMClassifier, LGBMRanker]:
         params = {
             "n_estimators": trial.suggest_int("n_estimators", 100, 5000, log=True),
@@ -20,7 +19,6 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             "colsample_bynode": trial.suggest_float("colsample_bynode", 0.1, 1),
             "reg_lambda": trial.suggest_float("reg_lambda", 1e-5, 1000, log=True),
             "reg_alpha": trial.suggest_float("reg_alpha", 1e-5, 1000, log=True),
-            "max_bin": trial.suggest_int("max_bin", 8, 512, log=True),
             "min_split_gain": trial.suggest_float("min_split_gain", 1e-6, 1, log=True),
             "min_child_weight": trial.suggest_float("min_child_weight", 1e-7, 1e-1, log=True),
             "min_child_samples": trial.suggest_int("min_child_samples", 10, 10000, log=True),
@@ -29,6 +27,13 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             "device_type": "gpu" if use_gpu else "cpu",
             "verbose": -1
         }
+        if use_gpu:
+            params['max_bin'] = 63
+            params['gpu_use_dp'] = False
+            
+        else:
+            params["max_bin"] = trial.suggest_int("max_bin", 8, 512, log=True)
+
     elif model in [CatBoostClassifier, CatBoostRanker]:
         params = {
             'iterations': trial.suggest_int('iterations', 100, 5000),
