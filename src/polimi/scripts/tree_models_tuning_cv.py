@@ -17,7 +17,6 @@ from catboost import CatBoostClassifier, CatBoostRanker
 from xgboost import XGBClassifier, XGBRanker
 from tqdm import tqdm
 from polimi.utils._catboost import subsample_dataset
-import cupy as cp
 
 
 import sys
@@ -69,10 +68,7 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
             else:
                 model.fit(X_train, y_train, verbose=100)
                 
-                
-            if model_class in [XGBClassifier, XGBRanker] and use_gpu:
-                X_val = cp.array(X_val) # put X_val into GPU, to avoid XGBoost warning
-                
+                             
             if model_class in [CatBoostRanker, XGBRanker, LGBMRanker]:    
                 prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict(X_val)).alias('prediction')) \
                     .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
