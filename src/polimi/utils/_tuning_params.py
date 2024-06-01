@@ -42,7 +42,6 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             'grow_policy': trial.suggest_categorical('grow_policy', ['SymmetricTree', 'Depthwise', 'Lossguide']),
             'bootstrap_type': trial.suggest_categorical('bootstrap_type', ['Bernoulli', 'MVS']),
             'subsample': trial.suggest_float("subsample", 0.05, 0.7),
-            'random_strength': trial.suggest_float('random_strength', 1e-4, 1e2, log=True),
             'fold_permutation_block': trial.suggest_int('fold_permutation_block', 1, 100),
             'border_count': trial.suggest_int('border_count', 8, 512, log=True),
             'cat_features': categorical_columns,
@@ -50,74 +49,37 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             'task_type': 'GPU' if use_gpu else 'CPU',
         }
         
-        if not use_gpu:
-            params['rsm'] = trial.suggest_float("rsm", 0.05, 0.8, log=True)
-        
-            if not use_gpu or (use_gpu and model == CatBoostRanker): # rsm -> CPU; GPU for pairwise ranking
-                params['rsm'] = trial.suggest_float("rsm", 0.05, 0.8, log=True)
-            
-            if params['grow_policy'] == 'Lossguide':
-                params['max_leaves'] = trial.suggest_int("max_leaves", 8, 64, log=True)
-                params['depth'] = trial.suggest_int("depth", 2, 14)
+        if params['grow_policy'] == 'Lossguide':
+            params['max_leaves'] = trial.suggest_int("max_leaves", 8, 64, log=True)
+            params['depth'] = trial.suggest_int("depth", 2, 14)
+            if not use_gpu:
                 params['langevin'] = trial.suggest_categorical("langevin", [True, False])
                 if params['langevin']:
                     params['diffusion_temperature'] = trial.suggest_float('diffusion_temperature', 1e2, 1e6, log=True)
-            else: # for Lossguide, Cosine is not supported. Newton and NewtonL2 are only supported in GPU
+        else: # for Lossguide, Cosine is not supported. Newton and NewtonL2 are only supported in GPU
+            if not use_gpu:
                 params['sampling_frequency'] = trial.suggest_categorical('sampling_frequency', ['PerTree', 'PerTreeLevel'])
                 params['score_function'] = trial.suggest_categorical('score_function', ['Cosine', 'L2'])
-                params['depth'] = trial.suggest_int("depth", 2, 10)
+            
+            params['depth'] = trial.suggest_int("depth", 2, 10)
 
-            if params['grow_policy'] != 'SymmetricTree':
-                params['min_data_in_leaf'] = trial.suggest_float('min_data_in_leaf', 10, 1000)     
-                    
-            if params['bootstrap_type'] == 'MVS':
-                params['mvs_reg'] = trial.suggest_float('mvs_reg', 1e-4, 1e4, log=True)
-        else:
-            params['depth'] = trial.suggest_int("depth", 2, 14)
-            
-            
-            
-        # params = {
-        #     'iterations': trial.suggest_int('iterations', 100, 5000),
-        #     'learning_rate': trial.suggest_float("learning_rate", 0.005, 0.2, log=True),
-        #     'reg_lambda': trial.suggest_float("reg_lambda", 1e-5, 1000, log=True),
-        #     'grow_policy' : trial.suggest_categorical('grow_policy', ['SymmetricTree', 'Depthwise', 'Lossguide']),
-        #     'bootstrap_type': trial.suggest_categorical('bootstrap_type', ['Bernoulli', 'MVS']),
-        #     'subsample': trial.suggest_float("subsample", 0.05, 0.7),
-        #     'random_strength': trial.suggest_float('random_strength', 1e-4, 1e2, log=True),
-        #     'fold_permutation_block': trial.suggest_int('fold_permutation_block', 1, 100),
-        #     'border_count': trial.suggest_int('border_count', 8, 512, log=True),
-        #     'cat_features': categorical_columns,
-        #     'random_seed': random_seed,
-        #     'task_type': 'GPU' if use_gpu else 'CPU',
-        # }
-        # if not use_gpu or (use_gpu and model == CatBoostRanker): # rsm -> CPU; GPU for pairwise ranking
-        #     params['rsm'] = trial.suggest_float("rsm", 0.05, 0.8, log=True)
-        #     if model == CatBoostRanker:
-        #         params['loss_function'] = 'PairLogitPairwise'
-        #         del params['grow_policy'] 
-        #         params['grow_policy'] = trial.suggest_categorical('grow_policy_gpu_rank', ['SymmetricTree', 'Depthwise']),
-            
-        # if params['grow_policy'] == 'Lossguide':
-        #     params['max_leaves'] = trial.suggest_int("max_leaves", 8, 64, log=True)
-        #     if use_gpu and model == CatBoostRanker:
-        #         params['depth'] = trial.suggest_int("depth", 2, 8)
-        #     else :
-        #         params['depth'] = trial.suggest_int("depth", 2, 14)
-        #     params['langevin'] = trial.suggest_categorical("langevin", [True, False])
-        #     if params['langevin']:
-        #         params['diffusion_temperature'] = trial.suggest_float('diffusion_temperature', 1e2, 1e6, log=True)
-        # else: # for Lossguide, Cosine is not supported. Newton and NewtonL2 are only supported in GPU
-        #     if not use_gpu: # sampling_frequency only supported in CPU
-        #         params['sampling_frequency'] = trial.suggest_categorical('sampling_frequency', ['PerTree', 'PerTreeLevel'])
-        #     params['score_function'] = trial.suggest_categorical('score_function', ['Cosine', 'L2'])
-        #     params['depth'] = trial.suggest_int("depth", 2, 10)
-
-        # if params['grow_policy'] != 'SymmetricTree':
-        #     params['min_data_in_leaf'] = trial.suggest_float('min_data_in_leaf', 10, 1000)     
+        if params['grow_policy'] != 'SymmetricTree':
+            params['min_data_in_leaf'] = trial.suggest_float('min_data_in_leaf', 10, 1000)     
                 
-        # if params['bootstrap_type'] == 'MVS':
-        #     params['mvs_reg'] = trial.suggest_float('mvs_reg', 1e-4, 1e4, log=True)
+        if params['bootstrap_type'] == 'MVS' and not use_gpu:
+            params['mvs_reg'] = trial.suggest_float('mvs_reg', 1e-4, 1e4, log=True)
+        
+        if not use_gpu or (use_gpu and model == CatBoostRanker):
+            params['rsm'] = trial.suggest_float("rsm", 0.05, 0.8, log=True)
+
+        if use_gpu:     
+            params['border_count'] = trial.suggest_int('border_count', 8, 254, log=True) # suggested to be small on GPU
+            if model == CatBoostRanker:
+                params['depth'] = trial.suggest_int("depth", 2, 8)
+        else:
+            params['random_strength'] = trial.suggest_float('random_strength', 1e-4, 1e2, log=True),
+
+
                         
     elif model in [XGBClassifier, XGBRanker]:
         params = {
