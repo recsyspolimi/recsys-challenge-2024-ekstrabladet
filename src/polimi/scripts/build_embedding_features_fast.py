@@ -35,15 +35,15 @@ def main(input_path, output_dir):
         behaviors = pl.read_parquet(files_path / 'behaviors.parquet')
         history = pl.read_parquet(files_path / 'history.parquet')
         history_w = build_history_w(history, articles)
-        selected_weight_col = 'scroll_percentage_fixed_mmnorm_l1_w'
-        history_w = history_w.select('user_id', selected_weight_col)
+        selected_weight_col = ''
+        # history_w = history_w.select('user_id', selected_weight_col)
 
                     
         save_path = output_dir / dtype / data_split
         save_path.mkdir(parents=True, exist_ok=True)
          
         behaviors = behaviors.sort(['user_id', 'impression_id'])
-        BATCH_SIZE = int(5e5)
+        BATCH_SIZE = int(5e4)
         n_slices = math.ceil(len(behaviors) / BATCH_SIZE)
         for i, slice in enumerate(tqdm(behaviors.iter_slices(BATCH_SIZE), total=n_slices)):
             logging.info(f'Start building embeddings scores slice {i}...')
@@ -53,9 +53,10 @@ def main(input_path, output_dir):
             
             logging.info(f'Weightening embeddings scores for slice {i} ...')
             t = time.time()
-            slice = slice.join(history_w, on='user_id', how='left')
-            weights_cols = [col for col in slice.columns if col.endswith('_l1_w')]
+            weights_cols = [col for col in history_w.columns if col.endswith('_l1_w')]
             scores_cols = [col for col in slice.columns if col.endswith('_scores')]
+            
+            slice = slice.join(history_w, on='user_id', how='left')
             slice = weight_scores(slice, scores_cols=scores_cols, weights_cols=weights_cols)    
             logging.info(f'Completed in {((time.time() - t) / 60):.2f} minutes')
      

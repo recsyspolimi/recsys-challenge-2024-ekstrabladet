@@ -39,11 +39,16 @@ def _get_urm_ner(urm_ner_scores_path: Path, behaviors: pl.DataFrame, history: pl
     
     logging.info('Normalizing NER scores...')
     ner_features = [col for col in urm_ner_df.columns if '_ner_scores' in col]
-    urm_ner_df = urm_ner_df.select('impression_id', 'user_id', 'article', *ner_features)\
-        .explode(pl.all().exclude(['impression_id', 'user_id'])).with_columns(
-            *get_norm_expression(ner_features, over='impression_id', norm_type='infinity')
-        ).drop(ner_features)
-        
+    
+    urm_ner_df = urm_ner_df.select('impression_id', 'user_id', 'article', *ner_features).with_columns(
+        *[(pl.col(c) - pl.col(c).median().over(pl.col('impression_id'))).alias(f'{c}_minus_median_impression')
+        for c in ner_features],
+        *[(pl.col(c) / pl.col(c).max().over(pl.col('user_id'))).alias(f'{c}_l_inf_user')
+        for c in ner_features],
+        *[(pl.col(c) / pl.col(c).max().over(pl.col('impression_id'))).alias(f'{c}_l_inf_impression')
+        for c in ner_features],
+    ).drop(ner_features)
+            
     return reduce_polars_df_memory_size(urm_ner_df)
 
 
@@ -94,7 +99,7 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     emb_scores_path = Path(kwargs.get('emb_scores_path')) if kwargs.get('emb_scores_path') else None
     dataset_path = Path(kwargs.get('dataset_path')) if kwargs.get('dataset_path') else None
 
-    emb_scores_df = _get_embdeddings_agg(emb_scores_path, behaviors, history, articles, dataset_path)
+    # emb_scores_df = _get_embdeddings_agg(emb_scores_path, behaviors, history, articles, dataset_path)
     urm_ner_df = _get_urm_ner(urm_ner_scores_path, behaviors, history, articles)
 
     # Load old version
@@ -112,10 +117,10 @@ def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.
     # JOIN
     df_features = df_features.join(
         urm_ner_df, on=['impression_id', 'user_id', 'article'], how='left')
-    df_features = df_features.join(
-        emb_scores_df, on=['impression_id', 'user_id', 'article'], how='left')
+    # df_features = df_features.join(
+    #     emb_scores_df, on=['impression_id', 'user_id', 'article'], how='left')
 
     # Post Processing
-    del emb_scores_df, urm_ner_df
+    del urm_ner_df
     gc.collect()
     return df_features, vectorizer, unique_entities

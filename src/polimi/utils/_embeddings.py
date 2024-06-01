@@ -508,6 +508,7 @@ def build_history_w(history: pl.DataFrame, articles: pl.DataFrame):
     return history_w
 
 def weight_scores(df: pl.DataFrame, scores_cols: list[str], weights_cols: list[str]):
+    df = reduce_polars_df_memory_size(df)
     return pl.concat([
         slice.explode(['article'] + scores_cols).with_columns(
             *[pl.lit(
@@ -515,7 +516,7 @@ def weight_scores(df: pl.DataFrame, scores_cols: list[str], weights_cols: list[s
                 dtype=pl.List(pl.Float32)
             ).alias(f'{col_score}_weighted_{col_w}')
             for col_w in weights_cols for col_score in scores_cols]
-        ).drop(weights_cols).drop(scores_cols).group_by('impression_id', 'user_id').agg(pl.all())
+        ).drop(weights_cols).group_by('impression_id', 'user_id').agg(pl.all())
         for slice in tqdm(df.partition_by('user_id'), total=df['user_id'].n_unique())    
     ])
 
