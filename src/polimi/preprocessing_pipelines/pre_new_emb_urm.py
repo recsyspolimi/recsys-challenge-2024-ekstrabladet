@@ -40,17 +40,14 @@ def _get_urm_ner(urm_ner_scores_path: Path, behaviors: pl.DataFrame, history: pl
     logging.info('Normalizing NER scores...')
     ner_features = [col for col in urm_ner_df.columns if '_ner_scores' in col]
     
-    logging.info(urm_ner_df.columns, urm_ner_df.dtypes)
-    urm_ner_df = urm_ner_df.select('impression_id', 'user_id', 'article', *ner_features)\
-        .explode(pl.all().exclude('impression_id', 'user_id'))\
-        .with_columns(
-            *[(pl.col(c) - pl.col(c).median().over(pl.col('impression_id'))).alias(f'{c}_minus_median_impression')
-            for c in ner_features],
-            *[(pl.col(c) / pl.col(c).max().over(pl.col('user_id'))).alias(f'{c}_l_inf_user')
-            for c in ner_features],
-            *[(pl.col(c) / pl.col(c).max().over(pl.col('impression_id'))).alias(f'{c}_l_inf_impression')
-            for c in ner_features],
-        ).drop(ner_features)
+    urm_ner_df = urm_ner_df.select('impression_id', 'user_id', 'article', *ner_features).with_columns(
+        *[(pl.col(c) - pl.col(c).median().over(pl.col('impression_id'))).alias(f'{c}_minus_median_impression')
+        for c in ner_features],
+        *[(pl.col(c) / pl.col(c).max().over(pl.col('user_id'))).alias(f'{c}_l_inf_user')
+        for c in ner_features],
+        *[(pl.col(c) / pl.col(c).max().over(pl.col('impression_id'))).alias(f'{c}_l_inf_impression')
+        for c in ner_features],
+    ).drop(ner_features)
             
     return reduce_polars_df_memory_size(urm_ner_df)
 
