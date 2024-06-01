@@ -162,6 +162,23 @@ if __name__ == '__main__':
     # model = incremental_training(model_path, train_ds, impression_time_ds, catboost_params, data_info)
 
     if EVAL:
+        print('Reading models...')
+        models = []
+        for batch in range(N_BATCH):
+            if RANKER:
+                model = CatBoostRanker(
+                    **catboost_params, cat_features=data_info['categorical_columns'])
+            else:
+                model = CatBoostClassifier(**catboost_params, cat_features=data_info['categorical_columns'])
+                
+            model.load_model(model_path + f'/model_{batch}.cbm', format='cbm')
+            models.append(model)
+        weights = [1/N_BATCH] * N_BATCH
+    
+        model = sum_models(models, weights=weights,
+                       ctr_merge_policy='IntersectingCountersAverage')
+        
+        print('Reading DF...')
         with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
             data_info = json.load(data_info_file)
 
@@ -184,17 +201,21 @@ if __name__ == '__main__':
 
         X_val = val_ds_pandas.drop(columns=['target'])
         y_val = val_ds_pandas['target']
-
-        if RANKER:
-            pred = val_ds.with_columns(
+        
+        print('Running Model...')
+        pred = val_ds.with_columns(
                 pl.Series(model.predict(X_val)).alias('prediction'))
-        else:
-            pred = val_ds.with_columns(
-                pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction'))
+        # if RANKER:
+        #     pred = val_ds.with_columns(
+        #         pl.Series(model.predict(X_val)).alias('prediction'))
+        # else:
+        #     pred = val_ds.with_columns(
+        #         pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction'))
         if SAVE_PREDICTIONS:
             pred.write_parquet(
                 '/home/ubuntu/experiments/test_batch_training/ranker_predictions.parquet')
         gc.collect()
+        
         evaluation_ds = pred.group_by('impression_id').agg(
             pl.col('target'), pl.col('prediction'))
         valuation_ds = pred.group_by('impression_id').agg(

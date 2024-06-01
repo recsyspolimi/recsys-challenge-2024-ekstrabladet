@@ -43,18 +43,20 @@ def main(dataset_path, numerical_transform, dataset_type, fit, load_path, output
         else:
             raise ValueError('Not recognized numerical transformer')
         X_train_numerical = xformer.fit_transform(
-            dataset.select(numerical_columns).to_pandas().replace([-np.inf, np.inf], np.nan)).astype(np.float32)
+            dataset.select(numerical_columns).to_pandas().replace(
+                [-np.inf, np.inf], np.nan).astype(np.float32)).astype(np.float32)
     else:
         xformer = joblib.load(load_path)
         missing_columns = [x for x in numerical_columns if x not in xformer.feature_names_in_]
         if len(missing_columns):
             raise ValueError(f'These columns are missing in the dataset: {missing_columns}')
-        X_train_numerical = dataset.select(xformer.feature_names_in_).to_pandas().replace([-np.inf, np.inf], np.nan)
-        X_train_numerical = xformer.transform(X_train_numerical).astype(np.float32)
+        X_train_numerical = xformer.transform(
+            dataset.select(xformer.feature_names_in_).to_pandas().replace(
+                [-np.inf, np.inf], np.nan).astype(np.float32)).astype(np.float32)
     
     logging.info('Preprocessing complete.')
     for i, col in tqdm.tqdm(enumerate(numerical_columns)):
-        dataset = dataset.with_columns(pl.Series(X_train_numerical[:, i]).alias(col))
+        dataset = dataset.with_columns(pl.Series(X_train_numerical[:, i]).fill_nan(0).fill_null(0).alias(col))
         
     logging.info(f'Saving dataset and numerical transformer at: {output_dir}')
     data_info_path = os.path.join(output_dir, 'data_info.json')
