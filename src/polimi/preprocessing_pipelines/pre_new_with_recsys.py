@@ -189,6 +189,8 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     df_features = df_features.join(recsys_features, on=['impression_id', 'user_id', 'article'], how='left')
     
     df_features = _build_normalizations_blocks(df_features)
+
+    assert df_features.shape[1] == 391, f"dfha {df_features.shape[1]} colonne invece di 391"
     return df_features, vectorizer, unique_entities
 
 
@@ -410,22 +412,26 @@ def _get_recsys_features(rec_sys_path: Path, history: pl.DataFrame, behaviors: p
 
         logging.info('Creating URM matrix ... ')
         if not test:
-            history_opposite = pl.read_parquet(input_path.joinpath(dataset_split).joinpath('history.parquet'))
-            URM_train = build_recsys_urm(history, build_user_id_mapping(history.vstack(history_opposite)), build_item_mapping(articles), 'article_id_fixed')
+            if dataset_split == 'train':
+                history_opposite = pl.read_parquet(input_path.joinpath('validation').joinpath('history.parquet'))
+            elif dataset_split == 'validation':
+                history_opposite = pl.read_parquet(input_path.joinpath('train').joinpath('history.parquet'))
+
+            URM_train = build_recsys_urm(history, build_user_id_mapping(history.select('user_id').vstack(history_opposite.select('user_id'))), build_item_mapping(articles), 'article_id_fixed')
         
             logging.info('Building recsys features ...')
-            recsys_features = build_recsys_features_icms(articles=articles,behaviors=behaviors,history=history.vstack(history_opposite),ICMs=ICMs,URM_train=URM_train)
+            recsys_features = build_recsys_features_icms(articles=articles,behaviors=behaviors,history=history.select('user_id').vstack(history_opposite.select('user_id')),ICMs=ICMs,URM_train=URM_train)
             recsys_features = rename_icms(recsys_features)
 
             assert recsys_features.shape[1] == 10, f"Recsys features ha {recsys_features.shape[1]} colonne invece di 10"
         else:
             history_large_train = pl.read_parquet(input_path.parent.joinpath('ebnerd_large').joinpath('train').joinpath('history.parquet'))
             history_large_val = pl.read_parquet(input_path.parent.joinpath('ebnerd_large').joinpath('validation').joinpath('history.parquet'))
-
-            URM_train = build_recsys_urm(history, build_user_id_mapping(history.vstack(history_large_train).vstack(history_large_val)), build_item_mapping(articles), 'article_id_fixed')
+            
+            URM_train = build_recsys_urm(history, build_user_id_mapping(history.select('user_id').vstack(history_large_train.select('user_id')).vstack(history_large_val.select('user_id'))), build_item_mapping(articles), 'article_id_fixed')
         
             logging.info('Building recsys features ...')
-            recsys_features = build_recsys_features_icms(articles=articles,behaviors=behaviors,history=history.vstack(history_opposite),ICMs=ICMs,URM_train=URM_train)
+            recsys_features = build_recsys_features_icms(articles=articles,behaviors=behaviors,history=history.select('user_id').vstack(history_large_train.select('user_id')).vstack(history_large_val.select('user_id')),ICMs=ICMs,URM_train=URM_train)
             recsys_features = rename_icms(recsys_features)
 
             assert recsys_features.shape[1] == 10, f"Recsys features ha {recsys_features.shape[1]} colonne invece di 10"

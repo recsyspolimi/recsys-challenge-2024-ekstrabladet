@@ -165,31 +165,31 @@ def build_recsys_features_icms(URM_train, ICMs,history,behaviors,articles ):
 
 
     logging.info('Training content-base recommenders ... ')
-    contrastive = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[0])
+    contrastive = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[0],verbose=False)
     contrastive.fit(similarity= 'asymmetric', topK= 192, shrink= 569, asymmetric_alpha= 0.9094884938503743) 
     recs.append(contrastive)
 
-    w_2_vec = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[1])
+    w_2_vec = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[1],verbose=False)
     w_2_vec.fit(similarity= 'cosine', topK= 359, shrink= 562) 
     recs.append(w_2_vec)
 
-    bert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[2])
+    bert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[2],verbose=False)
     bert.fit(similarity= 'euclidean', topK= 1457, shrink= 329, normalize_avg_row= True, similarity_from_distance_mode= 'exp', normalize= False) 
     recs.append(bert)
 
-    roberta = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[3])
+    roberta = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[3],verbose=False)
     roberta.fit(similarity= 'cosine', topK= 363, shrink= 29) 
     recs.append(roberta)
 
-    distilbert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[4])
+    distilbert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[4],verbose=False)
     distilbert.fit(similarity= 'asymmetric', topK= 921, shrink= 1, asymmetric_alpha= 0.774522157812755) 
     recs.append(distilbert)
 
-    kenneth = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[5])
+    kenneth = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[5],verbose=False)
     kenneth.fit(similarity= 'asymmetric', topK= 303, shrink= 574, asymmetric_alpha= 1.7852169782747023) 
     recs.append(kenneth)
 
-    emotion = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[6])
+    emotion = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[6],verbose=False)
     emotion.fit(similarity= 'euclidean', topK= 1099, shrink= 752, normalize_avg_row= True, similarity_from_distance_mode= 'lin', normalize= False) 
     recs.append(emotion)
 
@@ -295,7 +295,7 @@ def create_embeddings_icms(input_path, articles):
     ICMs = []
     for k,value in associations.items():
         ICM_dataframe = value.join(articles, on='article_id').select(['article_id',k]).with_columns(
-        pl.col(k).apply(lambda lst : list(range(len(lst)))).alias("indici")      
+        pl.col(k).apply(lambda lst : list(range(len(lst))), return_dtype=pl.List(pl.Int64)).alias("indici")      
         )\
         .explode([k,'indici'])\
         .rename({'indici': 'feature_id'})\
