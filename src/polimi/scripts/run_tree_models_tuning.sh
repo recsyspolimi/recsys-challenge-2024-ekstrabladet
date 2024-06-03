@@ -11,9 +11,8 @@ python ~/RecSysChallenge2024/src/polimi/scripts/tree_models_tuning.py \
 
 python /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/src/polimi/scripts/tree_models_tuning.py \
     -output_dir /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/experiments/trash \
-    -training_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/test_ds_demo/ \
-    -validation_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/test_ds_demo \
+    -training_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/preprocessing_moving_window_new/ebnerd_small/fold_3/ \
+    -validation_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/preprocessing_moving_window_new/ebnerd_small/fold_3/ \
     -n_trials 500 \
     -study_name test \
-    -model_name catboost \
-   --is_rank
+    -model_name xgb

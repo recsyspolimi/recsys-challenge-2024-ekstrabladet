@@ -55,6 +55,9 @@ def optimize_parameters(folds_data: Tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
         auc = []
         for X_train, X_val, y_train, evaluation_ds, groups in folds_data:
             X_val = X_val[X_train.columns] # In case of wrong order of features
+            if model_class in [XGBClassifier, XGBRanker]: # XGBoost does not support inf values
+                X_train = X_train.replace([-np.inf, np.inf], np.nan)
+                X_val = X_val.replace([-np.inf, np.inf], np.nan)
             
             model = model_class(**params)
             

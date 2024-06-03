@@ -45,6 +45,11 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
     '''
     The X_train dataframe must be sorted by the impression_id for the ranking problems
     '''
+    X_val = X_val[X_train.columns] # Ensure the validation dataset has the same columns order as the training dataset
+    
+    if model_class in [XGBClassifier, XGBRanker]: # XGBoost does not support inf values
+        X_train = X_train.replace([-np.inf, np.inf], np.nan)
+        X_val = X_val.replace([-np.inf, np.inf], np.nan)
     
     def objective_function(trial: optuna.Trial):
         params = get_models_params(trial, model_class, categorical_features, use_gpu=use_gpu)
@@ -63,7 +68,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
         else:
             prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict_proba(X_val)[:, 1]).alias('prediction')) \
                 .group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
-        # cpp_auc = CppAuc()
+
         return np.mean(
             [fast_numba_auc(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
                 for y_t, y_s in zip(prediction_ds['target'].to_list(), 
