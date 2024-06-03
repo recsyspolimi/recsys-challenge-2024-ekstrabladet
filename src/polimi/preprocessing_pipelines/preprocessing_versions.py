@@ -6,6 +6,8 @@ from polimi.preprocessing_pipelines.pre_142 import build_features_iterator as bu
 from polimi.preprocessing_pipelines.pre_147 import build_features_iterator as build_features_iterator_147f
 from polimi.preprocessing_pipelines.pre_new import build_features_iterator as build_features_iterator_new
 from polimi.preprocessing_pipelines.pre_new2_click_urms import build_features_iterator as build_features_iterator_new_click
+from polimi.preprocessing_pipelines.pre_new_with_recsys import build_features_iterator as build_features_iterator_new_with_recsys
+
 
 from polimi.preprocessing_pipelines.pre_115f import build_features as build_features_115f
 from polimi.preprocessing_pipelines.pre_94f import build_features as build_features_94f
@@ -23,6 +25,8 @@ from polimi.preprocessing_pipelines.pre_142 import build_features_iterator_test 
 from polimi.preprocessing_pipelines.pre_147 import build_features_iterator_test as build_features_iterator_test_147f
 from polimi.preprocessing_pipelines.pre_new import build_features_iterator_test as build_features_iterator_test_new
 from polimi.preprocessing_pipelines.pre_new2_click_urms import build_features as build_features_iterator_test_new_click
+from polimi.preprocessing_pipelines.pre_new_with_recsys import build_features as build_features_iterator_test_new_with_recsys
+
 
 
 
@@ -50,6 +54,7 @@ BATCH_PREPROCESSING = {
     '147f': build_features_iterator_147f,
     'new': build_features_iterator_new,
     'new_click' : build_features_iterator_new_click,
+    'new_with_recsys': build_features_iterator_new_with_recsys,
     'latest' : build_features_iterator_127f,
 }
 
@@ -60,6 +65,7 @@ TEST_BATCH_PREPROCESSING = {
     'new': build_features_iterator_test_new,
     'new_click': build_features_iterator_test_new_click,
     'latest' : build_features_iterator_test_127f,
+    'new_with_recsys': build_features_iterator_new_with_recsys,
 }
 
 def get_preprocessing_version(version):

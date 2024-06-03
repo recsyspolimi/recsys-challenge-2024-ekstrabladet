@@ -9,7 +9,9 @@ import scipy.sparse as sps
 from tqdm import tqdm
 import numpy as np
 from RecSys_Course_AT_PoliMi.Recommenders.BaseRecommender import BaseRecommender
+from RecSys_Course_AT_PoliMi.Recommenders.KNN.ItemKNNCBFRecommender import ItemKNNCBFRecommender
 from polimi.utils._polars import reduce_polars_df_memory_size
+import logging
 
 
 """
@@ -157,6 +159,45 @@ def load_recommender(URM: sps.csr_matrix, recommender: BaseRecommender, file_pat
     rec_instance.load_model(folder_path=str(file_path), file_name=file_name)
     return rec_instance
 
+def build_recsys_features_icms(URM_train, ICMs,history,behaviors,articles ):
+
+    recs = []
+
+
+    logging.info('Training content-base recommenders ... ')
+    contrastive = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[0])
+    contrastive.fit(similarity= 'asymmetric', topK= 192, shrink= 569, asymmetric_alpha= 0.9094884938503743) 
+    recs.append(contrastive)
+
+    w_2_vec = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[1])
+    w_2_vec.fit(similarity= 'cosine', topK= 359, shrink= 562) 
+    recs.append(w_2_vec)
+
+    bert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[2])
+    bert.fit(similarity= 'euclidean', topK= 1457, shrink= 329, normalize_avg_row= True, similarity_from_distance_mode= 'exp', normalize= False) 
+    recs.append(bert)
+
+    roberta = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[3])
+    roberta.fit(similarity= 'cosine', topK= 363, shrink= 29) 
+    recs.append(roberta)
+
+    distilbert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[4])
+    distilbert.fit(similarity= 'asymmetric', topK= 921, shrink= 1, asymmetric_alpha= 0.774522157812755) 
+    recs.append(distilbert)
+
+    kenneth = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[5])
+    kenneth.fit(similarity= 'asymmetric', topK= 303, shrink= 574, asymmetric_alpha= 1.7852169782747023) 
+    recs.append(kenneth)
+
+    emotion = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[6])
+    emotion.fit(similarity= 'euclidean', topK= 1099, shrink= 752, normalize_avg_row= True, similarity_from_distance_mode= 'lin', normalize= False) 
+    recs.append(emotion)
+
+    logging.info('Building recsys features ... ')
+    recsys_features = build_recsys_features(history=history,behaviors=behaviors,articles=articles,recs=recs)
+    
+    return recsys_features
+
 def build_urm_ner_scores(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, recs: list[BaseRecommender], batch_size=BATCH_SIZE):
     user_id_mapping = build_user_id_mapping(history)
     ap = build_articles_with_processed_ner(articles)
@@ -227,7 +268,50 @@ def build_recsys_features(history: pl.DataFrame, behaviors: pl.DataFrame, articl
     return recsys_scores
 
     
+def create_embeddings_icms(input_path, articles):
+    parent_path = input_path.parent
+        
 
+    contrastive_vector_2 = pl.read_parquet(parent_path.joinpath('Ekstra_Bladet_contrastive_vector/contrastive_vector.parquet'))
+    w_2_vec = pl.read_parquet(parent_path.joinpath('Ekstra_Bladet_word2vec/document_vector.parquet'))
+    roberta = pl.read_parquet(parent_path.joinpath('FacebookAI_xlm_roberta_base/xlm_roberta_base.parquet'))
+    google_bert = pl.read_parquet(parent_path.joinpath('google_bert_base_multilingual_cased/bert_base_multilingual_cased.parquet'))
+    distilbert = pl.read_parquet(parent_path.joinpath('distilbert_title_embedding.parquet'))
+    kenneth = pl.read_parquet(parent_path.joinpath('kenneth_embedding.parquet'))
+    emotions = pl.read_parquet(parent_path.joinpath('emotions_embedding.parquet'))
+
+    articles_mapping = articles.select('article_id').with_row_index().rename({'index': 'article_index'})
+    
+    associations = {
+            'contrastive_vector' : contrastive_vector_2,
+            'document_vector': w_2_vec,
+            'google-bert/bert-base-multilingual-cased': google_bert,
+            'FacebookAI/xlm-roberta-base': roberta,
+            'title_embedding': distilbert,
+            'kenneth_title+subtitle': kenneth,
+            'emotion_scores': emotions
+    }
+
+    ICMs = []
+    for k,value in associations.items():
+        ICM_dataframe = value.join(articles, on='article_id').select(['article_id',k]).with_columns(
+        pl.col(k).apply(lambda lst : list(range(len(lst)))).alias("indici")      
+        )\
+        .explode([k,'indici'])\
+        .rename({'indici': 'feature_id'})\
+        .join(articles_mapping, on='article_id')\
+        .drop('article_id')
+
+        n_articles = ICM_dataframe.select('article_index').n_unique()
+        n_features = ICM_dataframe.select('feature_id').n_unique()
+
+        ICM = sps.csr_matrix((ICM_dataframe[k].to_numpy(),
+                (ICM_dataframe["article_index"].to_numpy(), ICM_dataframe["feature_id"].to_numpy())),
+                shape = (n_articles, n_features))
+
+        ICMs.append(ICM)
+
+    return ICMs
             
 
 def _compute_recommendations(user_items_df, recommenders):
@@ -244,3 +328,21 @@ def _compute_recommendations(user_items_df, recommenders):
         ]
     )
     
+
+def rename_icms(recsys_features):
+
+    couple = {
+        'recs0': 'constrastive_emb_icm',
+        'recs1': 'w_2_vec_emb_icm',
+        'recs2': 'bert_emb_icm',
+        'recs3': 'roberta_emb_icm',
+        'recs4': 'distilbert_emb_icm',
+        'recs5': 'kenneth_emb_icm',
+        'recs6': 'emotions_emb_icm'
+    }
+
+    for col in recsys_features.columns:
+        if couple.get(col,None) != None:
+            recsys_features = recsys_features.rename({col: couple[col]})
+
+    return reduce_polars_df_memory_size(recsys_features)

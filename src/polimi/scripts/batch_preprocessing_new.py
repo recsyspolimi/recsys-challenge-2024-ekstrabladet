@@ -58,7 +58,7 @@ def main(input_path, output_dir, dataset_type='train', preprocessing_version='la
 
     dataset, vectorizer, unique_entities = build_features_iterator(behaviors, history, articles, test=is_test_data,
                                                                    sample=sample, n_batches=100, previous_version=previous_version,
-                                                                   split_type=dataset_type, output_path=output_dir, **kwargs)
+                                                                   split_type=dataset_type, output_path=output_dir,input_path=input_path **kwargs)
     dataset.write_parquet(os.path.join(
         output_dir, f'{dataset_type}_ds.parquet'))
     categorical_columns = get_categorical_columns(preprocessing_version)
