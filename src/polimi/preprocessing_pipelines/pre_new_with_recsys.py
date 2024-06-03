@@ -81,7 +81,7 @@ NORMALIZE_RECSYS = [
 
 def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                             test: bool = False, sample: bool = True, npratio: int = 2,
-                            tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10, previous_version=None,
+                            tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 10, previous_version=None,input_path=None,
                             **kwargs):
     '''
     Generator function to build the features from blocks of the behaviors. It returns an iterable of slices of the 
@@ -121,7 +121,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     history_counts,behaviors_counts = _preprocessing_leak_counts(history=history,behaviors=behaviors)
 
     print('Preprocessing recsys features...')    
-    recsys_features = _get_recsys_features(articles=articles,behaviors=behaviors,history=history,rec_sys_path=kwargs['rec_sys_path'],dataset_split=kwargs['split_type'], input_path =kwargs['input_path'] )
+    recsys_features = _get_recsys_features(articles=articles,behaviors=behaviors,history=history,rec_sys_path=kwargs['rec_sys_path'],dataset_split=kwargs['split_type'], input_path =Path(input_path) )
 
 
     if previous_version is None:
@@ -194,7 +194,7 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
 
 def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
                                  test: bool = False, sample: bool = True, npratio: int = 2,
-                                 tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 100, previous_version=None,
+                                 tf_idf_vectorizer: TfidfVectorizer = None, n_batches: int = 100, previous_version=None,input_path=None,
                                  **kwargs):
     
     behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
@@ -203,8 +203,8 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
     old_behaviors = behaviors
     articles = articles.with_columns((pl.col('total_pageviews') / pl.col('total_inviews')).alias('total_pageviews/inviews'))
     
-    print('Preprocessing recsys features...')    
-    recsys_features = _get_recsys_features(articles=articles,behaviors=behaviors,history=history,rec_sys_path=kwargs['rec_sys_path'],dataset_split=kwargs['split_type'], input_path =kwargs['input_path'], test =True )
+    print('Preprocessing recsys features...')
+    recsys_features = _get_recsys_features(articles=articles,behaviors=behaviors,history=history,rec_sys_path=kwargs['rec_sys_path'],dataset_split=kwargs['split_type'], input_path =Path(input_path), test =True )
 
     print('Preprocessing article endorsement feature...')
     articles_endorsement = _preprocessing_article_endorsement_feature(

@@ -58,7 +58,7 @@ def main(input_path, output_dir, dataset_type='train', preprocessing_version='la
 
     dataset, vectorizer, unique_entities = build_features_iterator(behaviors, history, articles, test=is_test_data,
                                                                    sample=sample, n_batches=100, previous_version=previous_version,
-                                                                   split_type=dataset_type, output_path=output_dir,input_path=input_path **kwargs)
+                                                                   split_type=dataset_type, output_path=output_dir,input_path=input_path, **kwargs)
     dataset.write_parquet(os.path.join(
         output_dir, f'{dataset_type}_ds.parquet'))
     categorical_columns = get_categorical_columns(preprocessing_version)
@@ -98,18 +98,10 @@ if __name__ == '__main__':
                         help="Specify the type of dataset: ['train', 'validation', 'test']")
     parser.add_argument("-preprocessing_version", default='latest', type=str,
                         choices=['68f', '94f', '115f', '127f',
-                                 '142f', '147f', 'new', 'new_click','latest'],
+                                 '142f', '147f', 'new', 'new_click','latest','new_with_recsys'],
                         help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','127f','latest']")
     parser.add_argument("-previous_version", default=None, type=str,
                         help="Specify the path of a previous version of the dataset to use as a reference for the new one. Default is None.\n YOU MUST GUARANTEE THE COMPATIBILITY BETWEEN VERSIONS. ")
-    parser.add_argument("-emb_scores_path", default=None, type=str, required=False,
-                        help="Directory where the emb scores are placed")
-    parser.add_argument("-urm_ner_path", default=None, type=str, required=False,
-                        help="Directory where the urm scores are placed")
-    parser.add_argument("-emotion_emb_path", default=None, type=str, required=False,
-                        help="Directory where the emotions scores are placed")
-    parser.add_argument("-click_predictors_path", default=None, type=str, required=False,
-                        help="Directory where the click predictors are placed")
     parser.add_argument("-rec_sys_path", default=None, type=str, required=False,
                         help="Directory where the rec_sys predictions are placed")
 
@@ -119,10 +111,6 @@ if __name__ == '__main__':
     DATASET_TYPE = args.dataset_type
     PREPROCESSING_VERSION = args.preprocessing_version
     PREVIOUS_VERSION = args.previous_version
-    URM_NER_SCORES_PATH = args.urm_ner_path
-    EMB_SCORES_PATH = args.emb_scores_path
-    EMOTION_EMB_PATH = args.emotion_emb_path
-    CLICK_PREDICTORS_PATH = args.click_predictors_path
     RECSYS_FETURES_PATH = args.rec_sys_path
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -141,7 +129,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
 
     main(DATASET_DIR, output_dir, DATASET_TYPE, PREPROCESSING_VERSION, PREVIOUS_VERSION,
-         emb_scores_path=EMB_SCORES_PATH, urm_ner_path=URM_NER_SCORES_PATH,
-         emotion_emb_path=EMOTION_EMB_PATH,
-         click_predictors_path=CLICK_PREDICTORS_PATH,
          rec_sys_path=RECSYS_FETURES_PATH)
