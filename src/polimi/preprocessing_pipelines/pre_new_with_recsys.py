@@ -282,6 +282,76 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
     df_features = _build_normalizations_blocks(df_features)
     return df_features, vectorizer, unique_entities
 
+
+
+
+
+def build_features(behaviors: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame,
+                   test: bool = False, sample: bool = True, npratio: int = 2,
+                   tf_idf_vectorizer: TfidfVectorizer = None, previous_version=None,input_path=None, **kwargs) -> pl.DataFrame:
+
+    behaviors, history, articles, vectorizer, unique_entities, cols_explode, rename_cols = _preprocessing(
+        behaviors, history, articles, test, sample, npratio
+    )
+    articles = articles.with_columns((pl.col('total_pageviews') / pl.col('total_inviews')).alias('total_pageviews/inviews'))
+    
+    print('Preprocessing recsys features...')    
+    recsys_features = _get_recsys_features(articles=articles,behaviors=behaviors,history=history,rec_sys_path=kwargs['rec_sys_path'],dataset_split=kwargs['split_type'], input_path =Path(input_path) )
+
+    articles_endorsement = _preprocessing_article_endorsement_feature(
+        behaviors=behaviors, period="10h")
+    
+    articles_endorsement_articleuser = _preprocessing_article_endorsement_feature_by_article_and_user(
+    behaviors=behaviors, period="20h")
+
+    print('Preprocessing leak count features')
+    history_counts,behaviors_counts = _preprocessing_leak_counts(history=history,behaviors=behaviors)
+
+    if previous_version is None:
+        articles, topic_model_columns, n_components = _compute_topic_model(
+            articles)
+
+        topics = articles.select("topics").explode("topics").unique()
+        topics = [topic for topic in topics["topics"] if topic is not None]
+
+        users_mean_trendiness_scores, topics_mean_trendiness_scores = _preprocessing_history_trendiness_scores(
+            history=history, articles=articles)
+
+        topic_mean_delays, user_mean_delays = _preprocessing_mean_delay_features(
+            articles=articles, history=history)
+
+        windows, user_windows, user_topics_windows, user_category_windows = _preprocessing_window_features(
+            history=history, articles=articles)
+
+        unique_categories = get_unique_categories(articles)
+
+        df_features = behaviors.pipe(_build_features_behaviors, history=history, articles=articles,
+                                    cols_explode=cols_explode, rename_columns=rename_cols, unique_entities=unique_entities,
+                                    unique_categories=unique_categories)
+
+        df_features = _build_v127_features(df_features=df_features, history=history, articles=articles, users_mean_trendiness_scores=users_mean_trendiness_scores,
+                                           topics_mean_trendiness_scores=topics_mean_trendiness_scores, topics=topics, topic_mean_delays=topic_mean_delays,
+                                           user_mean_delays=user_mean_delays, windows=windows, user_windows=user_windows,
+                                           user_category_windows=user_category_windows, user_topics_windows=user_topics_windows, articles_endorsement=articles_endorsement,
+                                           topic_model_columns=topic_model_columns, n_components=n_components)
+    else:
+        df_features = pl.read_parquet(previous_version)
+    
+    articles_endorsement = _preprocessing_normalize_endorsement(articles_endorsement, 'endorsement_10h')
+    # dropping column endorsment_10h since it is already in the previous version
+    articles_endorsement = articles_endorsement.drop('endorsment_10h')
+
+    articles_endorsement_articleuser_norm = _preprocessing_normalize_endorsement_by_article_and_user(articles_endorsement_articleuser,'endorsement_20h_articleuser')
+    
+    df_features = _build_new_features(df_features, behaviors, articles, articles_endorsement, articles_endorsement_articleuser_norm, history_counts, behaviors_counts)
+    
+    df_features = df_features.join(recsys_features, on=['impression_id', 'user_id', 'article'], how='left')
+
+    df_features = _build_normalizations(df_features)
+    return reduce_polars_df_memory_size(df_features), vectorizer, unique_entities
+
+
+
 def _build_v127_features(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl.DataFrame, users_mean_trendiness_scores: pl.DataFrame,
                         topics_mean_trendiness_scores: pl.DataFrame, topics: pl.DataFrame, topic_mean_delays: pl.DataFrame,
                         user_mean_delays: pl.DataFrame, windows: pl.DataFrame, user_windows: pl.DataFrame,
@@ -354,6 +424,37 @@ def _build_new_features(df_features: pl.DataFrame, behaviors: pl.DataFrame, arti
 
 
 
+def _build_normalizations(df_features: pl.DataFrame):
+    expressions = sum([
+        get_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', norm_type='infinity', suffix_name='_impression'),
+        get_list_rank_expression(RANK_IMPRESSION_ASCENDING, over='impression_id', suffix_name='_impression', descending=False),
+        get_list_rank_expression(RANK_IMPRESSION_DESCENDING, over='impression_id', suffix_name='_impression', descending=True),
+        get_norm_expression(NORMALIZE_OVER_USER_ID, over='user_id', norm_type='infinity', suffix_name='_user'),
+        get_norm_expression(NORMALIZE_OVER_ARTICLE, over='article', norm_type='infinity', suffix_name='_article'),
+        get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='std', suffix_name='_impression'),
+        get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='skew', suffix_name='_impression'),
+        get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='kurtosis', suffix_name='_impression'),
+        get_group_stats_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', stat_type='entropy', suffix_name='_impression'),
+        get_diff_norm_expression(NORMALIZE_OVER_IMPRESSION_ID, over='impression_id', diff_type='median', suffix_name='_impression'),
+        get_list_diversity_expression(LIST_DIVERSITY, over='impression_id', suffix_name='_impression'),
+        get_norm_expression(NORMALIZE_OVER_ARTICLE_AND_USER_ID, over=['article','user_id'], norm_type='infinity', suffix_name='_articleuser'),
+    
+        get_norm_expression(NORMALIZE_RECSYS, over='article', norm_type='infinity', suffix_name='_article'),
+        get_group_stats_expression(NORMALIZE_RECSYS, over='article', stat_type='std', suffix_name='_article'),
+        get_group_stats_expression(NORMALIZE_RECSYS, over='article', stat_type='skew', suffix_name='_article'),
+        get_group_stats_expression(NORMALIZE_RECSYS, over='article', stat_type='kurtosis', suffix_name='_article'),
+        get_group_stats_expression(NORMALIZE_RECSYS, over='article', stat_type='entropy', suffix_name='_article'),
+        get_diff_norm_expression(NORMALIZE_RECSYS, over='article', diff_type='median', suffix_name='_article'),
+
+        get_norm_expression(NORMALIZE_RECSYS, over='user_id', norm_type='infinity', suffix_name='_user_id'),
+        get_group_stats_expression(NORMALIZE_RECSYS, over='user_id', stat_type='std', suffix_name='_user_id'),
+        get_group_stats_expression(NORMALIZE_RECSYS, over='user_id', stat_type='skew', suffix_name='_user_id'),
+        get_group_stats_expression(NORMALIZE_RECSYS, over='user_id', stat_type='kurtosis', suffix_name='_user_id'),
+        get_group_stats_expression(NORMALIZE_RECSYS, over='user_id', stat_type='entropy', suffix_name='_user_id'),
+        get_diff_norm_expression(NORMALIZE_RECSYS, over='user_id', diff_type='median', suffix_name='_user_id'),
+    
+    ], [])
+    return reduce_polars_df_memory_size(df_features.with_columns(expressions))
 
 
 
