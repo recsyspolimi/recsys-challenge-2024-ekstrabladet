@@ -74,9 +74,6 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
     categorical_columns = data_info['categorical_columns']
     numerical_columns = [c for c in X.columns if c not in categorical_columns]
     
-    del train_ds
-    gc.collect()
-    
     logging.info(f'Features ({len(X.columns)}): {np.array(list(X.columns))}')
     logging.info(f'Categorical features: {np.array(data_info["categorical_columns"])}')
     logging.info(f'Reading neural network parameters from path: {params_path}')
@@ -95,7 +92,7 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
         X,
         y,
         epochs=params['epochs'],
-        batch_size=512,
+        batch_size=1024,
         lr_scheduler=lr_scheduler,
         loss=tf.keras.losses.BinaryCrossentropy(),
         metrics=[tf.keras.metrics.AUC(curve='ROC', name='auc')],

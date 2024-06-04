@@ -188,6 +188,7 @@ class TabularNNModel(ABC):
             batch_size=batch_size,
             epochs=epochs,
             validation_data=validation_data,
+            validation_batch_size=batch_size if validation_data is not None else None,
             callbacks=callbacks
         )
         
