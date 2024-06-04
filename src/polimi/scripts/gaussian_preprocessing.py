@@ -39,15 +39,29 @@ def main(dataset_path, numerical_transform, dataset_type, fit, load_path, output
         if numerical_transform == 'quantile-normal':
             xformer = QuantileTransformer(output_distribution='normal')
         elif numerical_transform == 'yeo-johnson':
-            xformer = PowerTransformer(method='yeo-johnson')
+            xformer = PowerTransformer(method='yeo-johnson', copy=False)
         else:
             raise ValueError('Not recognized numerical transformer')
         
+        map_type = {}
+        j = 0
+        for i, col in enumerate(numerical_columns):
+            c_min = dataset.select(pl.col(col).min()).collect().item()
+            c_max = dataset.select(pl.col(col).max()).collect().item()
+            if c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+                map_type[col] = 'float32'
+            else:
+                map_type[col] = 'float64'
+                j += 1
+                
+        logging.info(f'Fitting numerical transformer, {j}')
+        
         X_train_numerical = xformer.fit_transform(
             dataset.select(numerical_columns).collect().to_pandas().replace(
-                [-np.inf, np.inf], np.nan).fillna(0)).astype(np.float32)
+                [-np.inf, np.inf], np.nan).fillna(0).astype(map_type)).astype(np.float32)
         
-        # np.save(os.path.join(output_dir, 'numpy_array'), X_train_numerical)
+        logging.info('Numerical transformer fitted')
+        np.save(os.path.join(output_dir, 'numpy_array'), X_train_numerical)
         
         dataset = dataset.collect()
         for i, col in tqdm(enumerate(numerical_columns)):

@@ -54,41 +54,21 @@ def _batch_predict(model: TabularNNModel, X, batch_size=None, inner_batch_size=1
     return predictions
 
 
-def main(dataset_path, model_path, save_results, eval, behaviors_path, output_dir, batch_size, params_file):
+def main(dataset_path, model_path, save_results, eval, behaviors_path, output_dir, batch_size, params_file, n_blocks):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
 
     dataset_name = 'validation' if eval else 'test'
     logging.info(f'Reading dataset from {dataset_path}')
-    inference_ds = pl.read_parquet(os.path.join(dataset_path, f'{dataset_name}_ds.parquet'))
+    inference_all_ds = pl.scan_parquet(os.path.join(dataset_path, f'{dataset_name}_ds.parquet'))
     logging.info(f'Dataset read complete')
     
     with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
 
-    if 'target' not in inference_ds.columns and eval:
+    if 'target' not in inference_all_ds.columns and eval:
         raise ValueError(
             'Target column not found in dataset. Cannot evaluate.')
         
-    if 'postcode' in inference_ds.columns:
-        inference_ds = inference_ds.with_columns(pl.col('postcode').fill_null(5))
-    if 'article_type' in inference_ds.columns:
-        inference_ds = inference_ds.with_columns(pl.col('article_type').fill_null('article_default'))
-    if 'impression_time' in inference_ds.columns:
-        inference_ds = inference_ds.drop(['impression_time'])
-
-    if 'target' in inference_ds.columns:
-        evaluation_ds = inference_ds.select(['impression_id', 'user_id', 'article', 'target'])
-        X = inference_ds.drop(['impression_id', 'target', 'article', 'user_id']).to_pandas()
-    else:
-        evaluation_ds = inference_ds.select(['impression_id', 'user_id', 'article'])
-        X = inference_ds.drop(['impression_id', 'article', 'user_id']).to_pandas()
-    
-    X[data_info['categorical_columns']] = X[data_info['categorical_columns']].astype('category')
-    
-    categorical_columns = data_info['categorical_columns']
-    numerical_columns = [c for c in X.columns if c not in categorical_columns]
-
-
     logging.info(f'Data info: {data_info}')
     logging.info(
         f'Categorical features: {np.array(data_info["categorical_columns"])}')
@@ -100,19 +80,55 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
     logging.info(f'Params: {params}')
     logging.info(f'Loading the {params["model_name"]} model')
     
+    categorical_columns = data_info['categorical_columns']
+    ignore_columns = ['impression_id', 'article', 'user_id', 'impression_time', 'target']
+    numerical_columns = [c for c in inference_all_ds.columns if c not in categorical_columns + ignore_columns]
+    
     model: TabularNNModel = get_model_class(params['model_name'])(categorical_features=categorical_columns, 
                                                                   numerical_features=numerical_columns, 
                                                                   **params['model_hyperparams'])
     model.load(model_path)
-    
-    logging.info('Starting inference.')
-    evaluation_ds = evaluation_ds.with_columns(
-        pl.Series(_batch_predict(model, X, batch_size=100000, inner_batch_size=batch_size).flatten()).alias('prediction'))
+        
+    per_batch_elements = int(inference_all_ds.select('impression_id').collect().shape[0] / n_blocks)
+    starting_index = 0
+    evaluations = []
+        
+    for block in range(n_blocks):
+        logging.info(f'Processing Batch {block}')
+        if block == n_blocks - 1:
+            inference_ds = inference_all_ds.slice(starting_index, None).collect()
+        else :
+            inference_ds = inference_all_ds.slice(starting_index, per_batch_elements).collect()
+        
+        starting_index = starting_index + per_batch_elements
+        
+        if 'postcode' in inference_ds.columns:
+            inference_ds = inference_ds.with_columns(pl.col('postcode').fill_null(5))
+        if 'article_type' in inference_ds.columns:
+            inference_ds = inference_ds.with_columns(pl.col('article_type').fill_null('article_default'))
+        if 'impression_time' in inference_ds.columns:
+            inference_ds = inference_ds.drop(['impression_time'])
 
+        if 'target' in inference_ds.columns:
+            evaluation_ds = inference_ds.select(['impression_id', 'user_id', 'article', 'target'])
+            X = inference_ds.drop(['impression_id', 'target', 'article', 'user_id']).to_pandas()
+        else:
+            evaluation_ds = inference_ds.select(['impression_id', 'user_id', 'article'])
+            X = inference_ds.drop(['impression_id', 'article', 'user_id']).to_pandas()
+    
+        X[data_info['categorical_columns']] = X[data_info['categorical_columns']].astype('category')
+
+        logging.info('Starting inference.')
+        evaluation_ds = evaluation_ds.with_columns(
+            pl.Series(_batch_predict(model, X, batch_size=200000, inner_batch_size=batch_size).flatten()).alias('prediction'))
+        evaluations.append(evaluation_ds)
+        
+        del X, inference_ds
+        gc.collect()
+
+    evaluation_ds = pl.concat(evaluations, how='vertical_relaxed')
     max_impression = evaluation_ds.select(
         pl.col('impression_id').max()).item(0, 0)
-
-    gc.collect()
 
     logging.info('Inference completed.')
 
@@ -177,9 +193,11 @@ if __name__ == '__main__':
                         help='Whether to evaluate the predictions or not')
     parser.add_argument("-behaviors_path", default=None,
                         help="The file path of the reference behaviors ordering. Mandatory to save predictions")
+    parser.add_argument('-n_blocks', default=10, type=int, required=False,
+                        help='The number of inference blocks. Only one block at a time will be loaded in memory')
     parser.add_argument('-batch_size', default=None, type=int, required=False,
-                        help='If passed, it will predict in batches to reduce the memory usage')
-
+                        help='If passed, each block will be predicted in batches to reduce the memory usage')
+    
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
     DATASET_DIR = args.dataset_path
@@ -189,6 +207,7 @@ if __name__ == '__main__':
     BEHAVIORS_PATH = args.behaviors_path
     BATCH_SIZE = args.batch_size
     HYPERPARAMS_PATH = args.params_file
+    N_BLOCKS = args.n_blocks
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     model_name = f'Inference_Test_NN_{timestamp}' if not EVAL else f'Inference_Validation_NN_{timestamp}'
@@ -205,5 +224,5 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
 
-    main(DATASET_DIR, MODEL_PATH, SAVE_INFERENCE, EVAL, 
-         BEHAVIORS_PATH, output_dir, BATCH_SIZE, HYPERPARAMS_PATH)
+    main(DATASET_DIR, MODEL_PATH, SAVE_INFERENCE, EVAL, BEHAVIORS_PATH, 
+         output_dir, BATCH_SIZE, HYPERPARAMS_PATH, N_BLOCKS)
