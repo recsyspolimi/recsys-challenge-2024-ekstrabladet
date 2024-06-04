@@ -20,6 +20,7 @@ import optuna
 import numpy as np
 import logging
 import json
+import gc
 
 
 class TabularNNModel(ABC):
@@ -105,6 +106,7 @@ class TabularNNModel(ABC):
         lr_scheduler: Union[callable, tfk.callbacks.Callback] = None,
         save_checkpoints: bool = True,
         checkpoint_dir: str = None,
+        free_raw_data: bool = True
     ):       
         inputs = []
         if len(self.numerical_features) > 0:
@@ -135,13 +137,24 @@ class TabularNNModel(ABC):
                 inputs += [X_train_categorical[:, i].reshape(-1, 1) for i in range(len(self.categorical_features))]
             else:
                 inputs.append(X_train_categorical)
+                
+        logging.info('Fitted data preprocessors')
+        if free_raw_data:
+            del X
+            gc.collect()
         
         if len(inputs) == 1:
             inputs = inputs[0]
             
         if validation_data is not None:
+            logging.info('Transforming validation data')
             X_val, y_val = validation_data
             validation_data = (self._transform_test_data(X_val), y_val)
+            if free_raw_data:
+                del X_val
+                gc.collect()
+                
+            logging.info(f'Training with early stopping patience {early_stopping_rounds}')
             early_stopping = tfk.callbacks.EarlyStopping(
                 monitor=early_stopping_monitor, 
                 patience=early_stopping_rounds, 
@@ -175,6 +188,7 @@ class TabularNNModel(ABC):
             if not os.path.exists(checkpoint_dir):
                 os.makedirs(checkpoint_dir)
             self.save(checkpoint_dir, with_model=False)
+            logging.info(f'Checkpoints will be saved at {checkpoint_dir}')
             callbacks.append(tfk.callbacks.ModelCheckpoint(
                 filepath=os.path.join(checkpoint_dir, 'checkpoint.weights.h5'),
                 save_weights_only=True,
