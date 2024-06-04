@@ -190,7 +190,6 @@ def build_features_iterator(behaviors: pl.DataFrame, history: pl.DataFrame, arti
     
     df_features = _build_normalizations_blocks(df_features)
 
-    assert df_features.shape[1] == 391, f"dfha {df_features.shape[1]} colonne invece di 391"
     return df_features, vectorizer, unique_entities
 
 
@@ -267,6 +266,7 @@ def build_features_iterator_test(behaviors: pl.DataFrame, history: pl.DataFrame,
                                                   topic_model_columns=topic_model_columns, n_components=n_components)
 
         slice_features = _build_new_features(slice_features, old_behaviors, articles, articles_endorsement_norm,articles_endorsement_articleuser_norm,history_counts,behaviors_counts)
+        assert df_features.shape[1] == 383, f'ha {df_features.shape[1]} features'
         if df_features is None:
             df_features = inflate_polars_df(slice_features)
         else:

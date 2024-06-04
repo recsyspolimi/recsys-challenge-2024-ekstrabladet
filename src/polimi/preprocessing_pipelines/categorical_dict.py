@@ -29,7 +29,10 @@ CATEGORICAL_COLUMNS = {
             'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory', 'article_type', 'postcode'],
     'latest': ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
                            'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
-                           'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory']
+                           'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory'],
+    'new_with_recsys': ['device_type', 'is_sso_user', 'gender', 'is_subscriber', 'weekday',
+                           'premium', 'category', 'sentiment_label', 'is_new_article', 'is_already_seen_article',
+                           'MostFrequentCategory', 'MostFrequentWeekday', 'IsFavouriteCategory'],
 }
 
 def get_categorical_columns(preprocessing_version):
