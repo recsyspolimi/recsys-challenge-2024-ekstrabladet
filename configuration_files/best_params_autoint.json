@@ -1,0 +1,13 @@
+{
+    "dnn_dropout": 0.21551012156663485,
+    "l2_reg_embedding": 0.000023594595753905804,
+    "l2_reg_dnn": 0.000019077766264818277,
+    "att_head_num ": 4,
+    "dnn_use_bn": true,
+    "att_layer_num ": 8,
+    "trials": 16,
+    "num_layers": 3,
+    "start": 256,
+    "att_res": true,
+    "lr": 0.001576607039337392
+  }
