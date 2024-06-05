@@ -4,6 +4,10 @@ import tensorflow.keras.layers as tfkl
 from .base_model import TabularNNModel
 from .layers import GatedFeatureLearningUnit
 from optuna import Trial
+import joblib
+import os
+import json
+import logging
 
 
 class GANDALF(TabularNNModel):
@@ -77,6 +81,39 @@ class GANDALF(TabularNNModel):
             activation='sigmoid'
         )(x)
         self.model = tfk.Model(inputs=inputs, outputs=outputs)
+        
+    def load(self, directory):
+        with open(os.path.join(directory, 'features_info.json'), 'r') as features_file:
+            features_info = json.load(features_file)
+        self.numerical_features = features_info['numerical_features']
+        self.categorical_features = features_info['categorical_features']
+        if len(self.numerical_features) > 0 and features_info['with_xformer']:
+            try:
+                self.xformer = joblib.load(os.path.join(directory, 'numerical_transformer.joblib'))
+            except Exception:
+                raise ValueError(f'Numerical transformer not found in {directory}')
+        if len(self.categorical_features) > 0 and features_info['with_encoder']:
+            try:
+                self.encoder = joblib.load(os.path.join(directory, 'categorical_encoder.joblib'))
+            except Exception:
+                raise ValueError(f'Categorical encoder not found in {directory}')
+            self.categories = self.encoder.categories_
+            self.vocabulary_sizes = {}
+            for i, f in enumerate(self.categorical_features):
+                self.vocabulary_sizes[f] = len(self.categories[i])
+        
+        checkpoint_dir = os.path.join(directory, 'checkpoints')
+        if os.path.exists(checkpoint_dir):
+            logging.info('Attempting to load the checkpoint weights')
+            self._build()
+            if self.categorical_transform == 'embeddings':
+                input_shape = [(len(self.numerical_features),)] + [(1,)] * len(self.categorical_features)
+            else:
+                input_shape = [(len(self.numerical_features),)] + [(len(self.encoder.get_feature_names_out()),)]
+            self.model.build(input_shape)
+            self.model.load_weights(os.path.join(checkpoint_dir, 'checkpoint.weights.h5'))
+        else:
+            raise ValueError('GANDALF checkpoint not found')
         
     @classmethod
     def get_optuna_trial(cls, trial: Trial):

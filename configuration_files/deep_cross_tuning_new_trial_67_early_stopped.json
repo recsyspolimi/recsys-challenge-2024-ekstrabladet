@@ -1,0 +1,18 @@
+{
+    "model_hyperparams": { 
+        "use_gaussian_noise": false, 
+        "numerical_transform": null, 
+        "n_layers": 3, 
+        "start_units": 404, 
+        "units_decay": 3, 
+        "dropout_rate": 0.13008661411038497, 
+        "l1_lambda": 3.808760427408383e-05, 
+        "l2_lambda": 0.004500425434981053, 
+        "activation": "relu"
+    },
+    "model_name": "DeepCrossNetwork",
+    "epochs": 2, 
+    "learning_rate": 0.00011227893464714229, 
+    "weight_decay": 0.008084158754106566, 
+    "use_scheduler": false
+}

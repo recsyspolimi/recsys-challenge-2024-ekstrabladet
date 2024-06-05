@@ -196,7 +196,7 @@ class TabularNNModel(ABC):
                 mode=early_stopping_mode if validation_data else 'auto',
                 save_best_only=True))
             
-        self.model.fit(
+        fit_history = self.model.fit(
             inputs,
             y,
             batch_size=batch_size,
@@ -204,10 +204,13 @@ class TabularNNModel(ABC):
             validation_data=validation_data,
             validation_batch_size=batch_size if validation_data is not None else None,
             callbacks=callbacks
-        )
+        ).history
+        
+        logging.info(f'Fit complete after {len(fit_history['loss'])}')
         
         if save_checkpoints and checkpoint_dir:
             self.model.load_weights(os.path.join(checkpoint_dir, 'checkpoint.weights.h5'))
+            pd.DataFrame.from_dict(fit_history).to_csv(os.path.join(checkpoint_dir, 'history.csv'), index=False)
         
     def predict(self, X, batch_size=256, **kwargs):
         return self.model.predict(self._transform_test_data(X), batch_size=batch_size, **kwargs)        
