@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from typing_extensions import List
 import polars as pl
+import gc
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
@@ -89,6 +90,10 @@ def main(dataset_path, params_path, output_dir, use_ranker, verbosity):
     train_ds = train_ds.drop(['impression_id', 'article', 'user_id']).to_pandas()
     train_ds[data_info['categorical_columns']] = train_ds[data_info['categorical_columns']].astype('category')
 
+    del train_ds
+    gc.collect()
+    
+    
     X = train_ds.drop(columns=['target'])
     y = train_ds['target']
     
@@ -110,11 +115,11 @@ def main(dataset_path, params_path, output_dir, use_ranker, verbosity):
     
     verbose=1
     if use_ranker:
-        model = XGBRanker(**params, enable_categorical=True, verbosity=verbosity)
-        model.fit(X, y, group=groups, verbose=verbose, eval_set=[(X.iloc[0:1], y.iloc[0:1])], eval_metric='error')
+        model = XGBRanker(**params, enable_categorical=True, verbosity=verbosity, eval_metric='error')
+        model.fit(X, y, group=groups, verbose=verbose, eval_set=[(X.iloc[0:1], y.iloc[0:1])])
     else:
-        model = XGBClassifier(**params, verbosity=verbosity, enable_categorical=True)
-        model.fit(X, y, verbose=verbose, eval_set=[(X.iloc[0:1], y.iloc[0:1])], eval_metric='error')
+        model = XGBClassifier(**params, verbosity=verbosity, enable_categorical=True, eval_metric='error')
+        model.fit(X, y, verbose=verbose, eval_set=[(X.iloc[0:1], y.iloc[0:1])])
     
     # Ripristina stdout originale
     sys.stdout = sys.__stdout__
