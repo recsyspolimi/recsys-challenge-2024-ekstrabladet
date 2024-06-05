@@ -206,7 +206,7 @@ class TabularNNModel(ABC):
             callbacks=callbacks
         ).history
         
-        logging.info(f'Fit complete after {len(fit_history['loss'])}')
+        logging.info(f'Fit complete after {len(fit_history["loss"])}')
         
         if save_checkpoints and checkpoint_dir:
             self.model.load_weights(os.path.join(checkpoint_dir, 'checkpoint.weights.h5'))

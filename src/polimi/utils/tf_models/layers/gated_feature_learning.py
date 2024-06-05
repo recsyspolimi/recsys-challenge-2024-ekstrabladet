@@ -2,8 +2,10 @@ import tensorflow as tf
 import tensorflow.keras as tfk
 import tensorflow.keras.layers as tfkl
 from .activations import t_softmax
+from tensorflow.keras import saving
 
 
+# @saving.register_keras_serializable(package="MyLayers", name="GatedFeatureLearningUnit")
 class GatedFeatureLearningUnit(tfkl.Layer):
     def __init__(self, n_stages=4, dropout_rate=0.1, l1=1e-4, l2=1e-4, init_t=0.5, **kwargs):
         super(GatedFeatureLearningUnit, self).__init__(**kwargs)
@@ -26,6 +28,9 @@ class GatedFeatureLearningUnit(tfkl.Layer):
                        name=f'o_dense_{i}')
             for i in range(self.n_stages)
         ]
+        for i in range(self.n_stages):
+            self.W_i[i].build((2 * input_shape[-1],))
+            self.W_o[i].build((2 * input_shape[-1],))
         self.mask_weights = self.add_weight(shape=(self.n_stages, input_shape[-1]),
                                             initializer='he_normal',
                                             trainable=True,
@@ -49,7 +54,6 @@ class GatedFeatureLearningUnit(tfkl.Layer):
             H_n = tfkl.add([tfkl.multiply([(1 - z_n), H_n]), tfkl.multiply([z_n, H_out_n])])
 
         return H_n
-
 
     def compute_output_shape(self, input_shape):
         return input_shape
