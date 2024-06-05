@@ -92,6 +92,8 @@ def main(dataset_path, params_path, output_dir, use_ranker, verbosity):
     X = train_ds.drop(columns=['target'])
     y = train_ds['target']
     
+    
+    
     logging.info(f'Features ({len(X.columns)}): {np.array(list(X.columns))}')
     logging.info(f'Categorical features: {np.array(data_info["categorical_columns"])}')
     logging.info(f'Reading xgb parameters from path: {params_path}')
@@ -106,12 +108,13 @@ def main(dataset_path, params_path, output_dir, use_ranker, verbosity):
     sys.stdout = logging
     sys.stderr = logging
     
+    verbose=1
     if use_ranker:
         model = XGBRanker(**params, enable_categorical=True, verbosity=verbosity)
-        model.fit(X, y, group=groups, verbose=True)
+        model.fit(X, y, group=groups, verbose=verbose, eval_set=[(X.iloc[0:1], y.iloc[0:1])], eval_metric='error')
     else:
         model = XGBClassifier(**params, verbosity=verbosity, enable_categorical=True)
-        model.fit(X, y, verbose=True)
+        model.fit(X, y, verbose=verbose, eval_set=[(X.iloc[0:1], y.iloc[0:1])], eval_metric='error')
     
     # Ripristina stdout originale
     sys.stdout = sys.__stdout__
@@ -136,7 +139,6 @@ if __name__ == '__main__':
                         help='Whether to use XGBRanker or not')
     parser.add_argument('-verbosity', choices=['0', '1', '2', '3'], default='0', 
                         help='XGB verbosity')
-    
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir

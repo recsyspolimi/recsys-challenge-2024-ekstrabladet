@@ -1,4 +1,4 @@
 python ~/RecSysChallenge2024/src/polimi/scripts/xgb_training.py \
     -output_dir /home/ubuntu/experiments \
-    -dataset_path /home/ubuntu/experiments/subsample_train_large_128\
-    -params_file /home/ubuntu/RecSysChallenge2024/configuration_files/lightgbm_128_from_demo.json \
+    -dataset_path /mnt/ebs_volume/experiments/subsample_train_new \
+    -params_file /home/ubuntu/RecSysChallenge2024/configuration_files/xgb_cls_new_noK_small.json
