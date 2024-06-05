@@ -192,7 +192,7 @@ if __name__ == '__main__':
                         help='Whether to evaluate the predictions or not')
     parser.add_argument("-behaviors_path", default=None,
                         help="The file path of the reference behaviors ordering. Mandatory to save predictions")
-    parser.add_argument('-n_blocks', default=40, type=int, required=False,
+    parser.add_argument('-n_blocks', default=10, type=int, required=False,
                         help='The number of inference blocks. Only one block at a time will be loaded in memory')
     parser.add_argument('-batch_size', default=None, type=int, required=False,
                         help='If passed, each block will be predicted in batches to reduce the memory usage')
