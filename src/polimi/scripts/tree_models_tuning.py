@@ -75,7 +75,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
                                     prediction_ds['prediction'].to_list())]
         )
         
-    study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)
+    study = optuna.create_study(direction='maximize', study_name=study_name, storage=storage, load_if_exists=True)    
     study.optimize(objective_function, n_trials=n_trials, n_jobs=1)
     return study.best_params, study.trials_dataframe()
     

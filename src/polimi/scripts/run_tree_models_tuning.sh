@@ -11,8 +11,8 @@ python ~/RecSysChallenge2024/src/polimi/scripts/tree_models_tuning.py \
 
 python /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/src/polimi/scripts/tree_models_tuning.py \
     -output_dir /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/experiments/trash \
-    -training_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/preprocessing_moving_window_new/ebnerd_small/fold_3/ \
-    -validation_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/preprocessing_moving_window_new/ebnerd_small/fold_3/ \
-    -n_trials 500 \
+    -training_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/subsample_train_small_new \
+    -validation_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/preprocessing_validation_small_new \
+    -n_trials 1 \
     -study_name test \
     -model_name xgb
