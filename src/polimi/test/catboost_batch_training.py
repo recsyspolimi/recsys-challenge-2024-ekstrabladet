@@ -10,12 +10,12 @@ from fastauc.fastauc.fast_auc import CppAuc
 import argparse
 
 RANKER = True
-TRAIN_VAL = True
-dataset_path = '/home/ubuntu/experiments/preprocessing_train_new'
-validation_path = '/home/ubuntu/experiments/preprocessing_validation_new'
-batch_split_directory = '/home/ubuntu/experiments/batches_train_val_new/batches'
+TRAIN_VAL = False
+dataset_path = '/mnt/ebs_volume/experiments/preprocessing_train_new'
+validation_path = '/mnt/ebs_volume/experiments/preprocessing_validation_new'
+batch_split_directory = '/home/ubuntu/experiments/batch_train_catboost/batches'
 
-model_path = '/home/ubuntu/experiments/batches_train_val_new/models'
+model_path = '/home/ubuntu/experiments/batch_train_catboost/models'
 catboost_params = {
     'iterations': 2421,
     'learning_rate': 0.061372161824290145,

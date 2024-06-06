@@ -18,8 +18,8 @@ original_dataset_path = '/home/ubuntu/dataset/ebnerd_small/train/behaviors.parqu
 output_path = '/home/ubuntu/experiments/hybrid_level2'
 
 TRAIN_MODELS = True
-LEVEL_1_MODELS_TRAIN = ['catboost_ranker', 'catboost_classifier', 'light_gbm_classifier','mlp', 'GANDALF', 'wd', 'dcn']
-LEVEL_1_MODELS_PREDICTIONS = ['catboost_ranker', 'catboost_classifier', 'light_gbm_classifier','mlp', 'GANDALF', 'wd', 'dcn']
+LEVEL_1_MODELS_TRAIN = ['catboost_classifier', 'mlp', 'GANDALF', 'wd', 'dcn'] #'catboost_ranker', 
+LEVEL_1_MODELS_PREDICTIONS = [ 'catboost_classifier','mlp', 'GANDALF', 'wd', 'dcn'] #'catboost_ranker',
 NPRATIO = 2
 TRAIN_TRAIN_PATH = '/home/ubuntu/experiments/hybrid_level2/train_1'
 TRAIN_VAL_PATH = '/home/ubuntu/experiments/hybrid_level2/train_1'
@@ -116,7 +116,7 @@ def load_predictions(dir, model_list):
 if __name__ == '__main__':
     
     if TRAIN_MODELS:
-        # READ TRAIN DATASET AND BUILD THE SUBSAMPLED DATASET
+        # # READ TRAIN DATASET AND BUILD THE SUBSAMPLED DATASET
         # subsampled_train_ds, train_ds, val_ds, data_info = load_dataset(
         #     train_path=TRAIN_TRAIN_PATH,
         #     val_path=TRAIN_VAL_PATH,
@@ -155,35 +155,35 @@ if __name__ == '__main__':
     level2_train_df.write_parquet(output_path + '/prediction_level_1_validation' + '/prediction.parquet')
 
     # DO FEATURE ENGINNERING OF THE PREDICTIONS
-    level2_val_df = prediction_feature_eng(level2_val_df, LEVEL_1_MODELS_PREDICTIONS)
+    # level2_val_df = prediction_feature_eng(level2_val_df, LEVEL_1_MODELS_PREDICTIONS)
     
-    # NOW YOU CAN DO THE TUNING OF THE MODEL
-    if RANKER:
-        level2_train_df = level2_train_df.sort(by='impression_id')
-        groups = level2_train_df.select('impression_id').to_numpy().flatten()
+    # # NOW YOU CAN DO THE TUNING OF THE MODEL
+    # if RANKER:
+    #     level2_train_df = level2_train_df.sort(by='impression_id')
+    #     groups = level2_train_df.select('impression_id').to_numpy().flatten()
         
-    level2_train_df = level2_train_df.to_pandas()
-    group_ids = level2_train_df['impression_id'].to_frame()
-    level2_train_df = level2_train_df.drop(columns=['impression_id', 'article', 'user_id'])
+    # level2_train_df = level2_train_df.to_pandas()
+    # group_ids = level2_train_df['impression_id'].to_frame()
+    # level2_train_df = level2_train_df.drop(columns=['impression_id', 'article', 'user_id'])
     
-    X_train = level2_train_df.drop(columns=['target'])
-    y_train = level2_train_df['target']
+    # X_train = level2_train_df.drop(columns=['target'])
+    # y_train = level2_train_df['target']
     
-    model = CatBoostRanker(**params)
-    model.fit(X_train, y_train, group_id=groups, verbose=50)
+    # model = CatBoostRanker(**params)
+    # model.fit(X_train, y_train, group_id=groups, verbose=50)
     
-    level2_val_df = level2_val_df.to_pandas()
-    X_val = level2_val_df[X_train.columns]
-    evaluation_ds = pl.from_pandas(level2_val_df[['impression_id', 'article', 'target']])
+    # level2_val_df = level2_val_df.to_pandas()
+    # X_val = level2_val_df[X_train.columns]
+    # evaluation_ds = pl.from_pandas(level2_val_df[['impression_id', 'article', 'target']])
     
-    prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict(X_val)).alias('prediction'))
+    # prediction_ds = evaluation_ds.with_columns(pl.Series(model.predict(X_val)).alias('prediction'))
     
-    cpp_auc = CppAuc()
-    result = np.mean(
-            [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
-                for y_t, y_s in zip(prediction_ds['target'].to_list(), 
-                                    prediction_ds['prediction'].to_list())]
-        )
-    print(result)
+    # cpp_auc = CppAuc()
+    # result = np.mean(
+    #         [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
+    #             for y_t, y_s in zip(prediction_ds['target'].to_list(), 
+    #                                 prediction_ds['prediction'].to_list())]
+    #     )
+    # print(result)
     
     

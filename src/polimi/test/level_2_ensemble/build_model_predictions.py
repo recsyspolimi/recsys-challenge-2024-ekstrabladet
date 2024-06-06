@@ -138,20 +138,20 @@ wide_deep_params = {
     "model_hyperparams" : {
      'use_gaussian_noise': False,
      'numerical_transform': 'yeo-johnson',
-     'dropout_rate': 0.21578272032382537, 
-     'l1_lambda': 1.0525685132669135e-05, 
-     'l2_lambda': 2.3488147642445815e-05, 
+     'dropout_rate': 0.2097509436237979, 
+     'l1_lambda': 1.3275888550529515e-05, 
+     'l2_lambda': 1.0039068710859043e-05, 
      'activation': 'relu',
      'n_layers' : 2,
-     'start_units': 65, 
+     'start_units': 71, 
      'units_decay': 1, 
     },
     'model_name': "WideDeepNetwork",
-    'epochs': 45, 
-    'learning_rate': 0.008521401469080741,
-    'weight_decay': 0.003750084600313782, 
+    'epochs': 48, 
+    'learning_rate': 0.00746674114886122,
+    'weight_decay': 0.004494194265134375, 
     'use_scheduler': True,
-    'scheduling_rate': 0.07856145738509372
+    'scheduling_rate': 0.07807429640285264
 }
 
 MODEL_DICT = {

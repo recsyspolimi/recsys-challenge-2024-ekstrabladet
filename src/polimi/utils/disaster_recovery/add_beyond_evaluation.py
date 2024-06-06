@@ -6,8 +6,8 @@ from polars import testing
 import os
 
 ORIGINAL_PATH = '/home/ubuntu/dataset/ebnerd_testset/test/behaviors.parquet'
-SUBMISSION = '/home/ubuntu/experiments/Inference_Test_2024-05-10_16-38-08/predictions.parquet'
-OUT_PATH = '/home/ubuntu/experiments/Inference_Test_2024-05-10_16-38-08'
+SUBMISSION = '/home/ubuntu/experiments/weighted_sum_sub_2024-06-06_11-30-00/predictions.parquet'
+OUT_PATH = '/home/ubuntu/experiments/weighted_sum_sub_2024-06-06_11-30-00'
 
 if __name__ == '__main__':
     sub = pl.read_parquet(SUBMISSION)
