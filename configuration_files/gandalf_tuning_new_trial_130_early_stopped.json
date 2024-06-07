@@ -13,7 +13,7 @@
         "head_units_decay": 3
     },
     "model_name": "GANDALF",
-    "epochs": 1,
+    "epochs": 2,
     "learning_rate": 0.0001787433082708194, 
     "weight_decay": 0.0018302703085207681, 
     "use_scheduler": false

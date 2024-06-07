@@ -11,7 +11,7 @@
         "activation": "relu"
     },
     "model_name": "WideDeepNetwork",
-    "epochs": 48,
+    "epochs": 8,
     "learning_rate": 0.001, 
     "weight_decay": 0.004494194265134375, 
     "use_scheduler": true, 
