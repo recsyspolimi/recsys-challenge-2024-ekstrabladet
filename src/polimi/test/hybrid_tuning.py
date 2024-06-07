@@ -11,18 +11,16 @@ from tqdm import tqdm
 import optuna
 
 predictions = [
-    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/catboost_classifier_predictions.parquet',
-    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/catboost_ranker_predictions.parquet',
-    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/dcn_predictions.parquet',
-    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/GANDALF_predictions.parquet',
-    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/light_gbm_classifier_predictions.parquet',
-    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/mlp_predictions.parquet',
-    '/home/ubuntu/experiments/hybrid_level2/prediction_level_1_validation/wd_predictions.parquet',
-    # '/home/ubuntu/experiments_1/models_predictions/logistic_regression_predictions.parquet',
-    # '/home/ubuntu/experiments_1/models_predictions/wide_deep_predictions.parquet'
+    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_cat_rnk_new_95.parquet',
+    #'/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_catboost_classifier_recsys_mv.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_catboost_new_noK.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_deep_cross_new_trial_67.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_gandalf_new_trial_130.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_mlp_new_trial_208.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_wide_deep_new_trial_72.parquet'
 ]
 
-names = ['catboost_classifier', 'catboost_ranker', 'dcn', 'GANDALF', 'light_gbm_classifier', 'mlp', 'wd']
+names = ['catboost_rnk', 'catboost_cls', 'dcn', 'GANDALF','mlp', 'wd']
 # names = ['ranker', 'catboost', 'mlp', 'deep', 'fast', 'gandalf', 'lgbm', 'logistic', 'wide_deep']
 
 N_TRIALS = 500
@@ -32,6 +30,14 @@ def prepare_data(df, index):
         df = df.with_columns(
                 pl.col(f'prediction_{index}').list.first()    
             )
+    if 'prediction' not in df.columns:
+        assert df.columns[0] == 'impression_id'
+        assert df.columns[1] == 'article'
+        assert df.columns[2] == 'target'
+        df = df.rename({df.columns[3]: 'prediction'})
+    
+    df = df.rename({'prediction' : f'prediction_{index}'})
+    
     df = df.with_columns(
         (pl.col(f'prediction_{index}')-pl.col(f'prediction_{index}').min().over('impression_id')) / 
         (pl.col(f'prediction_{index}').max().over('impression_id')-pl.col(f'prediction_{index}').min().over('impression_id'))

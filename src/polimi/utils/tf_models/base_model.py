@@ -19,6 +19,8 @@ import joblib
 import optuna
 import numpy as np
 import logging
+import json
+import gc
 
 
 class TabularNNModel(ABC):
@@ -37,7 +39,7 @@ class TabularNNModel(ABC):
         categorical_features: List[str] = None,
         numerical_features: List[str] = None,
         categorical_transform: str = 'embeddings',
-        numerical_transform: str = 'quantile-normal',
+        numerical_transform: str = None,
         use_gaussian_noise: bool = False,
         gaussian_noise_std: float = 0.01,
         max_categorical_embedding_dim: int = 50,
@@ -81,6 +83,8 @@ class TabularNNModel(ABC):
         self.gaussian_noise_std = gaussian_noise_std
         self.random_seed = random_seed
         self.model_name = model_name
+        self.xformer = None
+        self.encoder = None
         self.model: tfk.Model = None
 
     def __call__(self, x, *args, **kwargs):
@@ -100,6 +104,9 @@ class TabularNNModel(ABC):
         early_stopping_monitor: str = 'val_loss',
         early_stopping_mode: str = 'auto',
         lr_scheduler: Union[callable, tfk.callbacks.Callback] = None,
+        save_checkpoints: bool = True,
+        checkpoint_dir: str = None,
+        free_raw_data: bool = True
     ):       
         inputs = []
         if len(self.numerical_features) > 0:
@@ -130,13 +137,24 @@ class TabularNNModel(ABC):
                 inputs += [X_train_categorical[:, i].reshape(-1, 1) for i in range(len(self.categorical_features))]
             else:
                 inputs.append(X_train_categorical)
+                
+        logging.info('Fitted data preprocessors')
+        if free_raw_data:
+            del X
+            gc.collect()
         
         if len(inputs) == 1:
             inputs = inputs[0]
             
         if validation_data is not None:
+            logging.info('Transforming validation data')
             X_val, y_val = validation_data
             validation_data = (self._transform_test_data(X_val), y_val)
+            if free_raw_data:
+                del X_val
+                gc.collect()
+                
+            logging.info(f'Training with early stopping patience {early_stopping_rounds}')
             early_stopping = tfk.callbacks.EarlyStopping(
                 monitor=early_stopping_monitor, 
                 patience=early_stopping_rounds, 
@@ -165,15 +183,34 @@ class TabularNNModel(ABC):
             metrics=metrics,
         )
         self.model.summary(print_fn=logging.info)
+        
+        if save_checkpoints and checkpoint_dir is not None:
+            if not os.path.exists(checkpoint_dir):
+                os.makedirs(checkpoint_dir)
+            self.save(checkpoint_dir, with_model=False)
+            logging.info(f'Checkpoints will be saved at {checkpoint_dir}')
+            callbacks.append(tfk.callbacks.ModelCheckpoint(
+                filepath=os.path.join(checkpoint_dir, 'checkpoint.weights.h5'),
+                save_weights_only=True,
+                monitor=early_stopping_monitor if validation_data else 'loss',
+                mode=early_stopping_mode if validation_data else 'auto',
+                save_best_only=True))
             
-        self.model.fit(
+        fit_history = self.model.fit(
             inputs,
             y,
             batch_size=batch_size,
             epochs=epochs,
             validation_data=validation_data,
+            validation_batch_size=batch_size if validation_data is not None else None,
             callbacks=callbacks
-        )
+        ).history
+        
+        logging.info(f'Fit complete after {len(fit_history["loss"])}')
+        
+        if save_checkpoints and checkpoint_dir:
+            self.model.load_weights(os.path.join(checkpoint_dir, 'checkpoint.weights.h5'))
+            pd.DataFrame.from_dict(fit_history).to_csv(os.path.join(checkpoint_dir, 'history.csv'), index=False)
         
     def predict(self, X, batch_size=256, **kwargs):
         return self.model.predict(self._transform_test_data(X), batch_size=batch_size, **kwargs)        
@@ -181,29 +218,40 @@ class TabularNNModel(ABC):
     def summary(self, expand_nested=True, **kwargs):
         self.model.summary(expand_nested=expand_nested, **kwargs)
 
-    def save(self, directory):
-        self.model.save(os.path.join(directory, f'{self.model_name}.keras'))
+    def save(self, directory, with_model=True):
+        '''Pass with model=False only if saving before fit'''
+        if with_model:
+            self.model.save(os.path.join(directory, f'{self.model_name}.keras'))
         if self.encoder is not None:
             joblib.dump(self.encoder, os.path.join(directory, 'categorical_encoder.joblib'))
         if self.xformer is not None:
             joblib.dump(self.xformer, os.path.join(directory, 'numerical_transformer.joblib'))
+        features_info = {
+            'numerical_features': self.numerical_features,
+            'categorical_features': self.categorical_features,
+            'with_xformer': self.xformer is not None,
+            'with_encoder': self.encoder is not None,
+        }
+        with open(os.path.join(directory, 'features_info.json'), 'w') as features_file:
+            json.dump(features_info, features_file)
 
     def load(self, directory):
         self.model = tfk.models.load_model(os.path.join(directory, f'{self.model_name}.keras'))
-        if len(self.numerical_features) > 0:
+        with open(os.path.join(directory, 'features_info.json'), 'r') as features_file:
+            features_info = json.load(features_file)
+        self.numerical_features = features_info['numerical_features']
+        self.categorical_features = features_info['categorical_features']
+        if len(self.numerical_features) > 0 and features_info['with_xformer']:
             try:
                 self.xformer = joblib.load(os.path.join(directory, 'numerical_transformer.joblib'))
             except Exception:
                 raise ValueError(f'Numerical transformer not found in {directory}')
-            # reorder feature names based on the order that the xformer and the nn wants
-            self.numerical_features = self.xformer.feature_names_in_
-        if len(self.categorical_features) > 0:
+        if len(self.categorical_features) > 0 and features_info['with_encoder']:
             try:
                 self.encoder = joblib.load(os.path.join(directory, 'categorical_encoder.joblib'))
             except Exception:
                 raise ValueError(f'Categorical encoder not found in {directory}')
             self.categories = self.encoder.categories_
-            self.categorical_features = self.encoder.feature_names_in_
         
     @abstractmethod
     def _build(self):

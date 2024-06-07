@@ -77,10 +77,8 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             if model == CatBoostRanker:
                 params['depth'] = trial.suggest_int("depth", 2, 8)
         else:
-            params['random_strength'] = trial.suggest_float('random_strength', 1e-4, 1e2, log=True),
-
-
-                        
+            params['random_strength'] = trial.suggest_float('random_strength', 1e-4, 1e2, log=True)
+     
     elif model in [XGBClassifier, XGBRanker]:
         params = {
             'n_estimators': trial.suggest_int('n_estimators', 100, 5000, log=True),

@@ -21,10 +21,8 @@ python ~/RecSysChallenge2024/src/polimi/scripts/tree_models_tuning_cv.py \
 
 python /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/src/polimi/scripts/tree_models_tuning_cv.py \
         -output_dir /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/experiments \
-        -folds_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/preprocessing_moving_window_new_emb_urm \
+        -folds_dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/preprocessing/preprocessing_moving_window_new/ebnerd_demo \
         -n_trials 500 \
-        -dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/ebnerd_small \
+        -dataset_path /Users/lorecampa/Desktop/Projects/RecSysChallenge2024/dataset/ebnerd_demo \
         -study_name test \
-        -model_name catboost \
-        --use_gpu
-
+        -model_name xgb

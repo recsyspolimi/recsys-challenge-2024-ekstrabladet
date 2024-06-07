@@ -1,0 +1,20 @@
+{
+    "model_hyperparams": { 
+        "use_gaussian_noise": false, 
+        "numerical_transform": null, 
+        "n_stages": 8, 
+        "init_t": 0.6017092415733495, 
+        "n_head_layers": 2, 
+        "dropout_rate": 0.06854356318895957, 
+        "l1_lambda": 2.4646537353178322e-05, 
+        "l2_lambda": 6.722760166896771e-05, 
+        "activation": "swish", 
+        "start_units_head": 96, 
+        "head_units_decay": 3
+    },
+    "model_name": "GANDALF",
+    "epochs": 2,
+    "learning_rate": 0.0001787433082708194, 
+    "weight_decay": 0.0018302703085207681, 
+    "use_scheduler": false
+}

@@ -9,6 +9,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from pathlib import Path
 
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
@@ -38,7 +39,7 @@ def main(input_path, output_dir, dataset_type='train', preprocessing_version='la
 
     dataset, tf_idf_vectorizer, unique_entities = PREPROCESSING[preprocessing_version](behaviors, history, articles, test=is_test_data,
                                                                    sample=sample, n_batches=100, previous_version=previous_version,
-                                                                   split_type=dataset_type, output_path=output_dir, **kwargs)
+                                                                   split_type=dataset_type, output_path=output_dir,input_path=Path(input_path), **kwargs)
 
     categorical_columns = get_categorical_columns(preprocessing_version)
 
@@ -77,7 +78,7 @@ if __name__ == '__main__':
                         help="Specify the type of dataset: ['train', 'validation', 'test']")
     parser.add_argument("-preprocessing_version", default='latest', type=str,
                         choices=['68f', '94f', '115f', '127f',
-                                 '142f', '147f', 'new', 'new_click','latest'],
+                                 '142f', '147f', 'new', 'new_click','latest','new_with_recsys'],
                         help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','127f','latest']")
     parser.add_argument("-previous_version", default=None, type=str,
                         help="Specify the path of a previous version of the dataset to use as a reference for the new one. Default is None.\n YOU MUST GUARANTEE THE COMPATIBILITY BETWEEN VERSIONS. ")

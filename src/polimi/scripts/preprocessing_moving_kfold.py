@@ -115,8 +115,8 @@ if __name__ == '__main__':
     parser.add_argument("-dataset_path", default=None, type=str, required=True,
                         help="Directory where the dataset is placed")
     parser.add_argument("-preprocessing_version", default='latest', type=str,
-                        choices=['68f', '94f', '115f', '127f', '142f', '147f', 'new', 'new_emb_urm', 'latest'],
-                        help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','latest']")
+                        choices=['68f', '94f', '115f', '127f', '142f', '147f', 'new', 'new_emb_urm', 'latest','new_recsys'],
+                        help="Specifiy the preprocessing version to use. Default is 'latest' valuses are ['68f', '94f', '115f','latest','new_recsys']")
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
