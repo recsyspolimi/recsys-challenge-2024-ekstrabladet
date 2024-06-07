@@ -1,0 +1,17 @@
+{
+    "iterations": 3671, 
+    "learning_rate": 0.02174936203095878,
+    "reg_lambda": 539.7285156430921, 
+    "grow_policy": "Depthwise", 
+    "bootstrap_type": "MVS", 
+    "subsample": 0.5980119079235677,
+    "fold_permutation_block": 57, 
+    "border_count": 24, 
+    "sampling_frequency": "PerTreeLevel",
+    "score_function": "Cosine", 
+    "depth": 9, 
+    "min_data_in_leaf": 343.1163154648806, 
+    "mvs_reg": 12.562241237712476,
+    "rsm": 0.5623646307139877,
+    "random_strength": 0.2102422018833454
+}
