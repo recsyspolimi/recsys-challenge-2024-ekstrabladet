@@ -11,7 +11,7 @@ from ebrec.evaluation.metrics_protocols import *
 import catboost
 
 dataset_path = '/home/ubuntu/experiments/preprocessing_train_small_new'
-output_path = '/home/ubuntu/experiments/test_batch_training/batches/'
+output_path = '/home/ubuntu/experiments/cat_rnk_train_recsys/batches/'
 N_BATCH = 10
 
 

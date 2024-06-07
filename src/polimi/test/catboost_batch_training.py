@@ -10,27 +10,14 @@ from fastauc.fastauc.fast_auc import CppAuc
 import argparse
 
 RANKER = True
-TRAIN_VAL = True
+TRAIN_VAL = False
 dataset_path = '/home/ubuntu/experiments/preprocessing_train_new'
-validation_path = '/home/ubuntu/experiments/preprocessing_validation_new'
+validation_path = None
 batch_split_directory = '/home/ubuntu/experiments/batches_train_val_new/batches'
 
-model_path = '/home/ubuntu/experiments/batches_train_val_new/models'
+model_path = '/home/ubuntu/experiments/cat_rnk_train_recsys/models'
 catboost_params = {
-    'iterations': 2421,
-    'learning_rate': 0.061372161824290145,
-    'rsm': 0.681769606695633,
-    'reg_lambda': 0.4953354255208565,
-    'grow_policy': 'SymmetricTree',
-    'bootstrap_type': 'MVS',
-    'subsample': 0.5108219602277233,
-    'random_strength': 14.089062269780399,
-    'fold_permutation_block': 39,
-    'border_count': 34,
-    'sampling_frequency': 'PerTreeLevel',
-    'score_function': 'Cosine',
-    'depth': 8,
-    'mvs_reg': 0.0015341832942953422
+    
 }
 
 
