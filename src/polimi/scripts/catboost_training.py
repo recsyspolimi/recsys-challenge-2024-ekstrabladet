@@ -57,6 +57,9 @@ def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity, use
     X = train_ds.drop(columns=['target'])
     y = train_ds['target']
     
+    del train_ds
+    gc.collect()
+    
     logging.info(f'Features ({len(X.columns)}): {np.array(list(X.columns))}')
     logging.info(f'Categorical features: {np.array(data_info["categorical_columns"])}')
     logging.info(f'Reading catboost parameters from path: {catboost_params_path}')
