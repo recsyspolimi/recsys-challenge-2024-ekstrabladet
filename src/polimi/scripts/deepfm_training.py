@@ -72,6 +72,33 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
     X = train_ds.drop(columns=['target'])
     y = train_ds['target']
     
+    categorical_columns = data_info['categorical_columns']
+    numerical_columns = [c for c in X.columns if c not in categorical_columns]
+    
+    categories = []
+    vocabulary_sizes = {}
+    for cat_col in categorical_columns:
+        categories_train = list(X[cat_col].unique())
+        categories_train.append('Unknown')
+        vocabulary_sizes[cat_col] = len(categories_train)
+        categories.append(categories_train)
+    train_fixlen_feature_columns = [SparseFeat(feat, vocabulary_size=vocabulary_sizes[feat],embedding_dim=64)
+                for i,feat in enumerate(categorical_columns)] + [DenseFeat(feat, 1,)
+                for feat in numerical_columns]
+                
+    train_feature_names = get_feature_names(train_fixlen_feature_columns)
+    train_model_input = {name: X[name].values for name in train_feature_names}
+    
+    infos = {
+        'numerical_columns': numerical_columns,
+        'categorical_columns': categorical_columns,
+        'categories': {
+            col: categories[i] for i, col in enumerate(categorical_columns)
+        }
+    }
+    with open(os.path.join(output_dir, 'info.json'), 'w') as info_file:
+        json.dump(infos, info_file)
+    
     del train_ds
     gc.collect()
     
@@ -82,23 +109,20 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
             xformer = joblib.load(transform_path)
             val_ds[xformer.feature_names_in_] = xformer.transform(val_ds[xformer.feature_names_in_].replace(
                 [-np.inf, np.inf], np.nan).fillna(0)).astype(np.float32)
-            for i, cat_col in enumerate(categorical_columns):
-                categories_val = list(val_ds[cat_col].unique())
-                unknown_categories = [x for x in categories_val if x not in categories[i]]
-                val_ds[cat_col] = val_ds[cat_col].replace(list(unknown_categories), 'Unknown')
-            fixlen_feature_columns = [SparseFeat(feat, vocabulary_size=val_ds[feat].nunique(),embedding_dim=16)
-                       for i,feat in enumerate(val_ds[categorical_columns].columns)] + [DenseFeat(feat, 1,)
-                      for feat in numerical_columns]
-            val_feature_names = get_feature_names(fixlen_feature_columns)
-            test = {name:val_ds[name] for name in val_feature_names}
+        for i, cat_col in enumerate(categorical_columns):
+            categories_val = list(val_ds[cat_col].unique())
+            unknown_categories = [x for x in categories_val if x not in categories[i]]
+            val_ds[cat_col] = val_ds[cat_col].replace(list(unknown_categories), 'Unknown')
+        fixlen_feature_columns = [SparseFeat(feat, vocabulary_size=vocabulary_sizes[feat],embedding_dim=64)
+                    for i,feat in enumerate(categorical_columns)] + [DenseFeat(feat, 1,)
+                    for feat in numerical_columns]
+        val_feature_names = get_feature_names(fixlen_feature_columns)
+        test = {name:val_ds[name].values for name in val_feature_names}
         validation_data = (test, val_ds['target'].values)
         del val_ds
         gc.collect()
     else:
         validation_data = None
-    
-    categorical_columns = data_info['categorical_columns']
-    numerical_columns = [c for c in X.columns if c not in categorical_columns]
     
     logging.info(f'Features ({len(X.columns)}): {np.array(list(X.columns))}')
     logging.info(f'Categorical features: {np.array(data_info["categorical_columns"])}')
@@ -113,29 +137,16 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
         "num_layers": 3,
         "start": 256,
         "lr": 0.00698135409279391
-  }
+    }
     dnn_hidden_units = create_layer_tuple(params['num_layers'],params['start'])
-    categories = []
-    vocabulary_sizes = {}
-    for cat_col in categorical_columns:
-        categories_train = list(X[cat_col].unique())
-        categories_train.append('Unknown')
-        vocabulary_sizes[cat_col] = len(categories_train)
-        categories.append(categories_train)
 
-    train_fixlen_feature_columns = [SparseFeat(feat, vocabulary_size=vocabulary_sizes[feat],embedding_dim=64)
-                for i,feat in enumerate(categorical_columns)] + [DenseFeat(feat, 1,)
-                for feat in numerical_columns]
-    train_feature_names = get_feature_names(train_fixlen_feature_columns)
     model = DeepFM(train_fixlen_feature_columns,train_fixlen_feature_columns,dnn_dropout=params['dnn_dropout'],l2_reg_embedding=params['l2_reg_embedding'],l2_reg_linear=params['l2_reg_linear'],l2_reg_dnn=params['l2_reg_dnn'],dnn_hidden_units=dnn_hidden_units,dnn_activation='relu',task='binary')
-    train_model_input = {name:X[name] for name in train_feature_names}
-    model.compile(AdamW(model.parameters(),params['lr']),"binary_crossentropy",metrics=['auc'], )
-    es = EarlyStopping(monitor='val_auc', min_delta=0, verbose=2, patience=4, mode='max')
-    model.fit(train_model_input,y.values,batch_size=1024,epochs=10,validation_split=validation_data,callbacks=[es])
+    model.compile(AdamW(model.parameters(), params['lr']), "binary_crossentropy", metrics=['auc'], )
+    es = EarlyStopping(monitor='val_auc', min_delta=0, verbose=2, patience=es_patience, mode='max')
+    model.fit(train_model_input, y.values, batch_size=1024, epochs=10, validation_data=validation_data, callbacks=[es])
     
-        
     logging.info(f'Model fitted. Saving the model and the feature importances at: {output_dir}')
-    model.save(output_dir)
+    torch.save(model.state_dict(), os.path.join(output_dir, 'DeepFM_weights.h5'))
     
     
 if __name__ == '__main__':
@@ -150,7 +161,7 @@ if __name__ == '__main__':
                         help="File path where the catboost hyperparameters are placed")
     parser.add_argument("-model_name", default=None, type=str,
                         help="The name of the model")
-    parser.add_argument("-early_stopping_patience", default=5, type=int,
+    parser.add_argument("-early_stopping_patience", default=4, type=int,
                         help="The patience for early stopping")
     parser.add_argument("-numerical_transformer_es", default=None, type=str,
                         help="The path for numerical transformer to transform the early stopping data if needed")
