@@ -128,9 +128,9 @@ def read_json(file_path: Path):
         pass
     return res
 
-def save_json(data: dict, file_path: Path):
+def save_json(data: dict, file_path: Path, ident=4):
     with open(file_path, 'w') as file:
-        json.dump(data, file)
+        json.dump(data, file, indent=ident)
         
         
 def load_best_optuna_params(study_name: str, storage:str=_BASE_OPTUNA_STORAGE) -> dict:

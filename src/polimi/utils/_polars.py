@@ -4,7 +4,7 @@ from typing import Callable, List, Any
 import numpy as np
 import gc
 from pathlib import Path
-
+import polars.selectors as cs
 
 def reduce_polars_df_memory_size(df: pl.DataFrame, verbose: bool = True) -> pl.DataFrame:
     start_mem = df.estimated_size('mb')
@@ -334,3 +334,12 @@ def stack_slices(parquet_files: list[Path], save_path: Path, save_name: str, del
         for file in parquet_files:
             file.unlink()
         
+def check_for_inf(df: pl.DataFrame):
+    rows_with_inf = df.select(cs.numeric().is_infinite()).select(
+        pl.sum_horizontal(pl.all()).alias('sum_infinite')
+    ).filter(pl.col('sum_infinite') > 0).shape[0]
+
+    cols_with_inf = df.select(cs.numeric().is_infinite())\
+        .sum().transpose(include_header=True, header_name='column', column_names=['sum_infinite'])\
+        .filter(pl.col('sum_infinite') > 0).to_dicts()
+    return rows_with_inf, cols_with_inf
