@@ -30,7 +30,6 @@ if __name__ == '__main__':
     impression_time_ds = df.with_columns(
         pl.col("impression_time").cast(pl.Date)).unique('impression_id')
   
-    
     per_batch_elements = int(impression_time_ds.shape[0] / N_BATCH)
 
     for batch in range(N_BATCH):

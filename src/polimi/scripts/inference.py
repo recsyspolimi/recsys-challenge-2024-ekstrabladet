@@ -1,4 +1,4 @@
-from polimi.utils._inference import _inference
+from polimi.utils._inference import _inference, _batch_inference
 from ebrec.utils._python import write_submission_file
 from ebrec.evaluation.metrics_protocols import *
 import os
@@ -14,6 +14,8 @@ import polars as pl
 from pathlib import Path
 import tqdm
 import gc
+from catboost import CatBoostClassifier, CatBoostRanker
+from fastauc.fastauc.fast_auc import CppAuc
 
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
@@ -22,11 +24,10 @@ sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
-def main(dataset_path, model_path, save_results, eval, behaviors_path, output_dir, batch_size=None):
+def main(dataset_path, model_path, save_results, eval, behaviors_path, output_dir, batch_size=None, ranker = False, is_xgboost= False):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
 
     dataset_name = 'validation' if eval else 'test'
-
     with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
 
@@ -37,9 +38,15 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
     logging.info('Starting inference.')
 
     model = joblib.load(model_path)
-
-    evaluation_ds = _inference(os.path.join(
-            dataset_path, f'{dataset_name}_ds.parquet'), data_info, model, eval, batch_size)
+    
+    if isinstance(model, CatBoostClassifier) or isinstance(model, CatBoostRanker):
+        cat_features = model.get_param('cat_features')
+        print(f'CatBoost categorical columns: {cat_features}')
+    
+    evaluation_ds = _batch_inference(os.path.join(
+            dataset_path, f'{dataset_name}_ds.parquet'), data_info, model, eval, batch_size, ranker, is_xgboost=is_xgboost)
+    # evaluation_ds = _inference(os.path.join(
+    #         dataset_path, f'{dataset_name}_ds.parquet'), data_info, model, eval, batch_size, ranker, is_xgboost)
     
     # if dataset_name == 'validation':
     #     evaluation_ds = _inference(os.path.join(
@@ -58,19 +65,18 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
     logging.info('Inference completed.')
 
     if eval:
+        evaluation_ds.write_parquet(os.path.join(
+            output_dir, f'predictions.parquet'))
         evaluation_ds_grouped = evaluation_ds.group_by(
             'impression_id').agg(pl.col('target'), pl.col('prediction'))
-        met_eval = MetricEvaluator(
-            labels=evaluation_ds_grouped['target'].to_list(),
-            predictions=evaluation_ds_grouped['prediction'].to_list(),
-            metric_functions=[
-                AucScore(),
-                MrrScore(),
-                NdcgScore(k=5),
-                NdcgScore(k=10),
-            ],
+
+        cpp_auc = CppAuc()
+        auc= np.mean(
+            [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
+                for y_t, y_s in zip(evaluation_ds_grouped['target'].to_list(), 
+                                    evaluation_ds_grouped['prediction'].to_list())]
         )
-        logging.info(f'Evaluation results: {met_eval.evaluate()}')
+        logging.info(f'Evaluation results: {auc}')
 
     if save_results:
         evaluation_ds.write_parquet(os.path.join(
@@ -118,6 +124,10 @@ if __name__ == '__main__':
                         help="The file path of the reference behaviors ordering. Mandatory to save predictions")
     parser.add_argument('-batch_size', default=None, type=int, required=False,
                         help='If passed, it will predict in batches to reduce the memory usage')
+    parser.add_argument('-ranker', default=False, type=bool, required=False,
+                        help='Flag to specify if the model is a ranker')
+    parser.add_argument('-XGBoost', default=False, type=bool, required=False,
+                        help='Flag to specify if the model is a XGBoost Model')
 
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
@@ -127,6 +137,8 @@ if __name__ == '__main__':
     EVAL = args.eval
     BEHAVIORS_PATH = args.behaviors_path
     BATCH_SIZE = args.batch_size
+    RANKER = args.ranker
+    XGBOOST = args.XGBoost
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     model_name = f'Inference_Test_{timestamp}' if not EVAL else f'Inference_Validation_{timestamp}'
@@ -144,4 +156,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
 
     main(DATASET_DIR, MODEL_PATH, SAVE_INFERENCE,
-         EVAL, BEHAVIORS_PATH, output_dir, BATCH_SIZE)
+         EVAL, BEHAVIORS_PATH, output_dir, BATCH_SIZE, RANKER, XGBOOST)

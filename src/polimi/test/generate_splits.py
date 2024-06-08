@@ -11,29 +11,18 @@ from ebrec.evaluation.metrics_protocols import *
 import catboost
 
 dataset_path = '/home/ubuntu/experiments/preprocessing_train_small_new'
-output_path = '/home/ubuntu/experiments/test_batch_training/batches/'
+output_path = '/home/ubuntu/experiments/cat_rnk_train_recsys/batches/'
 N_BATCH = 10
 
 
 if __name__ == '__main__':
 
-    train_ds = pl.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
-    with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
-        data_info = json.load(data_info_file)
-
-    print(f'Data info: {data_info}')
-
-    if 'postcode' in train_ds.columns:
-        train_ds = train_ds.with_columns(pl.col('postcode').fill_null(5))
-    if 'article_type' in train_ds.columns:
-        train_ds = train_ds.with_columns(
-            pl.col('article_type').fill_null('article_default'))
-
+    train_ds = pl.scan_parquet(os.path.join(dataset_path, 'train_ds.parquet')).select(['impression_id','impression_time'])
+    
+    train_ds = train_ds.collect()
+    
     impression_time_ds = train_ds.select(['impression_id', 'impression_time']).with_columns(
         pl.col("impression_time").cast(pl.Date)).unique('impression_id')
-  
-    train_ds[data_info['categorical_columns']
-             ] = train_ds[data_info['categorical_columns']].to_pandas().astype('category')
     
     per_batch_elements = int(impression_time_ds.shape[0] / N_BATCH)
 

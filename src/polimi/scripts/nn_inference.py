@@ -21,6 +21,7 @@ sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
 
 from polimi.utils.tf_models import *
 from polimi.utils.tf_models.utils import *
+from fastauc.fastauc.fast_auc import CppAuc
 
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
@@ -117,19 +118,17 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
     logging.info('Inference completed.')
 
     if eval:
+        evaluation_ds.write_parquet(os.path.join(
+            output_dir, f'predictions.parquet'))
         evaluation_ds_grouped = evaluation_ds.group_by(
             'impression_id').agg(pl.col('target'), pl.col('prediction'))
-        met_eval = MetricEvaluator(
-            labels=evaluation_ds_grouped['target'].to_list(),
-            predictions=evaluation_ds_grouped['prediction'].to_list(),
-            metric_functions=[
-                AucScore(),
-                MrrScore(),
-                NdcgScore(k=5),
-                NdcgScore(k=10),
-            ],
+        cpp_auc = CppAuc()
+        auc = np.mean(
+            [cpp_auc.roc_auc_score(np.array(y_t).astype(bool), np.array(y_s).astype(np.float32)) 
+                for y_t, y_s in zip(evaluation_ds_grouped['target'].to_list(), 
+                                    evaluation_ds_grouped['prediction'].to_list())]
         )
-        logging.info(f'Evaluation results: {met_eval.evaluate()}')
+        logging.info(f'Evaluation results: {auc}')
 
     if save_results:
         evaluation_ds.write_parquet(os.path.join(
