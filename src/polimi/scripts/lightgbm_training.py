@@ -88,8 +88,9 @@ def main(dataset_path, lgbm_params_path, output_dir, use_ranker, early_stopping_
     logging.info(f'Lightgbm params: {params}')
     logging.info(f'Starting to train the lightgbm model')
     
+    verbosity = 100 if early_stopping_path else 1
     if use_ranker:
-        model = LGBMRanker(**params, verbosity=100, early_stopping_round=es_rounds)
+        model = LGBMRanker(**params, verbosity=verbosity, early_stopping_round=es_rounds)
         model.fit(
             X, 
             y, 
@@ -99,7 +100,7 @@ def main(dataset_path, lgbm_params_path, output_dir, use_ranker, early_stopping_
             eval_metric='ndcg' if early_stopping_path else None,
             callbacks=[log_evaluation(period=20)])
     else:
-        model = LGBMClassifier(**params, verbosity=100, early_stopping_round=es_rounds)
+        model = LGBMClassifier(**params, verbosity=verbosity, early_stopping_round=es_rounds)
         model.fit(
             X, 
             y,
@@ -137,7 +138,7 @@ if __name__ == '__main__':
     DATASET_DIR = args.dataset_path
     LGBM_HYPERPARAMS_PATH = args.lgbm_params_file
     EARLY_STOPPING_PATH = args.early_stopping_path
-    EARLY_STOPPING_ROUNDS = args.early_stopping_rounds if EARLY_STOPPING_PATH else 0
+    EARLY_STOPPING_ROUNDS = args.early_stopping_rounds if EARLY_STOPPING_PATH else None
     USE_RANKER = args.ranker
     model_name = args.model_name
     
