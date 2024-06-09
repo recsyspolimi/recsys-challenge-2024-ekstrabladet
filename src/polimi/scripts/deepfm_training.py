@@ -111,8 +111,8 @@ T = TypeVar('T', bound=TabularNNModel)
 def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience, transform_path):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
     
-    train_ds = pl.scan_parquet(os.path.join(dataset_path, 'train_ds.parquet')).drop(features_to_drop).collect()
-    val_ds = pl.scan_parquet(os.path.join(early_stopping_path, 'validation_ds.parquet')).drop(features_to_drop).collect() if early_stopping_path else None
+    train_ds = pl.scan_parquet(os.path.join(dataset_path, 'train_ds.parquet')).collect() #.drop(features_to_drop).collect()
+    val_ds = pl.scan_parquet(os.path.join(early_stopping_path, 'validation_ds.parquet')).collect() if early_stopping_path else None #.drop(features_to_drop).collect() if early_stopping_path else None
     with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
         
@@ -129,7 +129,7 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
     if 'impression_time' in train_ds.columns:
         train_ds = train_ds.drop(['impression_time'])
         
-    categorical_columns = [c for c in data_info['categorical_columns'] if c not in features_to_drop]
+    categorical_columns = [c for c in data_info['categorical_columns']] # if c not in features_to_drop]
     
     train_ds = train_ds.drop(['impression_id', 'article', 'user_id']).to_pandas()
     train_ds[categorical_columns] = train_ds[categorical_columns].astype(str)
@@ -211,6 +211,7 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
     }
     dnn_hidden_units = create_layer_tuple(params['num_layers'],params['start'])
 
+    # best epoch: 3
     model = DeepFM(train_fixlen_feature_columns,train_fixlen_feature_columns,dnn_dropout=params['dnn_dropout'],l2_reg_embedding=params['l2_reg_embedding'],l2_reg_linear=params['l2_reg_linear'],l2_reg_dnn=params['l2_reg_dnn'],dnn_hidden_units=dnn_hidden_units,dnn_activation='relu',task='binary')
     model.compile(AdamW(model.parameters(), params['lr']), "binary_crossentropy", metrics=['auc'], )
     es = EarlyStopping(monitor='val_auc', min_delta=0, verbose=2, patience=es_patience, mode='max')
