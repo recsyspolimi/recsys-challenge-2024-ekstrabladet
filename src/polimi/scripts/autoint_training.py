@@ -33,6 +33,7 @@ T = TypeVar('T', bound=TabularNNModel)
 from sklearn.preprocessing import PowerTransformer, OrdinalEncoder
 from deepctr_torch.models import AutoInt
 from deepctr_torch.inputs import SparseFeat, DenseFeat, get_feature_names
+
 def create_layer_tuple(num_layers,start):
     start_value = start
     layer_values = [start_value]
@@ -45,7 +46,7 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 T = TypeVar('T', bound=TabularNNModel)
 
 
-def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience, transform_path):
+def main(dataset_path, output_dir, early_stopping_path, transform_path):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
     
     train_ds = pl.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
@@ -86,7 +87,7 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
                 categories_val = list(val_ds[cat_col].unique())
                 unknown_categories = [x for x in categories_val if x not in categories[i]]
                 val_ds[cat_col] = val_ds[cat_col].replace(list(unknown_categories), 'Unknown')
-            fixlen_feature_columns = [SparseFeat(feat, vocabulary_size=val_ds[feat].nunique(),embedding_dim=16)
+            fixlen_feature_columns = [SparseFeat(feat, vocabulary_size=val_ds[feat].nunique(),embedding_dim=64)
                        for i,feat in enumerate(val_ds[categorical_columns].columns)] + [DenseFeat(feat, 1,)
                       for feat in numerical_columns]
             val_feature_names = get_feature_names(fixlen_feature_columns)
@@ -103,19 +104,19 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
     logging.info(f'Features ({len(X.columns)}): {np.array(list(X.columns))}')
     logging.info(f'Categorical features: {np.array(data_info["categorical_columns"])}')
 
-    logging.info(f'Starting to train the DeepFM model')
+    logging.info(f'Starting to train the AutoINT model')
     params = {
-    "dnn_dropout": 0.21551012156663485,
-    "l2_reg_embedding": 0.000023594595753905804,
-    "l2_reg_dnn": 0.000019077766264818277,
-    "att_head_num ": 4,
-    "dnn_use_bn": True,
-    "att_layer_num ": 8,
-    "trials": 16,
-    "num_layers": 3,
-    "start": 256,
-    "att_res": True,
-    "lr": 0.001576607039337392
+        "dnn_dropout": 0.21551012156663485,
+        "l2_reg_embedding": 0.000023594595753905804,
+        "l2_reg_dnn": 0.000019077766264818277,
+        "att_head_num ": 4,
+        "dnn_use_bn": True,
+        "att_layer_num ": 8,
+        "trials": 16,
+        "num_layers": 3,
+        "start": 256,
+        "att_res": True,
+        "lr": 0.001576607039337392
   }
     dnn_hidden_units = create_layer_tuple(params['num_layers'],params['start'])
     categories = []
@@ -130,10 +131,10 @@ def main(dataset_path, params_path, output_dir, early_stopping_path, es_patience
                 for i,feat in enumerate(categorical_columns)] + [DenseFeat(feat, 1,)
                 for feat in numerical_columns]
     train_feature_names = get_feature_names(train_fixlen_feature_columns)
-    model = AutoInt(train_fixlen_feature_columns,train_fixlen_feature_columns,dnn_dropout=params['dnn_dropout'],l2_reg_embedding=params['l2_reg_embedding'],l2_reg_linear=params['l2_reg_linear'],l2_reg_dnn=params['l2_reg_dnn'],dnn_hidden_units=dnn_hidden_units,att_head_num=params['att_head_num '],att_layer_num=params['att_layer_num '],att_res =params['att_res'],dnn_use_bn=params['dnn_use_bn'],dnn_activation='relu',task='binary')
+    model = AutoInt(train_fixlen_feature_columns,train_fixlen_feature_columns,dnn_dropout=params['dnn_dropout'],l2_reg_embedding=params['l2_reg_embedding'],l2_reg_dnn=params['l2_reg_dnn'],dnn_hidden_units=dnn_hidden_units,att_head_num=params['att_head_num '] ,att_layer_num=params['att_layer_num '],att_res=True,dnn_use_bn=True,dnn_activation='relu',task='binary')
     train_model_input = {name:X[name] for name in train_feature_names}
     model.compile(AdamW(model.parameters(),params['lr']),"binary_crossentropy",metrics=['auc'], )
-    es = EarlyStopping(monitor='val_auc', min_delta=0, verbose=2, patience=4, mode='max')
+    es = EarlyStopping(monitor='val_auc', min_delta=0, verbose=2, patience=5, mode='max')
     model.fit(train_model_input,y.values,batch_size=1024,epochs=10,validation_split=validation_data,callbacks=[es])
     
         
@@ -169,7 +170,7 @@ if __name__ == '__main__':
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     if model_name is None:
-        model_name = f'DeepFM_Training_{timestamp}'
+        model_name = f'AutoINT_Training_{timestamp}'
     output_dir = os.path.join(OUTPUT_DIR, model_name)
     os.makedirs(output_dir)
     
@@ -182,4 +183,6 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, HYPERPARAMS_PATH, output_dir, EARLY_STOPPING_PATH, EARLY_STOPPING_PATIENCE, TRANSFORM_PATH)
+    main(DATASET_DIR, output_dir, EARLY_STOPPING_PATH, TRANSFORM_PATH)
+
+

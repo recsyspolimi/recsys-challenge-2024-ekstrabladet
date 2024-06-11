@@ -10,7 +10,6 @@ import seaborn as sns
 from typing_extensions import List, Tuple, Dict, Type, TypeVar
 import polars as pl
 import gc
-import tensorflow as tf
 import joblib
 import torch
 import tensorflow as tf
@@ -114,7 +113,7 @@ def main(dataset_path, output_dir, early_stopping_path, transform_path):
         "num_layers": 2,
         "start": 256,
         "lr": 0.009448207882844778
-}
+  }
     dnn_hidden_units = create_layer_tuple(params['num_layers'],params['start'])
     categories = []
     vocabulary_sizes = {}
@@ -181,3 +180,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
     
     main(DATASET_DIR, output_dir, EARLY_STOPPING_PATH, TRANSFORM_PATH)
+
