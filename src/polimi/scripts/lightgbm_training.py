@@ -88,7 +88,7 @@ def main(dataset_path, lgbm_params_path, output_dir, use_ranker, early_stopping_
     logging.info(f'Lightgbm params: {params}')
     logging.info(f'Starting to train the lightgbm model')
     
-    verbosity = 100 if not early_stopping_path else 1
+    verbosity = 100 if early_stopping_path is None else -1
     if use_ranker:
         model = LGBMRanker(**params, verbosity=verbosity, early_stopping_round=es_rounds)
         model.fit(

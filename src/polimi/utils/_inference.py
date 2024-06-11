@@ -4,6 +4,7 @@ import numpy as np
 import gc
 from tqdm import tqdm
 import logging
+from lightgbm import LGBMClassifier, LGBMRanker, Booster
 
 
 def _batch_predict(model, X, batch_size=None, ranker=False):
@@ -16,7 +17,7 @@ def _batch_predict(model, X, batch_size=None, ranker=False):
     with tqdm(total=X.shape[0] // batch_size) as pbar:
         while start_idx < X.shape[0]:
             end_idx = start_idx + batch_size
-            if ranker:
+            if ranker or isinstance(model, Booster):
                 predictions = np.concatenate(
                     [predictions, model.predict(X.iloc[start_idx:end_idx])])
             else:
@@ -103,8 +104,18 @@ def _batch_inference(dataset_path, data_info, model, eval=False, batch_size=1000
                 features = features + ['target']
             features = features + ['impression_id', 'user_id', 'article']
             inference_ds = inference_ds.select(features)
+            assert all([features[i] == inference_ds.columns[i] for i in range(len(features))]), 'XGB requires features to be ordered in the same way as the model was trained on.'
             
-            print('Test: ', all([features[i] == inference_ds.columns[i] for i in range(len(features))]))
+        if isinstance(model, LGBMClassifier) or isinstance(model, LGBMRanker) or isinstance(model, Booster):
+            logging.info('Reordering feature names for lightgbm')
+            if isinstance(model, Booster):
+                features = model.feature_name() + ['impression_id', 'user_id', 'article']
+            else:
+                features = model.feature_name_ + ['impression_id', 'user_id', 'article']
+            if 'target' in inference_ds.columns:
+                features = features + ['target']
+            inference_ds = inference_ds.select(features)
+            assert all([features[i] == inference_ds.columns[i] for i in range(len(features))]), 'LGBM requires features to be ordered in the same way as the model was trained on.'
             
         if 'postcode' in inference_ds.columns:
             inference_ds = inference_ds.with_columns(pl.col('postcode').fill_null(5))

@@ -53,22 +53,9 @@ def main(dataset_path, lgbm_params_path, output_dir, use_ranker, early_stopping_
     params['objective'] = 'lambdarank' if use_ranker else 'binary'
     
     booster = lgb.train(params=params, num_boost_round=num_boost_rounds, train_set=train_ds)
-    booster.save_model(os.path.join(output_dir, 'booster.txt'))
-    
-    if use_ranker:
-        model = lgb.LGBMRanker()
-        model.booster_ = booster
-        model.feature_name_ = booster.feature_name()
-        model.n_features_in_ = booster.num_feature()
-    else:
-        model = lgb.LGBMClassifier()
-        model.booster_ = booster
-        model.feature_name_ = booster.feature_name()
-        model.n_features_in_ = booster.num_feature()
-        model.n_classes_ = 2
         
     logging.info(f'Model fitted. Saving the model and the feature importances at: {output_dir}')
-    joblib.dump(model, os.path.join(output_dir, 'model.joblib'))
+    booster.save_model(os.path.join(output_dir, 'booster.txt'))
     save_feature_importances_plot(booster, booster.feature_name(), output_dir)
     
     

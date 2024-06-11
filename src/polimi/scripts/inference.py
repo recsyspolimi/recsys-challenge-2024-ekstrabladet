@@ -1,6 +1,3 @@
-from polimi.utils._inference import _inference, _batch_inference
-from ebrec.utils._python import write_submission_file
-from ebrec.evaluation.metrics_protocols import *
 import os
 import logging
 from datetime import datetime
@@ -15,16 +12,21 @@ from pathlib import Path
 import tqdm
 import gc
 from catboost import CatBoostClassifier, CatBoostRanker
-from fastauc.fastauc.fast_auc import CppAuc
+from lightgbm import Booster
 
 import sys
 sys.path.append('/home/ubuntu/RecSysChallenge2024/src')
+from polimi.utils._inference import _inference, _batch_inference
+from ebrec.utils._python import write_submission_file
+from ebrec.evaluation.metrics_protocols import *
+from fastauc.fastauc.fast_auc import CppAuc
 
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 
-def main(dataset_path, model_path, save_results, eval, behaviors_path, output_dir, batch_size=None, ranker = False, is_xgboost= False):
+def main(dataset_path, model_path, save_results, eval, behaviors_path, output_dir, batch_size=None, 
+         ranker=False, is_xgboost=False, is_lgbm_booster=False):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
 
     dataset_name = 'validation' if eval else 'test'
@@ -37,7 +39,10 @@ def main(dataset_path, model_path, save_results, eval, behaviors_path, output_di
     logging.info(f'Reading model parameters from path: {model_path}')
     logging.info('Starting inference.')
 
-    model = joblib.load(model_path)
+    if is_lgbm_booster:
+        model = Booster(model_file=model_path)
+    else:
+        model = joblib.load(model_path)
     
     if isinstance(model, CatBoostClassifier) or isinstance(model, CatBoostRanker):
         cat_features = model.get_param('cat_features')
@@ -128,6 +133,8 @@ if __name__ == '__main__':
                         help='Flag to specify if the model is a ranker')
     parser.add_argument('-XGBoost', default=False, type=bool, required=False,
                         help='Flag to specify if the model is a XGBoost Model')
+    parser.add_argument('--lgbm_booster', action='store_true', default=False,
+                        help='Flag to specify if the model is a Lightgbm Booster')
 
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
@@ -139,6 +146,7 @@ if __name__ == '__main__':
     BATCH_SIZE = args.batch_size
     RANKER = args.ranker
     XGBOOST = args.XGBoost
+    LGBM_BOOSTER = args.lgbm_booster
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     model_name = f'Inference_Test_{timestamp}' if not EVAL else f'Inference_Validation_{timestamp}'
@@ -156,4 +164,4 @@ if __name__ == '__main__':
     root_logger.addHandler(stdout_handler)
 
     main(DATASET_DIR, MODEL_PATH, SAVE_INFERENCE,
-         EVAL, BEHAVIORS_PATH, output_dir, BATCH_SIZE, RANKER, XGBOOST)
+         EVAL, BEHAVIORS_PATH, output_dir, BATCH_SIZE, RANKER, XGBOOST, LGBM_BOOSTER)
