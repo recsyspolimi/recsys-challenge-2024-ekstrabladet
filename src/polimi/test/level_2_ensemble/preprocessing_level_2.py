@@ -19,44 +19,74 @@ import gc
 from polars import testing
 
 TRAIN = True
-output_dir = '/home/ubuntu/experiments/dataset_level_2'
+output_dir = '/mnt/ebs_volume_new/stacking/dataset'
 paths_features = {
-            'train_df' : '/mnt/ebs_volume/experiments/preprocessing_validation_new',
-            'test_df': '/mnt/ebs_volume/experiments/preprocessing_test_new',
-            'train_icm': '/mnt/ebs_volume/icm_features/large/recsys_validation.parquet',
-            'test_icm': '/mnt/ebs_volume/icm_features/large/recsys_train_large.parquet'
+            'train_df' : '/mnt/ebs_volume_new/experiments/preprocessing_val_new_with_recsys',
+            'test_df': '/mnt/ebs_volume_new/experiments/preprocessing_test_new',
+            'train_icm': 'preprocessing_test_new_with_recsys',
+            'test_icm': '/mnt/ebs_volume/icm_features/large/recsys_testset.parquet'
     }
 
 models = [
     {
         'model_name': 'cat_rnk_new_95',
-        'model_train_path': '/mnt/ebs_volume/stacking/pred_val_large/pred_val_cat_rnk_new_95.parquet',
-        'model_test_path': '/mnt/ebs_volume/stacking/pred_test/pred_test_cat_rnk_new_95.parquet'
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_cat_rnk_new_95.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_cat_rnk_new_95.parquet'
     },
     {
         'model_name': 'catboost_new_noK',
-        'model_train_path': '/mnt/ebs_volume/stacking/pred_val_large/pred_val_catboost_new_noK.parquet',
-        'model_test_path': '/mnt/ebs_volume/stacking/pred_test/pred_test_catboost_new_noK.parquet'
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_catboost_new_noK.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_catboost_new_noK.parquet'
     },
     {
         'model_name': 'mlp_new_trial_208',
-        'model_train_path': '/mnt/ebs_volume/stacking/pred_val_large/pred_val_mlp_new_trial_208.parquet',
-        'model_test_path': '/mnt/ebs_volume/stacking/pred_test/pred_test_mlp_new_trial_208.parquet'
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_mlp_new_trial_208.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_mlp_new_trial_208.parquet'
     },
     {
         'model_name': 'gandalf_new_trial_130',
-        'model_train_path': '/mnt/ebs_volume/stacking/pred_val_large/pred_val_gandalf_new_trial_130.parquet',
-        'model_test_path': '/mnt/ebs_volume/stacking/pred_test/pred_test_gandalf_new_trial_130.parquet',
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_gandalf_new_trial_130.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_gandalf_new_trial_130.parquet',
     },
     {
         'model_name': 'deep_cross_new_trial_67',
-        'model_train_path': '/mnt/ebs_volume/stacking/pred_val_large/pred_val_deep_cross_new_trial_67.parquet',
-        'model_test_path': '/mnt/ebs_volume/stacking/pred_test/pred_test_deep_cross_new_trial_67',
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_deep_cross_new_trial_67.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_deep_cross_new_trial_67.parquet',
     },
     {
         'model_name': 'wide_deep_new_trial_72',
-        'model_train_path': '/mnt/ebs_volume/stacking/pred_val_large/pred_val_wide_deep_new_trial_72.parquet',
-        'model_test_path': '/mnt/ebs_volume/stacking/pred_test/pred_test_wide_deep_new_trial_72.parquet',
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_wide_deep_new_trial_72.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_wide_deep_new_trial_72.parquet',
+    },
+    {
+        'model_name': 'catboost_classifier_recsys_tuned',
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_catboost_classifier_recsys_tuned.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_catboost_classifier_recsys_tuned.parquet',
+    },
+    {
+        'model_name': 'lgbm_new_trial_289',
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_lgbm_new_trial_289.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_lgbm_new_trial_289.parquet',
+    },
+    {
+        'model_name': 'cat_rnk_recsys',
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_cat_rnk_recsys.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_cat_rnk_recsys.parquet',
+    },
+    {
+        'model_name': 'lgbm_recsys_trial_107',
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_lgbm_recsys_trial_107.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_lgbm_recsys_trial_107.parquet',
+    },
+    {
+        'model_name': 'lgbm_ranker_new_trial_457',
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_lgbm_ranker_new_trial_457.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_lgbm_ranker_new_trial_457.parquet',
+    },
+    {
+        'model_name': 'lgbm_ranker_recsys_trial_219',
+        'model_train_path': '/mnt/ebs_volume_new/stacking/pred_val_large/pred_val_lgbm_ranker_recsys_trial_219.parquet',
+        'model_test_path': '/mnt/ebs_volume_new/stacking/pred_test/pred_test_lgbm_ranker_recsys_trial_219.parquet',
     }
 ]
 drop_me = ['Category_auto_Pct', 'Category_bibliotek_Pct', 'Category_biler_Pct', 'Category_dagsorden_Pct', 'Category_ferie_Pct', 'Category_forbrug_Pct', 'Category_haandvaerkeren_Pct', 'Category_horoskoper_Pct', 'Category_incoming_Pct',
@@ -195,17 +225,33 @@ def preprocessing(df, path_features, hybrid_weights=[], MODEL_LIST=[], drop_me=[
     print('Reading old features')
     if keep_old_features:
         if not test:
-            df = df.drop(columns=['target']).join(pl.scan_parquet(path_features).drop(
-                drop_me).collect(), on=['impression_id', 'article'], how='left')
+            old_features = pl.scan_parquet(path_features).drop(drop_me).collect()
+            new_df = None
+            for batch in tqdm(df.drop(columns=['target']).iter_slices(1000000)):
+                batch = batch.join(old_features, on=['impression_id', 'article'], how='left')
+                if new_df is None:
+                    new_df = batch
+                else:
+                    new_df = new_df.vstack(batch)
+            df = new_df
         else:
-            df = df.join(pl.scan_parquet(path_features).drop(
-                drop_me).collect, on=['impression_id', 'article'], how='left')
+            # old_features = pl.scan_parquet(path_features).drop(drop_me).collect()
+            # df = df.join(old_features, on=['impression_id', 'article'], how='left')
+            old_features = pl.scan_parquet(path_features).drop(drop_me).collect()
+            new_df = None
+            for batch in tqdm(df.iter_slices(1000000)):
+                batch = batch.join(old_features, on=['impression_id', 'article'], how='left')
+                if new_df is None:
+                    new_df = batch
+                else:
+                    new_df = new_df.vstack(batch)
+            df = new_df
     else:
         if not test:
-            df = df.drop(columns=['target']).join(pl.scan_parquet(path_features).drop(drop_me).select(
-                ['impression_time', 'impression_id', 'article', 'user_id', 'target']).collect(), on=['impression_id', 'article'], how='left')
+            df = df.drop(columns=['target']).join(pl.scan_parquet(path_features).select(
+                ['impression_time', 'impression_id', 'article', 'user_id', 'target', 'category']).collect(), on=['impression_id', 'article'], how='left')
         else:
-            df = df.join(pl.scan_parquet(path_features).drop(drop_me).select(['impression_time', 'impression_id', 'article', 'user_id']).collect(),
+            df = df.join(pl.scan_parquet(path_features).select(['impression_time', 'impression_id', 'article', 'user_id', 'category']).collect(),
                          on=['impression_id', 'article'], how='left')
 
     print('Building rolling features')
@@ -241,25 +287,25 @@ def preprocessing(df, path_features, hybrid_weights=[], MODEL_LIST=[], drop_me=[
     )
 
     return df
-NORMALIZE_OVER_USER_ID = [
-    'emb_bert_icm_recsys', 
-    'emb_contrastive_icm_recsys', 
-    'emb_emotions_icm_recsys', 
-    'emb_roberta_icm_recsys', 
-    'emb_w_2_vec_icm_recsys', 
-    'emb_kenneth_icm_recsys', 
-    'emb_distilbert_icm_recsys'
-    ]
+# NORMALIZE_OVER_USER_ID = [
+#     'emb_bert_icm_recsys', 
+#     'emb_contrastive_icm_recsys', 
+#     'emb_emotions_icm_recsys', 
+#     'emb_roberta_icm_recsys', 
+#     'emb_w_2_vec_icm_recsys', 
+#     'emb_kenneth_icm_recsys', 
+#     'emb_distilbert_icm_recsys'
+#     ]
 
-NORMALIZE_OVER_USER_ID = [
-    'emb_bert_icm_recsys', 
-    'emb_contrastive_icm_recsys', 
-    'emb_emotions_icm_recsys', 
-    'emb_roberta_icm_recsys', 
-    'emb_w_2_vec_icm_recsys', 
-    'emb_kenneth_icm_recsys', 
-    'emb_distilbert_icm_recsys'
-    ]
+# NORMALIZE_OVER_ARTICLE = [
+#     'emb_bert_icm_recsys', 
+#     'emb_contrastive_icm_recsys', 
+#     'emb_emotions_icm_recsys', 
+#     'emb_roberta_icm_recsys', 
+#     'emb_w_2_vec_icm_recsys', 
+#     'emb_kenneth_icm_recsys', 
+#     'emb_distilbert_icm_recsys'
+#     ]
 
 # NORMALIZE_OVER_USER_ID = [
 #     'kenneth_emb_icm_recsys',
@@ -270,7 +316,7 @@ NORMALIZE_OVER_USER_ID = [
 #     'emotions_emb_icm',
 #     'constrastive_emb_icm'
 # ]
-# C = [
+# NORMALIZE_OVER_ARTICLE = [
 #     'kenneth_emb_icm',
 #     'distilbert_emb_icm',
 #     'bert_emb_icm',
@@ -280,40 +326,40 @@ NORMALIZE_OVER_USER_ID = [
 #     'constrastive_emb_icm'
 # ]
 
-def build_icm_features(df, path):
-    print('Reading ICM')
-    recsys_features = pl.scan_parquet(path).collect()
-    print('Building ICM features')
-    df = df.join(recsys_features, on=['impression_id', 'article', 'user_id'], how= 'left')
-    df = df.with_columns(
-        *[(pl.col(c) / pl.col(c).max().over(pl.col('user_id'))).alias(f'{c}_l_inf_user_id')
-        for c in NORMALIZE_OVER_USER_ID],
-        *[pl.col(c).std().over(pl.col('user_id')).alias(f'std_user_id_{c}')
-        for c in NORMALIZE_OVER_USER_ID],
-        *[pl.col(c).skew().over(pl.col('user_id')).alias(f'skew_user_id_{c}')
-        for c in NORMALIZE_OVER_USER_ID],
-        *[pl.col(c).kurtosis().over(pl.col('user_id')).alias(f'kurtosis_user_id_{c}')
-        for c in NORMALIZE_OVER_USER_ID],
-        *[pl.col(c).entropy().over(pl.col('user_id')).alias(f'entropy_user_id_{c}')
-        for c in NORMALIZE_OVER_USER_ID],
-        *[(pl.col(c) - pl.col(c).median().over(pl.col('user_id'))).alias(f'{c}_minus_median_user_id')
-        for c in NORMALIZE_OVER_USER_ID],
+# def build_icm_features(df, path):
+#     print('Reading ICM')
+#     recsys_features = pl.scan_parquet(path).collect()
+#     print('Building ICM features')
+#     df = df.join(recsys_features, on=['impression_id', 'article', 'user_id'], how= 'left')
+#     df = df.with_columns(
+#         *[(pl.col(c) / pl.col(c).max().over(pl.col('user_id'))).alias(f'{c}_l_inf_user_id')
+#         for c in NORMALIZE_OVER_USER_ID],
+#         *[pl.col(c).std().over(pl.col('user_id')).alias(f'std_user_id_{c}')
+#         for c in NORMALIZE_OVER_USER_ID],
+#         *[pl.col(c).skew().over(pl.col('user_id')).alias(f'skew_user_id_{c}')
+#         for c in NORMALIZE_OVER_USER_ID],
+#         *[pl.col(c).kurtosis().over(pl.col('user_id')).alias(f'kurtosis_user_id_{c}')
+#         for c in NORMALIZE_OVER_USER_ID],
+#         *[pl.col(c).entropy().over(pl.col('user_id')).alias(f'entropy_user_id_{c}')
+#         for c in NORMALIZE_OVER_USER_ID],
+#         *[(pl.col(c) - pl.col(c).median().over(pl.col('user_id'))).alias(f'{c}_minus_median_user_id')
+#         for c in NORMALIZE_OVER_USER_ID],
         
-        *[(pl.col(c) / pl.col(c).max().over(pl.col('article'))).alias(f'{c}_l_inf_article')
-        for c in NORMALIZE_OVER_ARTICLE],
-        *[pl.col(c).std().over(pl.col('article')).alias(f'std_article_{c}')
-        for c in NORMALIZE_OVER_ARTICLE],
-        *[pl.col(c).skew().over(pl.col('article')).alias(f'skew_article_{c}')
-        for c in NORMALIZE_OVER_ARTICLE],
-        *[pl.col(c).kurtosis().over(pl.col('article')).alias(f'kurtosis_article_{c}')
-        for c in NORMALIZE_OVER_ARTICLE],
-        *[pl.col(c).entropy().over(pl.col('article')).alias(f'entropy_article_{c}')
-        for c in NORMALIZE_OVER_ARTICLE],
-        *[(pl.col(c) - pl.col(c).median().over(pl.col('article'))).alias(f'{c}_minus_median_article')
-        for c in NORMALIZE_OVER_ARTICLE],
-    )
+#         *[(pl.col(c) / pl.col(c).max().over(pl.col('article'))).alias(f'{c}_l_inf_article')
+#         for c in NORMALIZE_OVER_ARTICLE],
+#         *[pl.col(c).std().over(pl.col('article')).alias(f'std_article_{c}')
+#         for c in NORMALIZE_OVER_ARTICLE],
+#         *[pl.col(c).skew().over(pl.col('article')).alias(f'skew_article_{c}')
+#         for c in NORMALIZE_OVER_ARTICLE],
+#         *[pl.col(c).kurtosis().over(pl.col('article')).alias(f'kurtosis_article_{c}')
+#         for c in NORMALIZE_OVER_ARTICLE],
+#         *[pl.col(c).entropy().over(pl.col('article')).alias(f'entropy_article_{c}')
+#         for c in NORMALIZE_OVER_ARTICLE],
+#         *[(pl.col(c) - pl.col(c).median().over(pl.col('article'))).alias(f'{c}_minus_median_article')
+#         for c in NORMALIZE_OVER_ARTICLE],
+#     )
     
-    return df
+#     return df
 
 if __name__ == '__main__':
     print(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -321,9 +367,9 @@ if __name__ == '__main__':
         directories = [model['model_train_path'] for model in models]
         model_list = [model['model_name'] for model in models]
         df = load_predictions(directories, model_list, test=False)
-        weights = [1/len(model_list)] * len(model_list)
+        weights = [0.1, 0.1, 0, 0, 0, 0, 0, 0.15, 0.1, 0.15, 0.1, 0.15, 0.15]
         df = preprocessing(df, paths_features['train_df']+ '/validation_ds.parquet', hybrid_weights=weights, MODEL_LIST=model_list, drop_me=drop_me, keep_old_features=True, test=False)
-        df = build_icm_features(df, paths_features['train_icm'])
+        # df = build_icm_features(df, paths_features['train_icm'])
         
         with open(os.path.join(paths_features['train_df'], 'data_info.json')) as data_info_file:
             data_info = json.load(data_info_file)
@@ -332,7 +378,7 @@ if __name__ == '__main__':
         for col in data_info['categorical_columns']:
                 if col in df.columns:
                         categorical_columns.append(col)
-        categorical_columns + ['is_avg_top_3', 'is_avg_top_1', 'over_95_qt']
+        categorical_columns = categorical_columns + ['is_avg_top_3', 'is_avg_top_1', 'over_95_qt']
         
         df.write_parquet(output_dir + '/train_ds.parquet')
         dataset_info = {
@@ -347,12 +393,13 @@ if __name__ == '__main__':
     
     print(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
     if not TRAIN:
+        print('Preprocessing Test')
         directories = [model['model_test_path'] for model in models]
         model_list = [model['model_name'] for model in models]
-        df = load_predictions(directories, model_list, test=False)
-        weights = [1/len(model_list)] * len(model_list)
-        df = preprocessing(df, paths_features['test_df']+ '/validation_ds.parquet', hybrid_weights=weights, MODEL_LIST=model_list, drop_me=drop_me, keep_old_features=True, test=True)
-        df = build_icm_features(df, paths_features['test_icm'])
+        df = load_predictions(directories, model_list, test=True)
+        weights = [0.1, 0.1, 0, 0, 0, 0, 0, 0.15, 0.1, 0.15, 0.1, 0.15, 0.15]
+        df = preprocessing(df, paths_features['test_df']+ '/test_ds.parquet', hybrid_weights=weights, MODEL_LIST=model_list, drop_me=drop_me, keep_old_features=True, test=True)
+        # df = build_icm_features(df, paths_features['test_icm'])
         
         with open(os.path.join(paths_features['test_df'], 'data_info.json')) as data_info_file:
             data_info = json.load(data_info_file)
@@ -361,7 +408,7 @@ if __name__ == '__main__':
         for col in data_info['categorical_columns']:
                 if col in df.columns:
                         categorical_columns.append(col)
-        categorical_columns + ['is_avg_top_3', 'is_avg_top_1', 'over_95_qt']
+        categorical_columns = categorical_columns + ['is_avg_top_3', 'is_avg_top_1', 'over_95_qt']
         
         df.write_parquet(output_dir + '/test_ds.parquet')
         dataset_info = {
@@ -371,3 +418,4 @@ if __name__ == '__main__':
         data_info_path = os.path.join(output_dir, 'data_info.json')
         with open(data_info_path, 'w') as data_info_file:
             json.dump(dataset_info, data_info_file)
+        print(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
