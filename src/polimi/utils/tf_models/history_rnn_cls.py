@@ -42,11 +42,11 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         **kwargs
     ):
         
-        super(TemporalHistoryModel, self).__init__(categorical_features=categorical_features, numerical_features=numerical_features,
-                                                   categorical_transform=categorical_transform, numerical_transform=numerical_transform,
-                                                   use_gaussian_noise=use_gaussian_noise, gaussian_noise_std=gaussian_noise_std, 
-                                                   max_categorical_embedding_dim=max_categorical_embedding_dim,
-                                                   verbose=verbose, model_name=model_name, random_seed=random_seed, **kwargs)
+        super(TemporalHistoryClassificationModel, self).__init__(categorical_features=categorical_features, numerical_features=numerical_features,
+                                                                 categorical_transform=categorical_transform, numerical_transform=numerical_transform,
+                                                                 use_gaussian_noise=use_gaussian_noise, gaussian_noise_std=gaussian_noise_std, 
+                                                                 max_categorical_embedding_dim=max_categorical_embedding_dim,
+                                                                 verbose=verbose, model_name=model_name, random_seed=random_seed, **kwargs)
         
         self.seq_embedding_dims = seq_embedding_dims
         self.seq_numerical_features = seq_numerical_features
@@ -73,14 +73,14 @@ class TemporalHistoryClassificationModel(TabularNNModel):
                 embedding_layer = SequenceMultiHotEmbeddingLayer(
                     cardinality, 
                     embedding_dim,
-                    embedding_regularizer=tfk.regularizers.L1L2(l1=self.l1_lambda, l2=self.l2_lambda)
+                    embeddings_regularizer=tfk.regularizers.L1L2(l1=self.l1_lambda, l2=self.l2_lambda)
                 )(input_layer)
             else:
                 input_layer = tfkl.Input(shape=(None,), name=f'{feature_name}_Input')
                 embedding_layer = tfkl.Embedding(
                     cardinality, 
                     embedding_dim,
-                    embedding_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda)
+                    embeddings_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda)
                 )(input_layer)
             rnn_inputs.append(input_layer)
             rnn_embeddings.append(embedding_layer)
