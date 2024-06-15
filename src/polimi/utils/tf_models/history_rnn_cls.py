@@ -20,11 +20,10 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         self,
         categorical_features: list[str] = None,
         numerical_features: list[str] = None,
-        categorical_transform: str = 'embeddings',
-        numerical_transform: str = 'quantile-normal',
         use_gaussian_noise: bool = False,
         gaussian_noise_std: float = 0.01,
         max_categorical_embedding_dim: int = 50,
+        vocabulary_sizes: Dict[str, int] = None,
         verbose: bool = False, 
         model_name: str = 'model',
         random_seed: int = 42,
@@ -39,15 +38,17 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         dense_units_decay: int = 2,
         dense_dropout_rate: float = 0.1,
         dense_activation: str = 'relu',
-        **kwargs
     ):
         
-        super(TemporalHistoryClassificationModel, self).__init__(categorical_features=categorical_features, numerical_features=numerical_features,
-                                                                 categorical_transform=categorical_transform, numerical_transform=numerical_transform,
-                                                                 use_gaussian_noise=use_gaussian_noise, gaussian_noise_std=gaussian_noise_std, 
-                                                                 max_categorical_embedding_dim=max_categorical_embedding_dim,
-                                                                 verbose=verbose, model_name=model_name, random_seed=random_seed, **kwargs)
-        
+        self.categorical_features = categorical_features
+        self.numerical_features = numerical_features
+        self.use_gaussian_noise = use_gaussian_noise
+        self.gaussian_noise_std = gaussian_noise_std
+        self.max_categorical_embedding_dim = max_categorical_embedding_dim
+        self.vocabulary_sizes = vocabulary_sizes
+        self.verbose = verbose
+        self.model_name = model_name
+        self.random_seed = random_seed
         self.seq_embedding_dims = seq_embedding_dims
         self.seq_numerical_features = seq_numerical_features
         self.n_recurrent_layers = n_recurrent_layers
@@ -60,35 +61,65 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         self.dense_dropout_rate = dense_dropout_rate
         self.dense_activation = dense_activation
         
-    def _build(self):
-        inputs_dense, x0 = self._build_input_layers()
+    def _build_dense_input_layers(self):
+        inputs = {}
+        concat_inputs = []
+        if len(self.numerical_features) > 0:
+            numeric_input_layer = tfkl.Input(shape=(len(self.numerical_features),), name='numerical_columns')
+            inputs['numerical_columns'] = numeric_input_layer
+            concat_inputs.append(numeric_input_layer)
         
-        rnn_inputs = []
+        if len(self.categorical_features) > 0:
+            
+            embedding_layers = []
+            for feature in self.categorical_features:
+                vocabulary_size = self.vocabulary_sizes[feature]
+                embedding_dim = min(self.max_categorical_embedding_dim, (vocabulary_size + 1) // 2)
+                cat_input = tfkl.Input(shape=(1,), name=feature)
+                inputs[feature] = cat_input
+                embedding_layer = tfkl.Embedding(input_dim=vocabulary_size + 1, output_dim=embedding_dim)(cat_input)
+                flatten_layer = tfkl.Flatten()(embedding_layer)
+                embedding_layers.append(flatten_layer)
+            concat_inputs += embedding_layers
+                
+        if len(concat_inputs) > 1:
+            encoded_inputs = tfkl.Concatenate()(concat_inputs)
+        else:
+            encoded_inputs = concat_inputs[0]
+            
+        if self.use_gaussian_noise:
+            encoded_inputs = tfkl.GaussianNoise(self.gaussian_noise_std, name='GaussianNoise')(encoded_inputs)
+            
+        return inputs, encoded_inputs
+        
+    def _build(self):
+        inputs, x0 = self._build_dense_input_layers()
+
         rnn_embeddings = []
         self.recurrent_features = []
         for feature_name, (cardinality, embedding_dim, is_multi_hot_vector) in self.seq_embedding_dims.items():
             self.recurrent_features.append(feature_name)
             if is_multi_hot_vector:
-                input_layer = tfkl.Input(shape=(None, cardinality), name=f'{feature_name}_Input')
+                input_layer = tfkl.Input(shape=(None, cardinality), name=feature_name)
                 embedding_layer = SequenceMultiHotEmbeddingLayer(
                     cardinality, 
                     embedding_dim,
                     embeddings_regularizer=tfk.regularizers.L1L2(l1=self.l1_lambda, l2=self.l2_lambda)
                 )(input_layer)
             else:
-                input_layer = tfkl.Input(shape=(None,), name=f'{feature_name}_Input')
+                input_layer = tfkl.Input(shape=(None,), name=feature_name)
                 embedding_layer = tfkl.Embedding(
                     cardinality, 
                     embedding_dim,
                     embeddings_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda)
                 )(input_layer)
-            rnn_inputs.append(input_layer)
+            inputs[feature_name] = input_layer
             rnn_embeddings.append(embedding_layer)
             
-        numerical_sequence_input = tfkl.Input(shape=(None, len(self.seq_numerical_features)), name=f'{feature_name}_Input')
-        rnn_inputs.append(numerical_sequence_input)
+        numerical_sequence_input = tfkl.Input(shape=(None, len(self.seq_numerical_features)), name='Input_numerical')
+        inputs['Input_numerical'] = numerical_sequence_input
         rnn_embeddings.append(numerical_sequence_input)
-        embeddings_rnn = tfkl.Concatenate(axis=-1)(rnn_embeddings)
+        embeddings_rnn = tfkl.Concatenate(axis=-1)(rnn_embeddings)            
         
         x_recurrent = embeddings_rnn
         for _ in range(self.n_recurrent_layers - 1):
@@ -97,8 +128,8 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         x_recurrent = tfkl.GRU(self.recurrent_embedding_dim, return_sequences=False)(x_recurrent)
         x = tfkl.Concatenate(axis=-1)([x0, x_recurrent])
         
-        units = self.start_units
-        for i in range(self.n_layers):
+        units = self.dense_start_units
+        for i in range(self.dense_n_layers):
             x = tfkl.Dense(
                 units=units,
                 kernel_initializer=tfk.initializers.HeNormal(seed=self.random_seed),
@@ -106,9 +137,9 @@ class TemporalHistoryClassificationModel(TabularNNModel):
                 name=f'Dense{i}'
             )(x)
             x = tfkl.BatchNormalization(name=f'BatchNormalization{i}')(x)
-            x = tfkl.Activation(self.activation, name=f'Activation{i}')(x)
-            x = tfkl.Dropout(self.dropout_rate, name=f'Dropout{i}')(x)
-            units = int(units / self.units_decay)
+            x = tfkl.Activation(self.dense_activation, name=f'Activation{i}')(x)
+            x = tfkl.Dropout(self.dense_dropout_rate, name=f'Dropout{i}')(x)
+            units = int(units / self.dense_units_decay)
 
         outputs = tfkl.Dense(
             units=1,
@@ -117,13 +148,12 @@ class TemporalHistoryClassificationModel(TabularNNModel):
             name='OutputDense',
             activation='sigmoid'
         )(x)
-        self.model = tfk.Model(inputs=rnn_inputs + inputs_dense, outputs=outputs)
+        self.model = tfk.Model(inputs=inputs, outputs=outputs)
         
     def fit(
         self, 
-        X: Tuple[pd.DataFrame, Dict[str, np.array]], 
-        y: Union[np.array, pd.Series],
-        validation_data: Tuple = None,
+        train_dataset: tf.data.Dataset,
+        validation_data: tf.data.Dataset = None,
         early_stopping_rounds: int = 1,
         batch_size: int = 256,
         epochs: int = 1,
@@ -134,56 +164,12 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         early_stopping_mode: str = 'auto',
         lr_scheduler: Union[callable, tfk.callbacks.Callback] = None,
         save_checkpoints: bool = True,
-        checkpoint_dir: str = None,
-        free_raw_data: bool = True
-    ):       
-        inputs = []
-        if len(self.numerical_features) > 0:
-            self._build_numerical_transformer()
-            X[0][self.numerical_features] = X[0][self.numerical_features].replace([-np.inf, np.inf], np.nan).fillna(0)
-            if self.xformer is not None:
-                X_train_numerical = self.xformer.fit_transform(
-                    X[0][self.numerical_features],
-                    y
-                ).astype(np.float32)
-            else:
-                X_train_numerical = X[self.numerical_features].values.astype(np.float32)
-            inputs.append(X_train_numerical)
-            
-        if len(self.categorical_features) > 0:
-            self.vocabulary_sizes = {}
-            self.categories = []
-            for f in self.categorical_features:
-                X[0][f] = X[0][f].astype(str).fillna('NA')
-                categories_train = list(X[f].unique())
-                if 'NA' not in categories_train:
-                    categories_train.append('NA')
-                self.categories.append(categories_train)
-                self.vocabulary_sizes[f] = len(categories_train)
-            self._build_categorical_encoder()
-            X_train_categorical = self.encoder.fit_transform(X[self.categorical_features], y).astype(np.int16)
-            if self.categorical_transform == 'embeddings':
-                inputs += [X_train_categorical[:, i].reshape(-1, 1) for i in range(len(self.categorical_features))]
-            else:
-                inputs.append(X_train_categorical)
-                
-        inputs.append([X[1][feature] for feature in self.recurrent_features])
-                
-        logging.info('Fitted data preprocessors')
-        if free_raw_data:
-            del X
-            gc.collect()
-        
-        if len(inputs) == 1:
-            inputs = inputs[0]
+        checkpoint_dir: str = None
+    ):      
+        if self.model is None:
+            self._build() 
             
         if validation_data is not None:
-            logging.info('Transforming validation data')
-            X_val, y_val = validation_data
-            validation_data = (self._transform_test_data(X_val), y_val)
-            if free_raw_data:
-                del X_val
-                gc.collect()
                 
             logging.info(f'Training with early stopping patience {early_stopping_rounds}')
             early_stopping = tfk.callbacks.EarlyStopping(
@@ -205,9 +191,6 @@ class TemporalHistoryClassificationModel(TabularNNModel):
                 
         callbacks.append(tfk.callbacks.TerminateOnNaN())
                 
-        if self.model is None:
-            self._build()
-                
         self.model.compile(
             loss=loss,
             optimizer=optimizer,
@@ -228,8 +211,7 @@ class TemporalHistoryClassificationModel(TabularNNModel):
                 save_best_only=True))
             
         fit_history = self.model.fit(
-            inputs,
-            y,
+            train_dataset,
             batch_size=batch_size,
             epochs=epochs,
             validation_data=validation_data,
@@ -243,25 +225,17 @@ class TemporalHistoryClassificationModel(TabularNNModel):
             self.model.load_weights(os.path.join(checkpoint_dir, 'checkpoint.weights.h5'))
             pd.DataFrame.from_dict(fit_history).to_csv(os.path.join(checkpoint_dir, 'history.csv'), index=False)
         
-    def predict(self, X, batch_size=256, **kwargs):
-        inputs = self._transform_test_data(X[0])
-        inputs.append([X[1][feature] for feature in self.recurrent_features])
-        return self.model.predict(inputs, batch_size=batch_size, **kwargs)
+    def predict(self, test_dataset, batch_size=256, **kwargs):
+        return self.model.predict(test_dataset, batch_size=batch_size, **kwargs)
     
     def save(self, directory, with_model=True):
         '''Pass with model=False only if saving before fit'''
         if with_model:
             self.model.save(os.path.join(directory, f'{self.model_name}.keras'))
-        if self.encoder is not None:
-            joblib.dump(self.encoder, os.path.join(directory, 'categorical_encoder.joblib'))
-        if self.xformer is not None:
-            joblib.dump(self.xformer, os.path.join(directory, 'numerical_transformer.joblib'))
         features_info = {
             'numerical_features': self.numerical_features,
             'categorical_features': self.categorical_features,
             'recurrent_features': self.recurrent_features,
-            'with_xformer': self.xformer is not None,
-            'with_encoder': self.encoder is not None,
         }
         with open(os.path.join(directory, 'features_info.json'), 'w') as features_file:
             json.dump(features_info, features_file)
@@ -273,16 +247,5 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         self.numerical_features = features_info['numerical_features']
         self.categorical_features = features_info['categorical_features']
         self.recurrent_features = features_info['recurrent_features']
-        if len(self.numerical_features) > 0 and features_info['with_xformer']:
-            try:
-                self.xformer = joblib.load(os.path.join(directory, 'numerical_transformer.joblib'))
-            except Exception:
-                raise ValueError(f'Numerical transformer not found in {directory}')
-        if len(self.categorical_features) > 0 and features_info['with_encoder']:
-            try:
-                self.encoder = joblib.load(os.path.join(directory, 'categorical_encoder.joblib'))
-            except Exception:
-                raise ValueError(f'Categorical encoder not found in {directory}')
-            self.categories = self.encoder.categories_
         
         
