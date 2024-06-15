@@ -217,6 +217,10 @@ class TabularNNModel(ABC):
         
     def summary(self, expand_nested=True, **kwargs):
         self.model.summary(expand_nested=expand_nested, **kwargs)
+    
+    def plot(self, dpi:int=50, expand_nested:bool=True, show_shapes:bool=True):
+        assert self.model is not None, 'Model not compiled yet'
+        return tfk.utils.plot_model(self.model, expand_nested=expand_nested, show_shapes=show_shapes, dpi=dpi)
 
     def save(self, directory, with_model=True):
         '''Pass with model=False only if saving before fit'''

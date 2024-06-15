@@ -60,25 +60,27 @@ class TemporalHistorySequenceModel(TabularNNModel):
             inputs[feature_name] = input_layer
             rnn_embeddings.append(embedding_layer)
             
-        numerical_sequence_input = tfkl.Input(shape=(None, len(self.seq_numerical_features)), name='Input_numerical')
-        inputs['Input_numerical'] = numerical_sequence_input
+        numerical_sequence_input = tfkl.Input(shape=(None, len(self.seq_numerical_features)), name='input_numerical')
+        inputs['input_numerical'] = numerical_sequence_input
         rnn_embeddings.append(numerical_sequence_input)
         embeddings_rnn = tfkl.Concatenate(axis=-1)(rnn_embeddings)
         
         x_recurrent = embeddings_rnn
         for _ in range(self.n_recurrent_layers - 1):
-            x_recurrent = tfkl.GRU(self.recurrent_embedding_dim, return_sequences=True)(x_recurrent)
+            x_recurrent = tfkl.GRU(self.recurrent_embedding_dim, return_sequences=True, use_bias=False)(x_recurrent)
             
-        x_recurrent = tfkl.GRU(self.recurrent_embedding_dim, return_sequences=False)(x_recurrent)
+        x_recurrent = tfkl.GRU(self.recurrent_embedding_dim, return_sequences=False, use_bias=False)(x_recurrent)
         
         outputs = []
-        self.outputs_feature_names = [feature_name for feature_name in ['topics', 'subcategory', 'category', 'sentiment_label'] if f'Input_{feature_name}' in self.recurrent_features]
+        self.outputs_feature_names = [feature_name for feature_name in ['topics', 'subcategory', 'category', 'sentiment_label'] if f'input_{feature_name}' in self.recurrent_features]
         for feature_name in self.outputs_feature_names:
             features_output = tfkl.Dense(
-                units=self.seq_embedding_dims[f'Input_{feature_name}'][0],
+                units=self.seq_embedding_dims[f'input_{feature_name}'][0],
                 kernel_initializer=tfk.initializers.HeNormal(seed=self.random_seed),
                 kernel_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda),
-                name=f'Output_{feature_name}'
+                name=f'output_{feature_name}',
+                use_bias=False,
+                activation='sigmoid' if self.seq_embedding_dims[f'input_{feature_name}'][2] else 'softmax'
             )(x_recurrent)
             outputs.append(features_output)
             
