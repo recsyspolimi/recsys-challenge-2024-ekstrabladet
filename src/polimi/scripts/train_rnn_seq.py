@@ -9,7 +9,7 @@ import os
 from datetime import datetime
 
 from polimi.utils.tf_models.utils.build_sequences import build_history_seq, build_sequences_seq_iterator, N_CATEGORY, N_SENTIMENT_LABEL, N_SUBCATEGORY, N_TOPICS, N_HOUR_GROUP, N_WEEKDAY
-from polimi.utils.tf_models import TemporalHistorySequenceModel, TemporalHistoryClassificationModel
+from polimi.utils.tf_models import TemporalHistoryClassificationModel, TemporalHistorySequenceModel
 
 seed = 42
 np.random.seed(seed)
@@ -18,31 +18,49 @@ tf.autograph.set_verbosity(0)
 tf.get_logger().setLevel(logging.ERROR)
 tf.random.set_seed(seed)
 
+LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
+import logging
+
 
 if __name__ == '__main__':
-    history = pl.read_parquet('/home/ubuntu/dataset/ebnerd_small/train/history.parquet')
-    articles = pl.read_parquet('/home/ubuntu/dataset/ebnerd_small/articles.parquet')
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    save_dir = f'/home/ubuntu/experiments/rnn_seq_{timestamp}'
+    os.makedirs(save_dir)
+    
+    log_path = os.path.join(save_dir, "log.txt")
+    logging.basicConfig(filename=log_path, filemode="w", format=LOGGING_FORMATTER, level=logging.INFO, force=True)
+    stdout_handler = logging.StreamHandler()
+    stdout_handler.setFormatter(logging.Formatter(LOGGING_FORMATTER))
+    root_logger = logging.getLogger()
+    root_logger.addHandler(stdout_handler)
+    
+    dtype='ebnerd_large'
+    logging.info(f'Reading dataset {dtype}')
+    history = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/train/history.parquet')
+    articles = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/articles.parquet')
 
+    logging.info('Building history seq...')
     history_seq = build_history_seq(history, articles)
+    logging.info('...done')
     window = 20
     stride = 10
 
     # Define the output signature for the tuple of dictionaries
     output_signature = (
         {
-            "input_topics": tf.TensorSpec(shape=(window,N_TOPICS+1), dtype=tf.int32),
-            "input_category": tf.TensorSpec(shape=(window,1), dtype=tf.int32),
-            'input_subcategory': tf.TensorSpec(shape=(window, N_SUBCATEGORY+1), dtype=tf.int32), # subcategory
-            'input_weekday': tf.TensorSpec(shape=(window, 1), dtype=tf.int32), # weekday
-            'input_hour_group': tf.TensorSpec(shape=(window, 1), dtype=tf.int32), # hour_group
-            'input_sentiment_label': tf.TensorSpec(shape=(window, 1), dtype=tf.int32), # sentiment_label
+            "input_topics": tf.TensorSpec(shape=(window,N_TOPICS+1), dtype=tf.int16),
+            "input_category": tf.TensorSpec(shape=(window,1), dtype=tf.int16),
+            'input_subcategory': tf.TensorSpec(shape=(window, N_SUBCATEGORY+1), dtype=tf.int16), # subcategory
+            'input_weekday': tf.TensorSpec(shape=(window, 1), dtype=tf.int16), # weekday
+            'input_hour_group': tf.TensorSpec(shape=(window, 1), dtype=tf.int16), # hour_group
+            'input_sentiment_label': tf.TensorSpec(shape=(window, 1), dtype=tf.int16), # sentiment_label
             'input_numerical': tf.TensorSpec(shape=(window, 3), dtype=tf.float32), # (premium, read_time, scroll_percentage)
         },
         {
-            "output_topics": tf.TensorSpec(shape=(N_TOPICS + 1,), dtype=tf.int32),
-            "output_category": tf.TensorSpec(shape=(N_CATEGORY + 1, ), dtype=tf.int32),
-            'output_subcategory': tf.TensorSpec(shape=(N_SUBCATEGORY + 1,), dtype=tf.int32), # subcategory
-            'output_sentiment_label': tf.TensorSpec(shape=(N_SENTIMENT_LABEL + 1,), dtype=tf.int32), # sentiment_label
+            "output_topics": tf.TensorSpec(shape=(N_TOPICS + 1,), dtype=tf.int16),
+            "output_category": tf.TensorSpec(shape=(N_CATEGORY + 1, ), dtype=tf.int16),
+            'output_subcategory': tf.TensorSpec(shape=(N_SUBCATEGORY + 1,), dtype=tf.int16), # subcategory
+            'output_sentiment_label': tf.TensorSpec(shape=(N_SENTIMENT_LABEL + 1,), dtype=tf.int16), # sentiment_label
         }
     )
 
@@ -52,7 +70,7 @@ if __name__ == '__main__':
         output_signature=output_signature
     )
     # first shuffle, then batch, otherwise the buffer size will be the number of batches, not the number of samples
-    dataset = dataset.shuffle(buffer_size=65536).batch(128)
+    dataset = dataset.shuffle(buffer_size=65536//10).batch(128)
 
     model = TemporalHistorySequenceModel(
         seq_embedding_dims={
@@ -70,10 +88,10 @@ if __name__ == '__main__':
         l1_lambda=1e-4,
         l2_lambda=1e-4,
     )
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    save_dir = f'/home/ubuntu/experiments/rnn_seq_{timestamp}'
     checkpoint_dir = f'{save_dir}/checkpoints'
     os.makedirs(checkpoint_dir)
+    logging.info(f'Starting training and saving to {save_dir}')
+    
     model.fit(
         train_dataset=dataset,
         batch_size=256,

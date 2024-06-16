@@ -54,7 +54,7 @@ def build_history_seq(history: pl.DataFrame, articles: pl.DataFrame, batch_size=
     articles_p = articles_p.join(dummies_topics, on='article_id', how='left')\
         .join(dummies_subcategories, on='article_id', how='left')\
         .drop('topics', 'subcategory')
-    articles_p = reduce_polars_df_memory_size(articles_p)
+    articles_p = reduce_polars_df_memory_size(articles_p, verbose=False)
     
     
     history_seq = pl.concat([
@@ -118,12 +118,12 @@ def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride:
             y_i = x[:, -1]
             
             for key, idx in name_idx_dict.items():
-                res_x[f'input_{key}'] = padded_x[idx, :].T
+                res_x[f'input_{key}'] = padded_x[idx, :].T.astype(np.float32 if key in numerical_cols else np.int16)
                 if key not in remove_from_output:
                     y_i_key = y_i[idx].T
                     if key in categorical_cols:
                         y_i_key = tf.keras.utils.to_categorical(y_i_key, num_classes=caterical_cols_num_classes[key]).reshape(-1)
-                    res_y[f'output_{key}'] = y_i_key
+                    res_y[f'output_{key}'] = y_i_key.astype(np.float32 if key in numerical_cols else np.int16)
             yield res_x, res_y  
             
         else:
@@ -148,12 +148,12 @@ def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride:
                 y_i = x[:, target_id]
                 
                 for key, idx in name_idx_dict.items():
-                    res_x[f'input_{key}'] = x_i[idx, :].T   
+                    res_x[f'input_{key}'] = x_i[idx, :].T.astype(np.float32 if key in numerical_cols else np.int16)
                     if key not in remove_from_output:                 
                         y_i_key = y_i[idx].T
                         if key in categorical_cols:
                             y_i_key = tf.keras.utils.to_categorical(y_i_key, num_classes=caterical_cols_num_classes[key]).reshape(-1)
-                        res_y[f'output_{key}'] = y_i_key
+                        res_y[f'output_{key}'] = y_i_key.astype(np.float32 if key in numerical_cols else np.int16)
                 yield res_x, res_y                
                 i+=stride
                          
