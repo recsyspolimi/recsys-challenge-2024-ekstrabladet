@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     # Create the dataset from the generator
     dataset = tf.data.Dataset.from_generator(
-        lambda: build_sequences_seq_iterator(history_seq, window=window, stride=stride, target_telescope_type='next'),
+        lambda: build_sequences_seq_iterator(history_seq, window=window, stride=stride, target_telescope_type='random_same_day'),
         output_signature=output_signature
     )
     # first shuffle, then batch, otherwise the buffer size will be the number of batches, not the number of samples
@@ -77,7 +77,7 @@ if __name__ == '__main__':
     model.fit(
         train_dataset=dataset,
         batch_size=256,
-        epochs=1,
+        epochs=5,
         # target for (topics, subcategory, category)
         loss={
             'output_topics': tfk.losses.BinaryCrossentropy(), 
