@@ -7,6 +7,7 @@ import logging
 import random
 import os
 from datetime import datetime
+import gc
 
 from polimi.utils.tf_models.utils.build_sequences import build_history_seq, build_sequences_seq_iterator, N_CATEGORY, N_SENTIMENT_LABEL, N_SUBCATEGORY, N_TOPICS, N_HOUR_GROUP, N_WEEKDAY
 from polimi.utils.tf_models import TemporalHistoryClassificationModel, TemporalHistorySequenceModel
@@ -34,17 +35,36 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    dtype='ebnerd_large'
+    dtype='ebnerd_testset'
+    dsplit = 'test'
     logging.info(f'Reading dataset {dtype}')
-    history = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/train/history.parquet')
+    history_train = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/{dsplit}/history.parquet')
+    # history_val = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/validation/history.parquet')
     articles = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/articles.parquet')
-
-    logging.info('Building history seq...')
-    history_seq = build_history_seq(history, articles)
-    logging.info('...done')
+    
+    #Sampling
+    gap = 0.2
+    history_train = history_train.filter(
+        pl.col('article_id_fixed').list.len() >= pl.col('article_id_fixed').list.len().quantile(gap),
+        pl.col('article_id_fixed').list.len() <= pl.col('article_id_fixed').list.len().quantile(1-gap), 
+    )
+    # history_val = history_val.filter(
+    #     pl.col('article_id_fixed').list.len() >= pl.col('article_id_fixed').list.len().quantile(gap),
+    #     pl.col('article_id_fixed').list.len() <= pl.col('article_id_fixed').list.len().quantile(1-gap), 
+    # )
+    logging.info(f'Sampled {len(history_train)} users out of {len(history_train)}...')
+    
     window = 20
     stride = 10
-
+    
+    logging.info('Building history seq...')
+    history_seq_train = build_history_seq(history_train, articles)
+    # history_seq_val = build_history_seq(history_val, articles)
+    logging.info('...done')
+    
+    del history_train, articles
+    gc.collect()
+    
     # Define the output signature for the tuple of dictionaries
     output_signature = (
         {
@@ -64,13 +84,23 @@ if __name__ == '__main__':
         }
     )
 
+    batch_size=128
+    buffer_size=65536
     # Create the dataset from the generator
-    dataset = tf.data.Dataset.from_generator(
-        lambda: build_sequences_seq_iterator(history_seq, window=window, stride=stride, target_telescope_type='random_same_day'),
+    dataset_train = tf.data.Dataset.from_generator(
+        lambda: build_sequences_seq_iterator(history_seq_train, window=window, stride=stride, target_telescope_type='random_same_day'),
         output_signature=output_signature
     )
     # first shuffle, then batch, otherwise the buffer size will be the number of batches, not the number of samples
-    dataset = dataset.shuffle(buffer_size=65536//10).batch(128)
+    dataset_train = dataset_train.shuffle(buffer_size=buffer_size).batch(batch_size)
+    
+    # # Create the dataset from the generator
+    # dataset_val = tf.data.Dataset.from_generator(
+    #     lambda: build_sequences_seq_iterator(history_seq_val, window=window, stride=stride, target_telescope_type='random_same_day'),
+    #     output_signature=output_signature
+    # )
+    # # first shuffle, then batch, otherwise the buffer size will be the number of batches, not the number of samples
+    # dataset_val = dataset_val.batch(batch_size)
 
     model = TemporalHistorySequenceModel(
         seq_embedding_dims={
@@ -93,9 +123,11 @@ if __name__ == '__main__':
     logging.info(f'Starting training and saving to {save_dir}')
     
     model.fit(
-        train_dataset=dataset,
-        batch_size=256,
-        epochs=5,
+        train_dataset=dataset_train,
+        # validation_data=dataset_val,
+        early_stopping_rounds=2,
+        batch_size=None,
+        epochs=10,
         # target for (topics, subcategory, category)
         loss={
             'output_topics': tfk.losses.BinaryCrossentropy(), 
