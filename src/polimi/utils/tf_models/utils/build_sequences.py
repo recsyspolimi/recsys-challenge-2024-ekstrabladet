@@ -4,6 +4,7 @@ from tqdm import tqdm
 import numpy as np
 import tensorflow as tf
 from typing_extensions import List
+from datetime import timedelta
 
 
 N_CATEGORY = 32
@@ -83,7 +84,7 @@ def build_history_seq(history: pl.DataFrame, articles: pl.DataFrame, batch_size=
 
 # Return dict with key = name_feature and value the tuple (X, y) containing the input/output sequence
 def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride: int, target_telescope_type:str = 'random_same_day'):
-    assert target_telescope_type in ['random_same_day', 'next', 'random']
+    assert target_telescope_type in ['random_same_day', 'next', 'random_max_7', 'random']
     all_features = history_seq.drop('user_id').columns
     
     multi_one_hot_cols = ['topics', 'subcategory']
@@ -136,14 +137,21 @@ def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride:
                     last_window_date = x_i[impression_time_idx][-1]
                     max_telescope = max([
                         t for t in range(i+window+1, x.shape[1]) 
-                            if x[:, t][impression_time_idx].month == last_window_date.month and 
-                                x[:, t][impression_time_idx].day == last_window_date.day
+                            if (x[:, t][impression_time_idx] - last_window_date) <= timedelta(days=1, minutes=0, seconds=0)
                     ], default=i+window)
                     target_id = np.random.randint(i+window, max_telescope+1)
                 elif target_telescope_type == 'next':
                     target_id = i+window
-                else:
+                elif target_telescope_type == 'random':
                     target_id = np.random.randint(i+window, x.shape[1])
+                elif target_telescope_type == 'random_max_7':
+                    last_window_date = x_i[impression_time_idx][-1]
+                    max_telescope = max([
+                        t for t in range(i+window+1, x.shape[1]) 
+                            if (x[:, t][impression_time_idx] - last_window_date) <= timedelta(days=7, minutes=0, seconds=0)
+                    ], default=i+window)
+                    target_id = np.random.randint(i+window, max_telescope+1)
+                    
                 
                 y_i = x[:, target_id]
                 
