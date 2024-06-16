@@ -25,7 +25,7 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         max_categorical_embedding_dim: int = 50,
         vocabulary_sizes: Dict[str, int] = None,
         verbose: bool = False, 
-        model_name: str = 'model',
+        model_name: str = 'TemporalHistoryClassificationModel',
         random_seed: int = 42,
         seq_embedding_dims: Dict[str, Tuple[int, int, bool]] = None, # feature: (cardinality, embedding_dim, is_multi_hot_vector)
         seq_numerical_features: List[str] = None,
@@ -60,6 +60,7 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         self.dense_units_decay = dense_units_decay
         self.dense_dropout_rate = dense_dropout_rate
         self.dense_activation = dense_activation
+        self.model = None
         
     def _build_dense_input_layers(self):
         inputs = {}
@@ -116,8 +117,8 @@ class TemporalHistoryClassificationModel(TabularNNModel):
             inputs[feature_name] = input_layer
             rnn_embeddings.append(embedding_layer)
             
-        numerical_sequence_input = tfkl.Input(shape=(None, len(self.seq_numerical_features)), name='Input_numerical')
-        inputs['Input_numerical'] = numerical_sequence_input
+        numerical_sequence_input = tfkl.Input(shape=(None, len(self.seq_numerical_features)), name='input_numerical')
+        inputs['input_numerical'] = numerical_sequence_input
         rnn_embeddings.append(numerical_sequence_input)
         embeddings_rnn = tfkl.Concatenate(axis=-1)(rnn_embeddings)            
         
@@ -230,8 +231,6 @@ class TemporalHistoryClassificationModel(TabularNNModel):
     
     def save(self, directory, with_model=True):
         '''Pass with model=False only if saving before fit'''
-        if with_model:
-            self.model.save(os.path.join(directory, f'{self.model_name}.keras'))
         features_info = {
             'numerical_features': self.numerical_features,
             'categorical_features': self.categorical_features,
@@ -239,6 +238,8 @@ class TemporalHistoryClassificationModel(TabularNNModel):
         }
         with open(os.path.join(directory, 'features_info.json'), 'w') as features_file:
             json.dump(features_info, features_file)
+        if with_model:
+            self.model.save(os.path.join(directory, f'{self.model_name}.keras'))
             
     def load(self, directory):
         self.model = tfk.models.load_model(os.path.join(directory, f'{self.model_name}.keras'))

@@ -6,7 +6,6 @@ from tensorflow.keras import saving
 
 @saving.register_keras_serializable(package="MyLayers", name="SequenceEmbeddingLayer")
 class SequenceMultiHotEmbeddingLayer(tfkl.Layer):
-    
     def __init__(
         self,
         cardinality: int,
@@ -39,3 +38,20 @@ class SequenceMultiHotEmbeddingLayer(tfkl.Layer):
         elif self.pool_mode == 'sum':
             x = tfk.ops.sum(x, axis=-2)
         return x
+    
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'cardinality': self.cardinality,
+            'embedding_dim': self.embedding_dim,
+            'pool_mode': self.pool_mode,
+            'embeddings_regularizer': tf.keras.regularizers.serialize(self.embeddings_regularizer)
+        })
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        config['embeddings_regularizer'] = tf.keras.regularizers.deserialize(config['embeddings_regularizer'])
+        return cls(**config)
+    
+    

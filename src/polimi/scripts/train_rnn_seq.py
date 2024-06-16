@@ -6,6 +6,7 @@ import numpy as np
 import logging
 import random
 import os
+from datetime import datetime
 
 from polimi.utils.tf_models.utils.build_sequences import build_history_seq, build_sequences_seq_iterator, N_CATEGORY, N_SENTIMENT_LABEL, N_SUBCATEGORY, N_TOPICS, N_HOUR_GROUP, N_WEEKDAY
 from polimi.utils.tf_models import TemporalHistorySequenceModel, TemporalHistoryClassificationModel
@@ -47,7 +48,7 @@ if __name__ == '__main__':
 
     # Create the dataset from the generator
     dataset = tf.data.Dataset.from_generator(
-        lambda: build_sequences_seq_iterator(history_seq, window=window, stride=stride),
+        lambda: build_sequences_seq_iterator(history_seq, window=window, stride=stride, target_telescope_type='next'),
         output_signature=output_signature
     )
     # first shuffle, then batch, otherwise the buffer size will be the number of batches, not the number of samples
@@ -69,12 +70,14 @@ if __name__ == '__main__':
         l1_lambda=1e-4,
         l2_lambda=1e-4,
     )
-    
-    os.makedirs('/home/ubuntu/experiments/rnn_seq/checkpoints')
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    save_dir = f'/home/ubuntu/experiments/rnn_seq_{timestamp}'
+    checkpoint_dir = f'{save_dir}/checkpoints'
+    os.makedirs(checkpoint_dir)
     model.fit(
         train_dataset=dataset,
         batch_size=256,
-        epochs=5,
+        epochs=1,
         # target for (topics, subcategory, category)
         loss={
             'output_topics': tfk.losses.BinaryCrossentropy(), 
@@ -90,7 +93,7 @@ if __name__ == '__main__':
         },
         optimizer=tfk.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-3, clipvalue=1.0),
         save_checkpoints=True,
-        checkpoint_dir='/home/ubuntu/experiments/rnn_seq/checkpoints'
+        checkpoint_dir=checkpoint_dir
     )
     
-    model.save('/home/ubuntu/experiments/rnn_seq')
+    model.save(save_dir)

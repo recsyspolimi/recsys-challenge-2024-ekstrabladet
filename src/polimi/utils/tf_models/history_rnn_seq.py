@@ -35,6 +35,7 @@ class TemporalHistorySequenceModel(TabularNNModel):
         self.l2_lambda = l2_lambda
         self.random_seed = random_seed
         self.model = None
+        self.model_name = 'TemporalHistorySequenceModel'
         
     def _build(self):
 
@@ -84,7 +85,7 @@ class TemporalHistorySequenceModel(TabularNNModel):
             )(x_recurrent)
             outputs.append(features_output)
             
-        self.model = tfk.Model(inputs=inputs, outputs=outputs)     
+        self.model = tfk.Model(inputs=inputs, outputs=outputs, name='TemporalHistorySequenceModel')     
         
     def fit(
         self, 
@@ -92,7 +93,7 @@ class TemporalHistorySequenceModel(TabularNNModel):
         validation_data: tf.data.Dataset = None,
         early_stopping_rounds: int = 1,
         batch_size: int = 256,
-        epochs: int = 1,
+        epochs: int = 5,
         optimizer: tfk.optimizers.Optimizer = None, 
         loss: Union[tfk.losses.Loss, List[tfk.losses.Loss]] = None, 
         loss_weights: List[float] = None,
@@ -169,13 +170,13 @@ class TemporalHistorySequenceModel(TabularNNModel):
     
     def save(self, directory, with_model=True):
         '''Pass with model=False only if saving before fit'''
-        if with_model:
-            self.model.save(os.path.join(directory, f'{self.model_name}.keras'))
         features_info = {
             'recurrent_features': self.recurrent_features,
         }
         with open(os.path.join(directory, 'features_info.json'), 'w') as features_file:
             json.dump(features_info, features_file)
+        if with_model:
+            self.model.save(os.path.join(directory, f'{self.model_name}.keras'))
             
     def load(self, directory):
         self.model = tfk.models.load_model(os.path.join(directory, f'{self.model_name}.keras'))

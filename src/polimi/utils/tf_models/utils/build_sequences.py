@@ -3,6 +3,7 @@ from polimi.utils._polars import reduce_polars_df_memory_size
 from tqdm import tqdm
 import numpy as np
 import tensorflow as tf
+from typing_extensions import List
 
 
 N_CATEGORY = 32
@@ -65,8 +66,7 @@ def build_history_seq(history: pl.DataFrame, articles: pl.DataFrame, batch_size=
             .with_columns(
                 (pl.col('impression_time_fixed').dt.hour() // 4).alias('hour_group'),
                 pl.col('impression_time_fixed').dt.weekday().sub(1).alias('weekday'), #sub 1 to have from [0, 6]
-            ).drop('impression_time_fixed')\
-            .rename({'scroll_percentage_fixed': 'scroll_percentage', 'read_time_fixed': 'read_time'})
+            ).rename({'scroll_percentage_fixed': 'scroll_percentage', 'read_time_fixed': 'read_time'})
             .join(articles_p, left_on='article_id_fixed', right_on='article_id', how='left').drop('article_id_fixed')\
             .group_by('user_id').agg(pl.all())
         for slice in history.iter_slices(batch_size)
@@ -80,63 +80,10 @@ def build_history_seq(history: pl.DataFrame, articles: pl.DataFrame, batch_size=
     
     return history_seq
     
-    
 
 # Return dict with key = name_feature and value the tuple (X, y) containing the input/output sequence
-# def build_sequences_seq(history_seq: pl.DataFrame, window: int, stride: int):
-#     all_features = history_seq.drop('user_id').columns
-    
-#     multi_one_hot_cols = ['topics', 'subcategory']
-#     categorical_cols = ['category', 'weekday', 'hour_group', 'sentiment_label']
-#     name_idx_dict = {key: [i for i, col in enumerate(all_features) if col.startswith(key)] for key in multi_one_hot_cols + categorical_cols}
-#     numerical_cols = ['scroll_percentage', 'read_time', 'premium']
-#     name_idx_dict['numerical'] = [i for i, col in enumerate(all_features) if col in numerical_cols]
-        
-#     res = {key: ([], []) for key in name_idx_dict.keys()}
-    
-#     for user_df in tqdm(history_seq.partition_by('user_id', maintain_order=False)): #output order is not consistent with input order, but faster
-#         x = user_df.drop('user_id').to_numpy()[0]
-#         x = np.array([np.array(x_i) for x_i in x])
-                
-#         i = 0
-#         if i + window >= x.shape[1]:
-#             # in case history is shorter than the window then we pad it and select the last element as target
-#             pad_width = window - (x.shape[1] - 1)
-#             pad_m = np.zeros((x.shape[0], pad_width))
-#             padded_x = np.concatenate((pad_m, x[:, :-1]), axis=1)
-#             y_i = x[:, -1]
-            
-#             for key, idx in name_idx_dict.items():
-#                 res[key][0].append(padded_x[idx, :].T)
-#                 res[key][1].append(y_i[idx].T)
-                
-                
-            
-#         else:
-#             while i + window < x.shape[1]:
-#                 # in case history is larger than the window then we select the window and the target randomly between the next elements
-#                 x_i = x[:, i:i+window]
-#                 target_random_id = np.random.randint(i+window, x.shape[1])
-#                 y_i = x[:, target_random_id]
-                
-#                 for key, idx in name_idx_dict.items():
-#                     res[key][0].append(x_i[idx, :].T)
-#                     res[key][1].append(y_i[idx].T)
-                
-#                 i+=stride
-                         
-#             #TODO: add padding for the last sequence, if we want to keep it
-                
-
-#     for key in res.keys():
-#         res[key] = (np.array(res[key][0]), np.array(res[key][1]))
-    
-#     return res
-
-
-
-# Return dict with key = name_feature and value the tuple (X, y) containing the input/output sequence
-def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride: int):
+def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride: int, target_telescope_type:str = 'random_same_day'):
+    assert target_telescope_type in ['random_same_day', 'next', 'random']
     all_features = history_seq.drop('user_id').columns
     
     multi_one_hot_cols = ['topics', 'subcategory']
@@ -153,10 +100,12 @@ def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride:
     numerical_cols = ['scroll_percentage', 'read_time', 'premium']
     name_idx_dict['numerical'] = [i for i, col in enumerate(all_features) if col in numerical_cols]
     remove_from_output = ['weekday', 'hour_group', 'numerical']
+    impression_time_idx = all_features.index('impression_time_fixed')
+
     
     res_x = {}
     res_y = {}
-    for user_df in tqdm(history_seq.partition_by('user_id', maintain_order=False)): #output order is not consistent with input order, but faster
+    for user_df in history_seq.partition_by('user_id', maintain_order=False): #output order is not consistent with input order, but faster
         x = user_df.drop('user_id').to_numpy()[0]
         x = np.array([np.array(x_i) for x_i in x])
                 
@@ -181,8 +130,22 @@ def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride:
             while i + window < x.shape[1]:
                 # in case history is larger than the window then we select the window and the target randomly between the next elements
                 x_i = x[:, i:i+window]
-                target_random_id = np.random.randint(i+window, x.shape[1])
-                y_i = x[:, target_random_id]
+                
+                if target_telescope_type == 'random_same_day':
+                    #get random telescope for an impresssion in the same day as the last one in the window
+                    last_window_date = x_i[impression_time_idx][-1]
+                    max_telescope = max([
+                        t for t in range(i+window+1, x.shape[1]) 
+                            if x[:, t][impression_time_idx].month == last_window_date.month and 
+                                x[:, t][impression_time_idx].day == last_window_date.day
+                    ], default=i+window)
+                    target_id = np.random.randint(i+window, max_telescope+1)
+                elif target_telescope_type == 'next':
+                    target_id = i+window
+                else:
+                    target_id = np.random.randint(i+window, x.shape[1])
+                
+                y_i = x[:, target_id]
                 
                 for key, idx in name_idx_dict.items():
                     res_x[f'input_{key}'] = x_i[idx, :].T   
@@ -198,15 +161,43 @@ def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride:
 
 
 
-def build_sequences_cls_iterator(history_seq: pl.DataFrame, behaviors: pl.DataFrame, window:int):
+def build_sequences_cls_iterator(history_seq: pl.DataFrame, behaviors: pl.DataFrame, window: int, 
+                                 categorical_columns: List[str], numerical_columns: List[str]):
+    all_features = history_seq.drop('user_id').columns
+    
+    multi_one_hot_cols = ['topics', 'subcategory']
+    categorical_cols = ['category', 'weekday', 'hour_group', 'sentiment_label']
+    # caterical_cols_num_classes = {key: history_seq[key].explode().max() + 1 for key in categorical_cols}  #uncomment if you don't want to hardcode
+    caterical_cols_num_classes = {
+        'category': N_CATEGORY + 1,#+1 to handle null values
+        'weekday': N_WEEKDAY,
+        'hour_group': N_HOUR_GROUP,
+        'sentiment_label': N_SENTIMENT_LABEL + 1 #+1 to handle null
+    }
+    #it can be hardcoded if needed
+    name_idx_dict = {key: [i for i, col in enumerate(all_features) if col.startswith(key)] for key in multi_one_hot_cols + categorical_cols}
+    numerical_cols = ['scroll_percentage', 'read_time', 'premium']
+    name_idx_dict['numerical'] = [i for i, col in enumerate(all_features) if col in numerical_cols]
+    
     mask = 0
     history_seq_trucated = history_seq.with_columns(
         pl.all().exclude('user_id').list.reverse().list.eval(pl.element().extend_constant(mask, window)).list.reverse().list.tail(window).name.keep()
     )
     
-    for user_id, user_history in tqdm(history_seq_trucated.partition_by(['user_id'], as_dict=True, maintain_order=False).items()): #order not maintained
+    for user_id, user_history in history_seq_trucated.partition_by(['user_id'], as_dict=True, maintain_order=False).items(): #order not maintained
+        
+        x = user_history.drop('user_id').to_numpy()[0]
+        x = np.array([np.array(x_i) for x_i in x])
+        res_x = {}
+        for key, idx in name_idx_dict.items():
+            res_x[f'input_{key}'] = x[idx, :].T
+                        
         for b in behaviors.filter(pl.col('user_id') == user_id[0]).iter_slices(1):
-            yield (b.drop('target'), user_history, b['target'].item())
+            yield {
+                'numerical_columns': b.select(numerical_columns).to_numpy().flatten(),
+                **{c: b[c].item() for c in categorical_columns},
+                **res_x
+            }, b['target'].item()
         
     
     
