@@ -13,8 +13,9 @@ import logging
 import gc
 
 from polimi.utils.tf_models.utils.build_sequences import build_history_seq,  build_sequences_cls_iterator, N_CATEGORY, N_SENTIMENT_LABEL, N_SUBCATEGORY, N_TOPICS, N_HOUR_GROUP, N_WEEKDAY
-from polimi.utils.tf_models import TemporalHistorySequenceModel, TemporalHistoryClassificationModel
+from polimi.utils.tf_models import TemporalHistorySequenceModel, TemporalHistoryClassificationModel, TemporalConvolutionalHistoryClassificationModel
 from sklearn.preprocessing import PowerTransformer, OrdinalEncoder
+from polimi.utils.tf_models.utils import get_simple_decay_scheduler
 
 seed = 42
 np.random.seed(seed)
@@ -28,7 +29,7 @@ LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
 if __name__ == '__main__':
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    save_dir = f'/home/ubuntu/experiments/rnn_cls_all_{timestamp}'
+    save_dir = f'/home/ubuntu/experiments/rnn_conv_all_{timestamp}'
     os.makedirs(save_dir)
     
     checkpoint_dir = f'{save_dir}/checkpoints'
@@ -119,7 +120,7 @@ if __name__ == '__main__':
     joblib.dump(xformer, f'{save_dir}/power_transformer.joblib')
     joblib.dump(encoder, f'{save_dir}/ordinal_encoder.joblib')
     
-    window = 20
+    window = 30
     output_signature = (
         {
             'numerical_columns': tf.TensorSpec(shape=(len(numerical_columns),), dtype=tf.float32), # behaviors numerical columns
@@ -147,7 +148,7 @@ if __name__ == '__main__':
         output_signature=output_signature
     ).batch(256, drop_remainder=True)
 
-    model = TemporalHistoryClassificationModel(
+    model = TemporalConvolutionalHistoryClassificationModel(
         categorical_features=categorical_columns,
         numerical_features=numerical_columns,
         vocabulary_sizes=vocabulary_sizes,
@@ -160,15 +161,18 @@ if __name__ == '__main__':
             'input_sentiment_label': (N_SENTIMENT_LABEL + 1, 2, False)
         },
         seq_numerical_features=['scroll_percentage', 'read_time', 'premium'],
-        n_recurrent_layers=1,
-        recurrent_embedding_dim=128,
+        window_size=window,
+        n_conv_layers=5,
+        conv_filters=128,
+        kernel_size=2,
+        conv_activation='swish',
         l1_lambda=1e-4,
         l2_lambda=1e-4,
-        dense_n_layers=2,
-        dense_start_units=256,
+        dropout_rate=0.2,
+        dense_n_layers=4,
+        dense_start_units=384,
         dense_units_decay=2,
         dense_activation='swish',
-        dense_dropout_rate=0.2,
     )
     
     logging.info(f'Starting training and saving checkpoints to {checkpoint_dir}')
@@ -182,6 +186,7 @@ if __name__ == '__main__':
         loss=tfk.losses.BinaryCrossentropy(),
         optimizer=tfk.optimizers.AdamW(learning_rate=1e-3, weight_decay=1e-4, clipnorm=5.0),
         metrics=[tf.keras.metrics.AUC(curve='ROC', name='auc')],
+        lr_scheduler=get_simple_decay_scheduler(0.1, start_epoch=2),
         early_stopping_monitor='val_auc',
         early_stopping_mode='max',
         save_checkpoints=True,

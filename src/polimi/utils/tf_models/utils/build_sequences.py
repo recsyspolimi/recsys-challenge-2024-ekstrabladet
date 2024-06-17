@@ -192,20 +192,25 @@ def build_sequences_cls_iterator(history_seq: pl.DataFrame, behaviors: pl.DataFr
         pl.all().exclude('user_id').list.reverse().list.eval(pl.element().extend_constant(mask, window)).list.reverse().list.tail(window).name.keep()
     )
     
-    for user_id, user_history in history_seq_trucated.partition_by(['user_id'], as_dict=True, maintain_order=False).items(): #order not maintained
+    len_numerical = len(numerical_columns)
+    
+    for user_history in history_seq_trucated.to_numpy():
         
-        x = user_history.drop('user_id').to_numpy()[0]
-        x = np.array([np.array(x_i) for x_i in x])
+        user_id = user_history[0]
+        x = np.array([np.array(x_i) for x_i in user_history[1:]])
         res_x = {}
         for key, idx in name_idx_dict.items():
             res_x[f'input_{key}'] = x[idx, :].T
-                        
-        for b in behaviors.filter(pl.col('user_id') == user_id[0]).iter_slices(1):
+         
+        behaviors_user = behaviors.filter(pl.col('user_id') == user_id)
+        X = behaviors_user.select(numerical_columns + categorical_columns).to_numpy()
+        y = behaviors_user.select('target').to_numpy().flatten()
+        for i in range(behaviors_user.shape[0]):
             yield {
-                'numerical_columns': b.select(numerical_columns).to_numpy().flatten(),
-                **{c: b[c].item() for c in categorical_columns},
+                'numerical_columns': X[i, :len_numerical],
+                **{c: X[i, j+len_numerical] for j, c in enumerate(categorical_columns)},
                 **res_x
-            }, b['target'].item()
+            }, y[i]
         
     
     

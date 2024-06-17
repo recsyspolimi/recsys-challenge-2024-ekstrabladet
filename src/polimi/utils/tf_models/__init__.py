@@ -4,3 +4,7 @@ from .wide_deep import WideDeepNetwork
 from .danet import DeepAbstractNetwork
 from .gandalf import GANDALF
 from .base_model import TabularNNModel
+from .history_rnn_cls import TemporalHistoryClassificationModel
+from .history_rnn_seq import TemporalHistorySequenceModel
+from .history_conv_cls import TemporalConvolutionalHistoryClassificationModel
+from .history_attention_cls import AttentionHistoryClassificationModel

@@ -15,7 +15,7 @@ class SequenceMultiHotEmbeddingLayer(tfkl.Layer):
         **kwargs
     ):
         super(SequenceMultiHotEmbeddingLayer, self).__init__(**kwargs)
-        if pool_mode not in ['sum', 'max']:
+        if pool_mode not in ['sum', 'max', 'mean']:
             raise ValueError('Pooling mode not supported')
         
         self.cardinality = cardinality
@@ -37,6 +37,9 @@ class SequenceMultiHotEmbeddingLayer(tfkl.Layer):
             x = tfk.ops.max(x, axis=-2) # [Bs, T, M]
         elif self.pool_mode == 'sum':
             x = tfk.ops.sum(x, axis=-2)
+        else:
+            # for the mean, divide by the number of ones, not by the cardinality of the input
+            x = tfk.ops.sum(x, axis=-2) / tf.expand_dims(tfk.ops.sum(inputs, axis=-1), axis=-1)
         return x
     
     def get_config(self):
