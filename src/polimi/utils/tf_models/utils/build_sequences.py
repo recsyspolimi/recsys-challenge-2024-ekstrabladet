@@ -34,14 +34,14 @@ def build_history_seq(history: pl.DataFrame, articles: pl.DataFrame, batch_size=
             pl.col('subcategory').list.eval(pl.element().replace(subcategory['subcategory'], subcategory['index'], default=None)).list.drop_nulls().cast(pl.List(pl.Int32)),
             pl.col('premium').cast(pl.Int8)
     )
-        
+                
     dummies_topics = articles_p.select('article_id', 'topics').explode('topics').fill_null(0)
     one_hot_topics = tf.keras.utils.to_categorical(dummies_topics['topics'].to_numpy(), num_classes=N_TOPICS + 1)
     dummies_topics = dummies_topics.with_columns(
         pl.Series(one_hot_topics, dtype=pl.List(pl.Int8)).alias('topics')
     ).with_columns(
         *[pl.col('topics').list.get(i).alias(f'topics_{i}') for i in range(N_TOPICS + 1)]
-    ).drop('topics')
+    ).drop('topics').group_by(pl.col('article_id')).agg(pl.all().sum())
     
     
     dummies_subcategories = articles_p.select('article_id', 'subcategory').explode('subcategory').fill_null(0)
@@ -50,14 +50,15 @@ def build_history_seq(history: pl.DataFrame, articles: pl.DataFrame, batch_size=
         pl.Series(one_hot_subcategories, dtype=pl.List(pl.Int8)).alias('subcategory')
     ).with_columns(
         *[pl.col('subcategory').list.get(i).alias(f'subcategory_{i}') for i in range(N_SUBCATEGORY + 1)]
-    ).drop('subcategory')
-               
+    ).drop('subcategory').group_by(pl.col('article_id')).agg(pl.all().sum())
+    
     articles_p = articles_p.join(dummies_topics, on='article_id', how='left')\
         .join(dummies_subcategories, on='article_id', how='left')\
         .drop('topics', 'subcategory')
+        
+
     articles_p = reduce_polars_df_memory_size(articles_p, verbose=False)
-    
-    
+        
     history_seq = pl.concat([
         slice.explode(pl.all().exclude('user_id'))\
             .with_columns(
@@ -67,7 +68,7 @@ def build_history_seq(history: pl.DataFrame, articles: pl.DataFrame, batch_size=
             .with_columns(
                 (pl.col('impression_time_fixed').dt.hour() // 4).alias('hour_group'),
                 pl.col('impression_time_fixed').dt.weekday().sub(1).alias('weekday'), #sub 1 to have from [0, 6]
-            ).rename({'scroll_percentage_fixed': 'scroll_percentage', 'read_time_fixed': 'read_time'})
+            ).rename({'scroll_percentage_fixed': 'scroll_percentage', 'read_time_fixed': 'read_time'})\
             .join(articles_p, left_on='article_id_fixed', right_on='article_id', how='left').drop('article_id_fixed')\
             .group_by('user_id').agg(pl.all())
         for slice in history.iter_slices(batch_size)
@@ -77,7 +78,7 @@ def build_history_seq(history: pl.DataFrame, articles: pl.DataFrame, batch_size=
     topics_cols = sorted([col for col in history_seq.columns if col.startswith('topics_')], key=lambda x: int(x.split('_')[-1]))
     subcategory_cols = sorted([col for col in history_seq.columns if col.startswith('subcategory_')], key=lambda x: int(x.split('_')[-1]))
     all_others = set(history_seq.columns) - set(topics_cols) - set(subcategory_cols) - {'user_id'}
-    history_seq = history_seq.select(['user_id'] + list(all_others) + topics_cols + subcategory_cols)
+    history_seq = history_seq.select(['user_id'] + list(sorted(all_others)) + topics_cols + subcategory_cols)
     
     return history_seq
     
@@ -106,67 +107,64 @@ def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride:
     
     res_x = {}
     res_y = {}
-    for user_df in history_seq.partition_by('user_id', maintain_order=False): #output order is not consistent with input order, but faster
-        x = user_df.drop('user_id').to_numpy()[0]
-        x = np.array([np.array(x_i) for x_i in x])
-                
-        i = 0
-        if i + window >= x.shape[1]:
-            # in case history is shorter than the window then we pad it and select the last element as target
-            pad_width = window - (x.shape[1] - 1)
-            pad_m = np.zeros((x.shape[0], pad_width))
-            padded_x = np.concatenate((pad_m, x[:, :-1]), axis=1)
-            y_i = x[:, -1]
-            
-            for key, idx in name_idx_dict.items():
-                res_x[f'input_{key}'] = padded_x[idx, :].T.astype(np.float32 if key in numerical_cols else np.int16)
-                if key not in remove_from_output:
-                    y_i_key = y_i[idx].T
-                    if key in categorical_cols:
-                        y_i_key = tf.keras.utils.to_categorical(y_i_key, num_classes=caterical_cols_num_classes[key]).reshape(-1)
-                    res_y[f'output_{key}'] = y_i_key.astype(np.float32 if key in numerical_cols else np.int16)
-            yield res_x, res_y  
-            
-        else:
-            while i + window < x.shape[1]:
-                # in case history is larger than the window then we select the window and the target randomly between the next elements
-                x_i = x[:, i:i+window]
-                
-                if target_telescope_type == 'random_same_day':
-                    #get random telescope for an impresssion in the same day as the last one in the window
-                    last_window_date = x_i[impression_time_idx][-1]
-                    max_telescope = max([
-                        t for t in range(i+window+1, x.shape[1]) 
-                            if (x[:, t][impression_time_idx] - last_window_date) <= timedelta(days=1, minutes=0, seconds=0)
-                    ], default=i+window)
-                    target_id = np.random.randint(i+window, max_telescope+1)
-                elif target_telescope_type == 'next':
-                    target_id = i+window
-                elif target_telescope_type == 'random':
-                    target_id = np.random.randint(i+window, x.shape[1])
-                elif target_telescope_type == 'random_max_7':
-                    last_window_date = x_i[impression_time_idx][-1]
-                    max_telescope = max([
-                        t for t in range(i+window+1, x.shape[1]) 
-                            if (x[:, t][impression_time_idx] - last_window_date) <= timedelta(days=7, minutes=0, seconds=0)
-                    ], default=i+window)
-                    target_id = np.random.randint(i+window, max_telescope+1)
-                    
-                
-                y_i = x[:, target_id]
+    for slice in history_seq.iter_slices(300000):    
+        for x in slice.drop('user_id').to_numpy():
+            x = np.array([np.array(x_i) for x_i in x])
+            i = 0
+            if i + window >= x.shape[1]:
+                # in case history is shorter than the window then we pad it and select the last element as target
+                pad_width = window - (x.shape[1] - 1)
+                pad_m = np.zeros((x.shape[0], pad_width))
+                padded_x = np.concatenate((pad_m, x[:, :-1]), axis=1)
+                y_i = x[:, -1]
                 
                 for key, idx in name_idx_dict.items():
-                    res_x[f'input_{key}'] = x_i[idx, :].T.astype(np.float32 if key in numerical_cols else np.int16)
-                    if key not in remove_from_output:                 
+                    res_x[f'input_{key}'] = padded_x[idx, :].T.astype(np.float32 if key in numerical_cols else np.int16)
+                    if key not in remove_from_output:
                         y_i_key = y_i[idx].T
                         if key in categorical_cols:
                             y_i_key = tf.keras.utils.to_categorical(y_i_key, num_classes=caterical_cols_num_classes[key]).reshape(-1)
                         res_y[f'output_{key}'] = y_i_key.astype(np.float32 if key in numerical_cols else np.int16)
-                yield res_x, res_y                
-                i+=stride
+                yield res_x, res_y  
+                
+            else:
+                while i + window < x.shape[1]:
+                    # in case history is larger than the window then we select the window and the target randomly between the next elements
+                    x_i = x[:, i:i+window]
+                    
+                    if target_telescope_type == 'random_same_day':
+                        #get random telescope for an impresssion in the same day as the last one in the window
+                        last_window_date = x_i[impression_time_idx][-1]
+                        max_telescope = max([
+                            t for t in range(i+window+1, x.shape[1]) 
+                                if (x[:, t][impression_time_idx] - last_window_date) <= timedelta(days=1, minutes=0, seconds=0)
+                        ], default=i+window)
+                        target_id = np.random.randint(i+window, max_telescope+1)
+                    elif target_telescope_type == 'next':
+                        target_id = i+window
+                    elif target_telescope_type == 'random':
+                        target_id = np.random.randint(i+window, x.shape[1])
+                    elif target_telescope_type == 'random_max_7':                  
+                        seven_days = timedelta(days=7, minutes=0, seconds=0)
+                        last_window_date = x_i[impression_time_idx][-1]
+                        time_diffs = x[:, (i + window + 1):][impression_time_idx] - last_window_date
+                        valid_mask = time_diffs <= seven_days
+                        valid_indices = np.where(valid_mask)[0] + (i + window + 1)
+                        max_telescope = valid_indices[-1] if valid_indices.size > 0 else i + window
+                        target_id = np.random.randint(i + window, max_telescope + 1)
+                                           
+                    y_i = x[:, target_id]
+                    for key, idx in name_idx_dict.items():
+                        res_x[f'input_{key}'] = x_i[idx, :].T.astype(np.float32 if key in numerical_cols else np.int16)
+                        if key not in remove_from_output:                 
+                            y_i_key = y_i[idx].T
+                            if key in categorical_cols:
+                                y_i_key = tf.keras.utils.to_categorical(y_i_key, num_classes=caterical_cols_num_classes[key]).reshape(-1)
+                            res_y[f'output_{key}'] = y_i_key.astype(np.float32 if key in numerical_cols else np.int16)
+                    yield res_x, res_y                
+                    i+=stride
                          
             #TODO: add padding for the last sequence, if we want to keep it
-
 
 
 def build_sequences_cls_iterator(history_seq: pl.DataFrame, behaviors: pl.DataFrame, window: int, 

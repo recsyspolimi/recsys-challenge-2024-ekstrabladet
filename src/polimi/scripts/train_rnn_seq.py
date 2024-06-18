@@ -22,7 +22,6 @@ tf.random.set_seed(seed)
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 import logging
 
-
 if __name__ == '__main__':
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     save_dir = f'/home/ubuntu/experiments/rnn_seq_{timestamp}'
@@ -43,16 +42,21 @@ if __name__ == '__main__':
     articles = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/articles.parquet')
     
     #Sampling
-    # gap = 0
+    # gap = 0.05
     # history_train = history_train.filter(
     #     pl.col('article_id_fixed').list.len() >= pl.col('article_id_fixed').list.len().quantile(gap),
     #     pl.col('article_id_fixed').list.len() <= pl.col('article_id_fixed').list.len().quantile(1-gap), 
     # )
+    
+    # sample_fraction = 1
+    # user_id_sampled = history_train['user_id'].sample(fraction=sample_fraction, seed=seed)
+    # history_train = history_train.filter(pl.col('user_id').is_in(user_id_sampled))
+    
     # history_val = history_val.filter(
     #     pl.col('article_id_fixed').list.len() >= pl.col('article_id_fixed').list.len().quantile(gap),
     #     pl.col('article_id_fixed').list.len() <= pl.col('article_id_fixed').list.len().quantile(1-gap), 
     # )
-    logging.info(f'Sampled {len(history_train)} train users out of {n_users} [{((len(history_train)/n_users)*100):.2f}]...')
+    logging.info(f'Sampled {len(history_train)} train users out of {n_users} [{((len(history_train)/n_users)*100):.2f}%]...')
     
     window = 20
     stride = 10
@@ -121,14 +125,14 @@ if __name__ == '__main__':
     )
     checkpoint_dir = f'{save_dir}/checkpoints'
     os.makedirs(checkpoint_dir)
-    logging.info(f'Starting training and saving to {save_dir}')
+    logging.info(f'Starting training and saving to {save_dir}. Target type {target_telescope_type}, batch size {batch_size}, buffer size {buffer_size}')
     
     model.fit(
         train_dataset=dataset_train,
         validation_data=dataset_val,
-        early_stopping_rounds=2,
+        early_stopping_rounds=3,
         batch_size=batch_size,
-        epochs=10,
+        epochs=20,
         # target for (topics, subcategory, category)
         loss={
             'output_topics': tfk.losses.BinaryCrossentropy(), 
