@@ -10,7 +10,7 @@ class SequenceMultiHotEmbeddingLayer(tfkl.Layer):
         self,
         cardinality: int,
         embedding_dim: int,
-        pool_mode: str = 'max', # sum or max
+        pool_mode: str = 'mean', # sum or max
         embeddings_regularizer: tfk.regularizers = None,
         **kwargs
     ):
@@ -32,14 +32,14 @@ class SequenceMultiHotEmbeddingLayer(tfkl.Layer):
         
     def call(self, inputs):
         # inputs_shape = [Bs, T, N]
-        x = tf.einsum('nm,btn->btnm', self.embedding_matrix, inputs) # [Bs, T, N, M]
+        x = tf.einsum('nm,btm->btnm', tf.transpose(self.embedding_matrix), inputs) # [Bs, T, N, M]
         if self.pool_mode == 'max':
-            x = tfk.ops.max(x, axis=-2) # [Bs, T, M]
+            x = tfk.ops.max(x, axis=-1) # [Bs, T, M]
         elif self.pool_mode == 'sum':
-            x = tfk.ops.sum(x, axis=-2)
-        else:
+            x = tfk.ops.sum(x, axis=-1)
+        elif self.pool_mode == 'mean':
             # for the mean, divide by the number of ones, not by the cardinality of the input
-            x = tfk.ops.sum(x, axis=-2) / tf.expand_dims(tfk.ops.sum(inputs, axis=-1), axis=-1)
+            x = tfk.ops.sum(x, axis=-1) / (tf.expand_dims(tfk.ops.sum(inputs, axis=-1), axis=-1) + 1e-6)
         return x
     
     def get_config(self):

@@ -22,9 +22,10 @@ class TemporalHistorySequenceModel(TabularNNModel):
         seq_numerical_features: List[str] = None,
         n_recurrent_layers: int = 1,
         recurrent_embedding_dim: int = 64,
+        pool_mode:str = 'mean',
         l1_lambda: float = 1e-4,
         l2_lambda: float = 1e-4,
-        random_seed: int = 42
+        random_seed: int = 42,
     ):
         
         self.seq_embedding_dims = seq_embedding_dims
@@ -34,6 +35,7 @@ class TemporalHistorySequenceModel(TabularNNModel):
         self.l1_lambda = l1_lambda
         self.l2_lambda = l2_lambda
         self.random_seed = random_seed
+        self.pool_mode = pool_mode
         self.model = None
         self.model_name = 'TemporalHistorySequenceModel'
         
@@ -49,6 +51,7 @@ class TemporalHistorySequenceModel(TabularNNModel):
                 embedding_layer = SequenceMultiHotEmbeddingLayer(
                     cardinality, 
                     embedding_dim,
+                    pool_mode=self.pool_mode,
                     embeddings_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda)
                 )(input_layer)
             else:

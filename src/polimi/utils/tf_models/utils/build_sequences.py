@@ -84,7 +84,7 @@ def build_history_seq(history: pl.DataFrame, articles: pl.DataFrame, batch_size=
     
 
 # Return dict with key = name_feature and value the tuple (X, y) containing the input/output sequence
-def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride: int, target_telescope_type:str = 'random_same_day'):
+def build_sequences_seq_iterator(history_seq: pl.DataFrame, window: int, stride: int, target_telescope_type:str = 'next'):
     assert target_telescope_type in ['random_same_day', 'next', 'random_max_7', 'random']
     all_features = history_seq.drop('user_id').columns
     
