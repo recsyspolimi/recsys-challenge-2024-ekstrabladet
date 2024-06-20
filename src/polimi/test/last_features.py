@@ -122,11 +122,10 @@ if __name__ == '__main__':
         
     history = history.select(['user_id', 'article_id_fixed', 'impression_time_fixed', 'scroll_percentage_fixed', 'read_time_fixed']) \
         .explode('article_id_fixed', 'impression_time_fixed', 'scroll_percentage_fixed', 'read_time_fixed') \
-        .join(articles.select(['article_id', 'category', 'page_inv', 'body_len', 'article_type', 'sentiment_label', 'premium']),
+        .join(articles.select(['article_id', 'category', 'article_type', 'sentiment_label', 'premium']),
             left_on='article_id_fixed', right_on='article_id', how='left') \
         .with_columns(pl.col('impression_time_fixed').dt.round('1h').alias('impression_hour')) \
         .with_columns(
-            pl.col('read_time_fixed').truediv(pl.col('body_len')).alias('words_per_second'),
             pl.col('impression_time_fixed').dt.weekday().alias('weekday'),
             pl.col('impression_time_fixed').dt.weekday().gt(5).alias('is_weekend'),
             (pl.col('impression_time_fixed').dt.hour() // 4).alias('hour_window'),
