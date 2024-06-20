@@ -163,7 +163,7 @@ if __name__ == '__main__':
         seq_numerical_features=['scroll_percentage', 'read_time', 'premium'],
         window_size=window,
         n_conv_layers=5,
-        conv_filters=128,
+        conv_filters=32,
         kernel_size=2,
         conv_activation='swish',
         l1_lambda=1e-4,

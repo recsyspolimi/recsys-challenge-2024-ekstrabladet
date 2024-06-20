@@ -34,6 +34,7 @@ class AttentionHistoryClassificationModel(TabularNNModel):
         l1_lambda: float = 1e-4,
         l2_lambda: float = 1e-4,
         dropout_rate: float = 0.1,
+        n_encoder_layers: int = 0,
         query_n_layers: int = 1,
         query_start_units: int = 128,
         query_units_decay: int = 2,
@@ -59,6 +60,7 @@ class AttentionHistoryClassificationModel(TabularNNModel):
         self.embedding_dim = embedding_dim
         self.l1_lambda = l1_lambda
         self.l2_lambda = l2_lambda
+        self.n_encoder_layers = n_encoder_layers
         self.dropout_rate = dropout_rate
         self.query_n_layers = query_n_layers
         self.query_start_units = query_start_units
@@ -114,7 +116,7 @@ class AttentionHistoryClassificationModel(TabularNNModel):
                     cardinality, 
                     embedding_dim,
                     embeddings_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda),
-                    pool_mode='max',
+                    pool_mode='mean',
                 )(input_layer)
             else:
                 input_layer = tfkl.Input(shape=(self.window_size,), name=feature_name)
@@ -136,8 +138,35 @@ class AttentionHistoryClassificationModel(TabularNNModel):
                              kernel_initializer=tfk.initializers.HeNormal(seed=self.random_seed),
                              kernel_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda),
                              bias_regularizer=tfk.regularizers.l2(l2=self.l2_lambda),
-                             name='ValuesLinear')(embeddings)
-        values = tfkl.BatchNormalization(name='ValuesBatchNormalization')(values)
+                             name='EmbeddingsLinear')(embeddings)
+        values = tfkl.BatchNormalization(name='EmbeddingsBatchNormalization')(values)
+        
+        for i in range(self.n_encoder_layers):
+            values = tfkl.MultiHeadAttention(
+                num_heads=4,
+                key_dim=self.embedding_dim,
+                dropout=self.dropout_rate,
+                kernel_initializer=tfk.initializers.HeNormal(seed=self.random_seed),
+                kernel_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda),
+                bias_regularizer=tfk.regularizers.l2(l2=self.l2_lambda),
+                name=f'AttentionEncoder{i}'
+            )(query=values, value=values)
+            values_ff = tfkl.Conv1D(self.embedding_dim, 
+                                    kernel_size=1,
+                                    kernel_initializer=tfk.initializers.HeNormal(seed=self.random_seed),
+                                    kernel_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda),
+                                    bias_regularizer=tfk.regularizers.l2(l2=self.l2_lambda),
+                                    activation=self.dense_activation,
+                                    name=f'FeedForward0Encoder{i}')(values)
+            values_ff = tfkl.Conv1D(self.embedding_dim, 
+                                    kernel_size=1,
+                                    kernel_initializer=tfk.initializers.HeNormal(seed=self.random_seed),
+                                    kernel_regularizer=tfk.regularizers.l1_l2(l1=self.l1_lambda, l2=self.l2_lambda),
+                                    bias_regularizer=tfk.regularizers.l2(l2=self.l2_lambda),
+                                    name=f'FeedForward1Encoder{i}')(values_ff)
+            values_ff = tfkl.Dropout(self.dropout_rate, name=f'DropoutEncoder{i}')(values_ff)
+            values = tfkl.Add(name=f'AddEncoder{i}')([values, values_ff])
+            values = tfkl.LayerNormalization(name=f'LayerNormalizationEncoder{i}')(values)
 
         units = self.query_start_units
         query = x0

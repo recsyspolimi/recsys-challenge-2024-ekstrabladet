@@ -165,6 +165,7 @@ if __name__ == '__main__':
         embedding_dim=128,
         l1_lambda=1e-4,
         l2_lambda=1e-4,
+        n_encoder_layers=2,
         dropout_rate=0.2,
         query_n_layers=1,
         query_start_units=256,
