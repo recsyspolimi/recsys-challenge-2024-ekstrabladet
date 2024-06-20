@@ -3,6 +3,7 @@ import json
 import polars as pl
 from pathlib import Path
 import tqdm
+import gc
 
 NORMALIZE_OVER_USER_ID = [
     'total_pageviews/inviews', 'endorsement_10h', 'trendiness_score_3d',
@@ -143,6 +144,14 @@ if __name__ == '__main__':
             pl.col("is_weekend").mean().alias('weekend_pct'),
             pl.col("premium").mean().alias('premium_pct'),
         )
+        
+    history = reduce_polars_df_memory_size(history)
+    user_probabilities = reduce_polars_df_memory_size(user_probabilities)
+    history_cwh_freq_user = reduce_polars_df_memory_size(history_cwh_freq_user)
+    history_cwh_freq = reduce_polars_df_memory_size(history_cwh_freq)
+    
+    del articles, behaviors, history_topics_proba_df, history_category_proba_df, history_counts_df
+    gc.collect()
 
     dataset = dataset.with_columns(
         (pl.col('endorsement_10h') / pl.col('trendiness_score_1d')).alias('endorsement_over_trend'),
