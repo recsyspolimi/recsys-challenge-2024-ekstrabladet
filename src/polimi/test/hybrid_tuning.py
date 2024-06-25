@@ -11,36 +11,39 @@ from tqdm import tqdm
 import optuna
 
 predictions = [
-    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_cat_rnk_new_95.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_large/pred_val_cat_rnk_new_95.parquet',
     #'/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_catboost_classifier_recsys_mv.parquet',
-    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_catboost_new_noK.parquet',
-    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_deep_cross_new_trial_67.parquet',
-    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_gandalf_new_trial_130.parquet',
-    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_mlp_new_trial_208.parquet',
-    '/mnt/ebs_volume/stacking/pred_val_small/pred_val_s_wide_deep_new_trial_72.parquet'
+    '/mnt/ebs_volume/stacking/pred_val_large/pred_val_catboost_new_noK.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_large/pred_val_deep_cross_new_trial_67.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_large/pred_val_gandalf_new_trial_130.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_large/pred_val_mlp_new_trial_208.parquet',
+    '/mnt/ebs_volume/stacking/pred_val_large/pred_val_wide_deep_new_trial_72.parquet'
 ]
 
-names = ['catboost_rnk', 'catboost_cls', 'dcn', 'GANDALF','mlp', 'wd']
+names = ['cat_rnk_new_95', 'catboost_new_noK', 'deep_cross_new_trial_67', 'gandalf_new_trial_130', 'mlp_new_trial_208', 'wide_deep_new_trial_72']
+
+models = ['catboost_rnk', 'catboost_cls', 'dcn', 'GANDALF','mlp', 'wd']
 # names = ['ranker', 'catboost', 'mlp', 'deep', 'fast', 'gandalf', 'lgbm', 'logistic', 'wide_deep']
 
 N_TRIALS = 500
 
-def prepare_data(df, index):
-    if index in ['mlp', 'GANDALF', 'wd', 'dcn']:
-        df = df.with_columns(
-                pl.col(f'prediction_{index}').list.first()    
-            )
+def prepare_data(df, index, models=[], names=[]):
     if 'prediction' not in df.columns:
         assert df.columns[0] == 'impression_id'
         assert df.columns[1] == 'article'
         assert df.columns[2] == 'target'
         df = df.rename({df.columns[3]: 'prediction'})
+        
+    df = df.rename({'prediction': f'prediction_{names[index]}'})
     
-    df = df.rename({'prediction' : f'prediction_{index}'})
+    if df[f'prediction_{names[index]}'].dtype == pl.List:
+        df = df.with_columns(
+                pl.col(f'prediction_{names[index]}').list.first()    
+            )
     
     df = df.with_columns(
-        (pl.col(f'prediction_{index}')-pl.col(f'prediction_{index}').min().over('impression_id')) / 
-        (pl.col(f'prediction_{index}').max().over('impression_id')-pl.col(f'prediction_{index}').min().over('impression_id'))
+        (pl.col(f'prediction_{names[index]}')-pl.col(f'prediction_{names[index]}').min().over('impression_id')) / 
+        (pl.col(f'prediction_{names[index]}').max().over('impression_id')-pl.col(f'prediction_{names[index]}').min().over('impression_id'))
     )
     
     if 'user_id' in df.columns:
@@ -99,7 +102,7 @@ if __name__ == "__main__":
     n_models = len(predictions)
     dfs_pred = []
     for pred in range(n_models):
-        dfs_pred.append(prepare_data(pl.read_parquet(predictions[pred]), names[pred]))
+        dfs_pred.append(prepare_data(pl.read_parquet(predictions[pred]), pred, models=models, names=names))
     
     df_pred = join_dfs(dfs_pred)
     
