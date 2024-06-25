@@ -40,7 +40,7 @@ expressions = [
 
 if __name__ == '__main__':
     
-    OUTPUT_DIR_DATASET = '/mnt/ebs_volume/stacking/dataset_new/test_ds.parquet'
+    OUTPUT_DIR_DATASET = '/mnt/ebs_volume/stacking/dataset_new/train_ds.parquet' #'/mnt/ebs_volume/stacking/dataset_new/test_ds.parquet'
     
     with open('/mnt/ebs_volume/stacking/dataset/data_info.json') as data_info_file:
         data_info = json.load(data_info_file)
@@ -50,18 +50,19 @@ if __name__ == '__main__':
     with open('/mnt/ebs_volume/stacking/dataset_new/data_info.json', 'w') as data_info_file:
         json.dump(data_info, data_info_file)
     
-    history = pl.read_parquet('/home/ubuntu/dataset/ebnerd_testset/test/history.parquet')
-    articles = pl.read_parquet('/home/ubuntu/dataset/ebnerd_testset/articles.parquet')
-    behaviors = pl.read_parquet('/home/ubuntu/dataset/ebnerd_testset/test/behaviors.parquet')
-    dataset = pl.scan_parquet('/mnt/ebs_volume/stacking/dataset/test_ds.parquet')
+    history = pl.read_parquet('/home/ubuntu/dataset/ebnerd_large/validation/history.parquet') #pl.read_parquet('/home/ubuntu/dataset/ebnerd_testset/test/history.parquet')
+    articles = pl.read_parquet('/home/ubuntu/dataset/ebnerd_large/articles.parquet') #pl.read_parquet('/home/ubuntu/dataset/ebnerd_testset/articles.parquet')
+    behaviors = pl.read_parquet('/home/ubuntu/dataset/ebnerd_large/validation/behaviors.parquet') #pl.read_parquet('/home/ubuntu/dataset/ebnerd_testset/test/behaviors.parquet')
+    rnn_embeddings = pl.read_parquet('/home/ubuntu/rnn_seq_dataset/validation.parquet') #pl.read_parquet('/home/ubuntu/rnn_seq_dataset/test.parquet')
+    dataset = pl.scan_parquet('/mnt/ebs_volume/stacking/dataset/train_ds.parquet') #pl.scan_parquet('/mnt/ebs_volume/stacking/dataset/test_ds.parquet')
     
     normalization_columns = list(set(NORMALIZE_OVER_USER_ID + COMPLETE_NORMALIZE_OVER_USER_ID + \
         NORMALIZE_OVER_ARTICLE + CATEGORICAL_ENTROPY))
-    normaliazion_dataset = dataset.select(normalization_columns + ['impression_id', 'user_id', 'article']).collect()
+    normalization_dataset = dataset.select(normalization_columns + ['impression_id', 'user_id', 'article']).collect().clone()
     for expressions_group in tqdm.tqdm(expressions):
-        normaliazion_dataset = normaliazion_dataset.with_columns(expressions_group)
-        normaliazion_dataset = reduce_polars_df_memory_size(normaliazion_dataset)
-    normalization_dataset = normaliazion_dataset.drop(normalization_columns)
+        normalization_dataset = normalization_dataset.with_columns(expressions_group)
+        normalization_dataset = reduce_polars_df_memory_size(normalization_dataset)
+    normalization_dataset = normalization_dataset.drop(normalization_columns)
     
     print('Read Dataset')
     
@@ -159,6 +160,7 @@ if __name__ == '__main__':
     user_probabilities = reduce_polars_df_memory_size(user_probabilities)
     history_cwh_freq_user = reduce_polars_df_memory_size(history_cwh_freq_user)
     history_cwh_freq = reduce_polars_df_memory_size(history_cwh_freq)
+    rnn_embeddings = reduce_polars_df_memory_size(rnn_embeddings)
     
     del articles, behaviors, history_topics_proba_df, history_category_proba_df, history_counts_df
     gc.collect()
@@ -172,7 +174,6 @@ if __name__ == '__main__':
     
     complete_dataset = None
     for batch in tqdm.tqdm(range(n_batches)):
-        print(f'--------------Processing Batch {batch}---------------')
         if batch == n_batches - 1:
             slice_features = dataset.slice(starting_index, None).collect()
         else :
@@ -195,14 +196,15 @@ if __name__ == '__main__':
             .join(history_cwh_freq, on='cwh', how='left') \
             .with_columns(pl.col('cwh_prob_user') / (pl.col('cwh_prob') * pl.col('article').count().over('impression_id')))
             
-        slice_features = slice_features.join(normaliazion_dataset, on=['impression_id', 'user_id', 'article'], how='left')
+        slice_features = slice_features.join(normalization_dataset, on=['impression_id', 'user_id', 'article'], how='left') \
+            .join(rnn_embeddings, on='user_id', how='left')
         
         if complete_dataset is None:
             complete_dataset = inflate_polars_df(slice_features)
         else:
             complete_dataset = complete_dataset.vstack(inflate_polars_df(slice_features))
             
-    del history_cwh_freq_user, history_cwh_freq, user_probabilities, history, dataset, normaliazion_dataset
+    del history_cwh_freq_user, history_cwh_freq, user_probabilities, history, dataset, normalization_dataset
     gc.collect()
         
     complete_dataset.write_parquet(OUTPUT_DIR_DATASET)

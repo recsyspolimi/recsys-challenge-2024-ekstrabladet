@@ -70,6 +70,7 @@ def main(dataset_path, output_dir):
             lgbm_dataset = lgbm_dataset.add_features_from(batch_dataset)
             
         start_batch = end_batch
+        gc.collect()
         
     lgbm_dataset = lgbm_dataset.set_categorical_feature(categorical_features)
     logging.info(f'Saving converted dataset at: {os.path.join(output_dir, "lgbm_dataset.bin")}')

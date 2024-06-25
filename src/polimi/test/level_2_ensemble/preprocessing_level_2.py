@@ -22,7 +22,7 @@ TRAIN = True
 output_dir = '/mnt/ebs_volume_new/stacking/dataset'
 paths_features = {
             'train_df' : '/mnt/ebs_volume_new/experiments/preprocessing_val_new_with_recsys',
-            'test_df': '/mnt/ebs_volume_new/experiments/preprocessing_test_new',
+            'test_df': '/mnt/ebs_volume_new/experiments/preprocessing_test_new_with_recsys',
             'train_icm': 'preprocessing_test_new_with_recsys',
             'test_icm': '/mnt/ebs_volume/icm_features/large/recsys_testset.parquet'
     }
@@ -226,26 +226,27 @@ def preprocessing(df, path_features, hybrid_weights=[], MODEL_LIST=[], drop_me=[
     if keep_old_features:
         if not test:
             old_features = pl.scan_parquet(path_features).drop(drop_me).collect()
-            new_df = None
-            for batch in tqdm(df.drop(columns=['target']).iter_slices(1000000)):
-                batch = batch.join(old_features, on=['impression_id', 'article'], how='left')
-                if new_df is None:
-                    new_df = batch
-                else:
-                    new_df = new_df.vstack(batch)
-            df = new_df
+            df = df.drop(columns=['target']).join(old_features, on=['impression_id', 'article'], how='left')
+            # new_df = None
+            # for batch in tqdm(df.drop(columns=['target']).iter_slices(1000000)):
+            #     batch = batch.join(old_features, on=['impression_id', 'article'], how='left')
+            #     if new_df is None:
+            #         new_df = batch
+            #     else:
+            #         new_df = new_df.vstack(batch)
+            # df = new_df
         else:
-            # old_features = pl.scan_parquet(path_features).drop(drop_me).collect()
-            # df = df.join(old_features, on=['impression_id', 'article'], how='left')
             old_features = pl.scan_parquet(path_features).drop(drop_me).collect()
-            new_df = None
-            for batch in tqdm(df.iter_slices(1000000)):
-                batch = batch.join(old_features, on=['impression_id', 'article'], how='left')
-                if new_df is None:
-                    new_df = batch
-                else:
-                    new_df = new_df.vstack(batch)
-            df = new_df
+            df = df.join(old_features, on=['impression_id', 'article'], how='left')
+            # old_features = pl.scan_parquet(path_features).drop(drop_me).collect()
+            # new_df = None
+            # for batch in tqdm(df.iter_slices(1000000)):
+            #     batch = batch.join(old_features, on=['impression_id', 'article'], how='left')
+            #     if new_df is None:
+            #         new_df = batch
+            #     else:
+            #         new_df = new_df.vstack(batch)
+            # df = new_df
     else:
         if not test:
             df = df.drop(columns=['target']).join(pl.scan_parquet(path_features).select(
@@ -362,32 +363,32 @@ def preprocessing(df, path_features, hybrid_weights=[], MODEL_LIST=[], drop_me=[
 #     return df
 
 if __name__ == '__main__':
-    print(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-    if TRAIN:
-        directories = [model['model_train_path'] for model in models]
-        model_list = [model['model_name'] for model in models]
-        df = load_predictions(directories, model_list, test=False)
-        weights = [0.1, 0.1, 0, 0, 0, 0, 0, 0.15, 0.1, 0.15, 0.1, 0.15, 0.15]
-        df = preprocessing(df, paths_features['train_df']+ '/validation_ds.parquet', hybrid_weights=weights, MODEL_LIST=model_list, drop_me=drop_me, keep_old_features=True, test=False)
-        # df = build_icm_features(df, paths_features['train_icm'])
+    # print(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    # if TRAIN:
+    #     directories = [model['model_train_path'] for model in models]
+    #     model_list = [model['model_name'] for model in models]
+    #     df = load_predictions(directories, model_list, test=False)
+    #     weights = [0.1, 0.1, 0, 0, 0, 0, 0, 0.15, 0.1, 0.15, 0.1, 0.15, 0.15]
+    #     df = preprocessing(df, paths_features['train_df']+ '/validation_ds.parquet', hybrid_weights=weights, MODEL_LIST=model_list, drop_me=drop_me, keep_old_features=True, test=False)
+    #     # df = build_icm_features(df, paths_features['train_icm'])
         
-        with open(os.path.join(paths_features['train_df'], 'data_info.json')) as data_info_file:
-            data_info = json.load(data_info_file)
+    #     with open(os.path.join(paths_features['train_df'], 'data_info.json')) as data_info_file:
+    #         data_info = json.load(data_info_file)
 
-        categorical_columns = []
-        for col in data_info['categorical_columns']:
-                if col in df.columns:
-                        categorical_columns.append(col)
-        categorical_columns = categorical_columns + ['is_avg_top_3', 'is_avg_top_1', 'over_95_qt']
+    #     categorical_columns = []
+    #     for col in data_info['categorical_columns']:
+    #             if col in df.columns:
+    #                     categorical_columns.append(col)
+    #     categorical_columns = categorical_columns + ['is_avg_top_3', 'is_avg_top_1', 'over_95_qt']
         
-        df.write_parquet(output_dir + '/train_ds.parquet')
-        dataset_info = {
-            'categorical_columns': categorical_columns,
-            'timestamp': datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        }
-        data_info_path = os.path.join(output_dir, 'data_info.json')
-        with open(data_info_path, 'w') as data_info_file:
-            json.dump(dataset_info, data_info_file)
+    #     df.write_parquet(output_dir + '/train_ds.parquet')
+    #     dataset_info = {
+    #         'categorical_columns': categorical_columns,
+    #         'timestamp': datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    #     }
+    #     data_info_path = os.path.join(output_dir, 'data_info.json')
+    #     with open(data_info_path, 'w') as data_info_file:
+    #         json.dump(dataset_info, data_info_file)
     
     TRAIN = False
     
