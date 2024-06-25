@@ -10,10 +10,11 @@ import gc
 from ebrec.evaluation.metrics_protocols import *
 import catboost
 
-train_ds = '/home/ubuntu/experiments/preprocessing_train_new'
-val_ds = '/home/ubuntu/experiments/preprocessing_validation_new'
-output_path = '/home/ubuntu/experiments/batches_train_val_new/batches'
-N_BATCH = 10
+train_ds = '/home/ubuntu/experiments/preprocessing_train_new_with_recsys'
+val_ds = '/home/ubuntu/experiments/preprocessing_val_new_with_recsys'
+
+output_path = '/home/ubuntu/experiments/catboost_rnk_recsys_train_val/batches'
+N_BATCH = 12
 
 
 if __name__ == '__main__':

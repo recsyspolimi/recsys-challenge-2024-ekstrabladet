@@ -41,7 +41,8 @@ def get_model_class(name: str = 'catboost', ranker: bool = False):
 
 def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.DataFrame, evaluation_ds: pl.DataFrame, 
                         categorical_features: List[str], group_ids: pd.DataFrame, model_class: Type = CatBoostClassifier, use_gpu: bool = False,
-                        study_name: str = 'catboost_cls_tuning', n_trials: int = 100, storage: str = None) -> Tuple[Dict, pd.DataFrame]:
+                        study_name: str = 'catboost_cls_tuning', n_trials: int = 100, storage: str = None,
+                        sorted_indices: np.ndarray = None, sample_weights: np.ndarray = None) -> Tuple[Dict, pd.DataFrame]:
     '''
     The X_train dataframe must be sorted by the impression_id for the ranking problems
     '''
@@ -54,12 +55,20 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
     def objective_function(trial: optuna.Trial):
         params = get_models_params(trial, model_class, categorical_features, use_gpu=use_gpu)
         model = model_class(**params)
+        if model_class in [CatBoostClassifier, CatBoostRanker]:
+            params['has_time'] = True
         if model_class == CatBoostRanker:
-            model.fit(X_train, y_train, group_id=group_ids['impression_id'], verbose=50)
+            model.fit(X_train if not params['has_time'] else X_train.iloc[sorted_indices, :], 
+                      y_train if not params['has_time'] else y_train.iloc[sorted_indices], 
+                      group_id=group_ids['impression_id'], verbose=50)
         elif model_class in [XGBRanker, LGBMRanker]:
             model.fit(X_train, y_train, group=group_ids.groupby('impression_id')['impression_id'].count().values)
         elif model_class == LGBMClassifier:
             model.fit(X_train, y_train)
+        elif model_class == CatBoostClassifier:
+            model.fit(X_train if not params['has_time'] else X_train.iloc[sorted_indices, :], 
+                      y_train if not params['has_time'] else y_train.iloc[sorted_indices],
+                      verbose=50) #, sample_weight=sample_weights)
         else:
             model.fit(X_train, y_train, verbose=50)
         if model_class in [CatBoostRanker, XGBRanker, LGBMRanker]:
@@ -80,7 +89,7 @@ def optimize_parameters(X_train: pd.DataFrame, y_train: pd.DataFrame, X_val: pd.
     return study.best_params, study.trials_dataframe()
     
 
-def load_datasets(train_dataset_path, validation_dataset_path):
+def load_datasets(train_dataset_path, validation_dataset_path, model_name):
     logging.info(f"Loading the training dataset from {train_dataset_path}")
     
     train_ds = pl.read_parquet(os.path.join(train_dataset_path, 'train_ds.parquet')).sort(by=['impression_id'])
@@ -93,8 +102,20 @@ def load_datasets(train_dataset_path, validation_dataset_path):
         train_ds = train_ds.with_columns(pl.col('postcode').fill_null(5))
     if 'article_type' in train_ds.columns:
         train_ds = train_ds.with_columns(pl.col('article_type').fill_null('article_default'))
-    if 'impression_time' in train_ds.columns:
+    if model_name == 'catboost' or 'impression_time' in train_ds.columns:
+        sorted_indices = train_ds.select(['impression_time', 'impression_id']) \
+            .with_row_index().sort(by=['impression_time', 'impression_id']).select('index').to_numpy().flatten()
         train_ds = train_ds.drop(['impression_time'])
+    else:
+        sorted_indices = None
+        
+    if model_name == 'catboost':
+        sample_weights = train_ds.select(['impression_id']).join(
+            pl.read_parquet('/home/ubuntu/dataset/ebnerd_small/train/behaviors.parquet').select(['impression_id', 'next_scroll_percentage']),
+            on='impression_id', how='left'
+        ).select(pl.col('next_scroll_percentage').fill_null(0).truediv(100).clip(lower_bound=0.1)).to_numpy().flatten()
+    else:
+        sample_weights = None
     
     # Delete cateegories percentage columns
     train_ds = train_ds.to_pandas()
@@ -124,12 +145,12 @@ def load_datasets(train_dataset_path, validation_dataset_path):
 
     X_val = val_ds[X_train.columns]
     evaluation_ds = pl.from_pandas(val_ds[['impression_id', 'article', 'target']])
-    return X_train, y_train, X_val, evaluation_ds, group_ids, data_info['categorical_columns']
+    return X_train, y_train, X_val, evaluation_ds, group_ids, data_info['categorical_columns'], sorted_indices, sample_weights
 
 
 def main(train_dataset_path: str, validation_dataset_path: str, output_dir: str, model_name: str,
          is_ranking: bool = False, use_gpu: bool = False, study_name: str = 'lightgbm_tuning', n_trials: int = 100, storage: str = None):
-    X_train, y_train, X_val, evaluation_ds, group_ids, cat_features = load_datasets(train_dataset_path, validation_dataset_path)
+    X_train, y_train, X_val, evaluation_ds, group_ids, cat_features, sorted_indices, sample_weights = load_datasets(train_dataset_path, validation_dataset_path, model_name)
     model_class = get_model_class(model_name, is_ranking)
     
     optuna.logging.enable_propagation()  # Propagate logs to the root logger
@@ -137,7 +158,8 @@ def main(train_dataset_path: str, validation_dataset_path: str, output_dir: str,
 
     best_params, trials_df = optimize_parameters(X_train=X_train, y_train=y_train, X_val=X_val, evaluation_ds=evaluation_ds,
                                                  categorical_features=cat_features, group_ids=group_ids, model_class=model_class,
-                                                 study_name=study_name, n_trials=n_trials, storage=storage, use_gpu=use_gpu)
+                                                 study_name=study_name, n_trials=n_trials, storage=storage, use_gpu=use_gpu,
+                                                 sorted_indices=sorted_indices, sample_weights=sample_weights)
     
     params_file_path = os.path.join(output_dir, 'lightgbm_best_params.json')
     logging.info(f'Best parameters: {best_params}')

@@ -8,16 +8,30 @@ import gc
 from ebrec.evaluation.metrics_protocols import *
 from fastauc.fastauc.fast_auc import CppAuc
 import argparse
+from polimi.utils._polars import reduce_polars_df_memory_size, inflate_polars_df
 
 RANKER = True
-TRAIN_VAL = False
-dataset_path = '/home/ubuntu/experiments/preprocessing_train_new'
-validation_path = None
-batch_split_directory = '/home/ubuntu/experiments/batches_train_val_new/batches'
+TRAIN_VAL = True
+dataset_path = '/home/ubuntu/experiments/preprocessing_train_new_with_recsys'
+validation_path = '/home/ubuntu/experiments/preprocessing_val_new_with_recsys'
+batch_split_directory = '/home/ubuntu/experiments/catboost_rnk_recsys_train_val/batches'
 
-model_path = '/home/ubuntu/experiments/cat_rnk_train_recsys/models'
+model_path = '/home/ubuntu/experiments/catboost_rnk_recsys_train_val/models'
 catboost_params = {
-    
+    "iterations": 2421,
+    "learning_rate": 0.061372161824290145,
+    "rsm": 0.681769606695633,
+    "reg_lambda": 0.4953354255208565,
+    "grow_policy": "SymmetricTree",
+    "bootstrap_type": "MVS",
+    "subsample": 0.5108219602277233,
+    "random_strength": 14.089062269780399,
+    "fold_permutation_block": 39,
+    "border_count": 34,
+    "sampling_frequency": "PerTreeLevel",
+    "score_function": "Cosine",
+    "depth": 8,
+    "mvs_reg": 0.0015341832942953422
 }
 
 
@@ -39,19 +53,30 @@ def load_batch(dataset_path, batch_split_directory, batch_index):
     subsampled_train = train_ds.filter(pl.col('impression_id').is_in(
         batch.select('impression_id'))).collect()
     columns = subsampled_train.columns
+    
+    del train_ds
+    gc.collect()
 
     if TRAIN_VAL:
         subsampled_val = val_ds.filter(pl.col('impression_id').is_in(
             batch.select('impression_id'))).select(columns).collect()
-        subsampled_train = pl.concat(
-            [subsampled_train, subsampled_val], how='vertical_relaxed')
-
+        print('ckp 1')
+        subsampled_train = inflate_polars_df(subsampled_train)
+        subsampled_train = reduce_polars_df_memory_size(subsampled_train.vstack(inflate_polars_df(subsampled_val)))
+        del subsampled_val
+        gc.collect()
+    print('ckp King')
     with open(os.path.join(dataset_path, 'data_info.json')) as data_info_file:
         data_info = json.load(data_info_file)
     
     if RANKER:
-        subsampled_train = subsampled_train.sort(by='impression_id')
+        print('ckp_1')
+        order = subsampled_train.select(['impression_id','article','user_id']).sort(by = 'impression_id')
+        print('ckp_2')
+        subsampled_train = order.join(subsampled_train, on=['impression_id','article','user_id'], how='left')
+        print('ckp_3')
         groups = subsampled_train.select('impression_id').to_numpy().flatten()
+        print('ckp_4')
         
     if 'postcode' in subsampled_train.columns:
         subsampled_train = subsampled_train.with_columns(pl.col('postcode').fill_null(5))
@@ -59,10 +84,10 @@ def load_batch(dataset_path, batch_split_directory, batch_index):
         subsampled_train = subsampled_train.with_columns(pl.col('article_type').fill_null('article_default'))
     if 'impression_time' in subsampled_train.columns:
         subsampled_train = subsampled_train.drop(['impression_time'])
-    
+    print('ckp 2')
     subsampled_train = subsampled_train.drop(['impression_id', 'article', 'user_id']).to_pandas()
     subsampled_train[data_info['categorical_columns']] = subsampled_train[data_info['categorical_columns']].astype('category')
-
+    print('ckp 3')
     X = subsampled_train.drop(columns=['target'])
     y = subsampled_train['target']
     
@@ -71,7 +96,7 @@ def load_batch(dataset_path, batch_split_directory, batch_index):
     if 'impression_time' in X:
         X = X.drop(['impression_time'])
 
-    del train_ds, batch, subsampled_train
+    del batch, subsampled_train
     gc.collect()
 
     if RANKER:
