@@ -8,3 +8,5 @@ python3 /home/ubuntu/RecSysChallenge2024/src/polimi/test/catboost_batch_training
 python3 /home/ubuntu/RecSysChallenge2024/src/polimi/test/catboost_batch_training.py -batch 7
 python3 /home/ubuntu/RecSysChallenge2024/src/polimi/test/catboost_batch_training.py -batch 8
 python3 /home/ubuntu/RecSysChallenge2024/src/polimi/test/catboost_batch_training.py -batch 9
+python3 /home/ubuntu/RecSysChallenge2024/src/polimi/test/catboost_batch_training.py -batch 10
+python3 /home/ubuntu/RecSysChallenge2024/src/polimi/test/catboost_batch_training.py -batch 11

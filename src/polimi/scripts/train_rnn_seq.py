@@ -34,19 +34,19 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    dtype='ebnerd_small'
+    dtype='ebnerd_testset'
     logging.info(f'Reading dataset {dtype}')
-    history_train = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/train/history.parquet')
+    history_train = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/test/history.parquet')
     n_users = len(history_train)
-    history_val = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/validation/history.parquet')
+    # history_val = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/validation/history.parquet')
     articles = pl.read_parquet(f'/home/ubuntu/dataset/{dtype}/articles.parquet')
     
     #Sampling
-    # gap = 0.05
-    # history_train = history_train.filter(
-    #     pl.col('article_id_fixed').list.len() >= pl.col('article_id_fixed').list.len().quantile(gap),
-    #     pl.col('article_id_fixed').list.len() <= pl.col('article_id_fixed').list.len().quantile(1-gap), 
-    # )
+    gap = 0.05
+    history_train = history_train.filter(
+        pl.col('article_id_fixed').list.len() >= pl.col('article_id_fixed').list.len().quantile(gap),
+        pl.col('article_id_fixed').list.len() <= pl.col('article_id_fixed').list.len().quantile(1-gap), 
+    )
     
     # sample_fraction = 1
     # user_id_sampled = history_train['user_id'].sample(fraction=sample_fraction, seed=seed)
@@ -63,7 +63,7 @@ if __name__ == '__main__':
     
     logging.info('Building history seq...')
     history_seq_train = build_history_seq(history_train, articles)
-    history_seq_val = build_history_seq(history_val, articles)
+    # history_seq_val = build_history_seq(history_val, articles)
     logging.info('...done')
     
     del history_train, articles
@@ -88,9 +88,9 @@ if __name__ == '__main__':
         }
     )
 
-    batch_size=128
+    batch_size=512
     buffer_size=65536
-    target_telescope_type = 'random_max_7'
+    target_telescope_type = 'next'
     # Create the dataset from the generator
     dataset_train = tf.data.Dataset.from_generator(
         lambda: build_sequences_seq_iterator(history_seq_train, window=window, stride=stride, target_telescope_type=target_telescope_type),
@@ -100,26 +100,26 @@ if __name__ == '__main__':
     dataset_train = dataset_train.shuffle(buffer_size=buffer_size).batch(batch_size)
     
     # Create the dataset from the generator
-    dataset_val = tf.data.Dataset.from_generator(
-        lambda: build_sequences_seq_iterator(history_seq_val, window=window, stride=stride, target_telescope_type=target_telescope_type),
-        output_signature=output_signature
-    )
-    # first shuffle, then batch, otherwise the buffer size will be the number of batches, not the number of samples
-    dataset_val = dataset_val.batch(batch_size)
+    # dataset_val = tf.data.Dataset.from_generator(
+    #     lambda: build_sequences_seq_iterator(history_seq_val, window=window, stride=stride, target_telescope_type=target_telescope_type),
+    #     output_signature=output_signature
+    # )
+    # # first shuffle, then batch, otherwise the buffer size will be the number of batches, not the number of samples
+    # dataset_val = dataset_val.batch(batch_size)
 
     model = TemporalHistorySequenceModel(
         seq_embedding_dims={
             # adding one dim more to cover missings, where needed
-            'input_topics': (N_TOPICS + 1, 10, True),
-            'input_subcategory': (N_SUBCATEGORY + 1, 10, True),
-            'input_category': (N_CATEGORY + 1, 10, False),
+            'input_topics': (N_TOPICS + 1, 20, True),
+            'input_subcategory': (N_SUBCATEGORY + 1, 20, True),
+            'input_category': (N_CATEGORY + 1, 20, False),
             'input_weekday': (N_WEEKDAY, 3, False),
             'input_hour_group': (N_HOUR_GROUP, 3, False),
             'input_sentiment_label': (N_SENTIMENT_LABEL + 1, 2, False)
         },
         seq_numerical_features=['scroll_percentage', 'read_time', 'premium'],
         n_recurrent_layers=1,
-        recurrent_embedding_dim=64,
+        recurrent_embedding_dim=32,
         l1_lambda=1e-4,
         l2_lambda=1e-4,
     )
@@ -129,10 +129,10 @@ if __name__ == '__main__':
     
     model.fit(
         train_dataset=dataset_train,
-        validation_data=dataset_val,
-        early_stopping_rounds=3,
+        # validation_data=dataset_val,
+        # early_stopping_rounds=3,
         batch_size=batch_size,
-        epochs=20,
+        epochs=10,
         # target for (topics, subcategory, category)
         loss={
             'output_topics': tfk.losses.BinaryCrossentropy(), 

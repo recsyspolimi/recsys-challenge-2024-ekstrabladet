@@ -27,7 +27,7 @@ def main(dataset_path, output_dir):
         "ORGPct","PERPct","PRODPct","PctCategoryMatches","PctNotDefaultArticles",
         "PctStrongNegative","PctStrongNeutral","PctStrongPositive","PositivePct",
         "TotalReadTime","age","clicked_count_l_inf_impression",
-        "endorsement_20h_articleuser_l_inf_article_user",
+        "endorsement_20h_articleuser_l_inf_articleuser",
         "endorsement_20h_articleuser_macd","endorsement_10h_leak_macd",
         "entropy_impression_mean_JS","entropy_impression_std_JS",
         "entropy_impression_topics_cosine",

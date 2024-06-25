@@ -1,9 +1,9 @@
-RESIDUAL_DICT = {'residual_0': 0.651223860703235,
-                 'residual_1': 0.019967703328025423, 
-                 'residual_2': 0.026876955976902865, 
-                 'residual_3': 0.20015432836563146, 
-                 'residual_4': 0.999285298435996}
-
+RESIDUAL_DICT = {'residual_0': 0.5919690814492665, 
+                 'residual_1': 0.0012995886278801857, 
+                 'residual_2': 0.08266743331619494, 
+                 'residual_3': 0.5029040319637748, 
+                 'residual_4': 0.7179375798846832}
+# weigths with six models tuned on large dataset
 if __name__ == '__main__':
     residual_list = [res for res in RESIDUAL_DICT.values()]
     n_weights = len(residual_list)

@@ -119,13 +119,13 @@ class Iterator(xgb.DataIter):
         
         
     
-def main(dataset_path: Path, params_path: Path, output_dir: Path, verbosity, preprocess_slices:bool = True):        
+def main(dataset_path: Path, params_path: Path, output_dir: Path, verbosity, preprocess_slices:bool = False):        
     with open(dataset_path / 'data_info.json') as data_info_file:
         data_info = json.load(data_info_file)        
     logging.info(f'Data info: {data_info}')
     
     if preprocess_slices:
-        create_slices(dataset_path, data_info, n_slices=3)
+        create_slices(dataset_path, data_info, n_slices=10)
         
     slices_path = dataset_path / 'slices'
     # List all folders of type dataset_path / 'slices' / i
