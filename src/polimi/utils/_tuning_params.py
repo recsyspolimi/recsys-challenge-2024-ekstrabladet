@@ -36,14 +36,15 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
 
     elif model in [CatBoostClassifier, CatBoostRanker]:
         params = {
-            'iterations': trial.suggest_int('iterations', 100, 5000),
-            'learning_rate': trial.suggest_float("learning_rate", 0.005, 0.2, log=True),
-            'reg_lambda': trial.suggest_float("reg_lambda", 1e-5, 1000, log=True),
+            'iterations': trial.suggest_int('iterations', 100, 5000, step=10),
+            'learning_rate': trial.suggest_float("learning_rate", 1e-4, 0.1, log=True),
+            'reg_lambda': trial.suggest_float("reg_lambda", 1e-5, 1e5, log=True),
             'grow_policy': trial.suggest_categorical('grow_policy', ['SymmetricTree', 'Depthwise', 'Lossguide']),
             'bootstrap_type': trial.suggest_categorical('bootstrap_type', ['Bernoulli', 'MVS']),
             'subsample': trial.suggest_float("subsample", 0.05, 0.7),
             'fold_permutation_block': trial.suggest_int('fold_permutation_block', 1, 100),
             'border_count': trial.suggest_int('border_count', 8, 512, log=True),
+            # 'has_time': trial.suggest_categorical('has_time', [True, False]),
             'cat_features': categorical_columns,
             'random_seed': random_seed,
             'task_type': 'GPU' if use_gpu else 'CPU',
@@ -77,7 +78,7 @@ def get_models_params(trial: optuna.Trial, model: Type, categorical_columns: Lis
             if model == CatBoostRanker:
                 params['depth'] = trial.suggest_int("depth", 2, 8)
         else:
-            params['random_strength'] = trial.suggest_float('random_strength', 1e-4, 1e2, log=True)
+            params['random_strength'] = trial.suggest_float('random_strength', 1e-6, 1e2, log=True)
      
     elif model in [XGBClassifier, XGBRanker]:
         params = {

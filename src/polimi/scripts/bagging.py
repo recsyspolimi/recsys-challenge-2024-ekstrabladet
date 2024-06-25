@@ -10,6 +10,7 @@ import numpy as np
 from fastauc.fastauc.fast_auc import fast_numba_auc
 
 NUM_MODELS = 10
+NUM_SEEDS = 5
 NPRATIO = 2
 
 if __name__ == '__main__':
@@ -37,7 +38,7 @@ if __name__ == '__main__':
     for i in range(NUM_MODELS):
         
         behaviors_subsample = behaviors.pipe(
-                sampling_strategy_wu2019, npratio=NPRATIO, shuffle=False, with_replacement=True, seed=42+i
+                sampling_strategy_wu2019, npratio=NPRATIO, shuffle=False, with_replacement=True, seed=123+i
             ).drop('article_ids_clicked').explode('article_ids_inview').rename({'article_ids_inview' : 'article'}) \
             .with_columns(pl.col('user_id').cast(pl.UInt32), pl.col('article').cast(pl.Int32))
             
@@ -52,10 +53,10 @@ if __name__ == '__main__':
         del train_ds_subsample
         gc.collect()
         
-        model = LGBMClassifier(**params, verbosity=-1)
+        model = LGBMClassifier(**params, verbosity=-1, scale_pos_weight=0.5)
         model.fit(X, y)
-        
         predictions = model.predict_proba(X_val[X.columns])[:, 1]
+        
         evaluation_ds = evaluation_ds.with_columns(pl.Series(predictions).alias('prediction'))
         evaluation_ds_grouped = evaluation_ds.group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
         
@@ -67,9 +68,9 @@ if __name__ == '__main__':
         print(f'Iteration {i} auc: {auc}')
         bagging_predictions.append(predictions)
         
-    predictions_mean = np.mean(bagging_predictions)
+    predictions_mean = np.mean(np.array(bagging_predictions), axis=0)
 
-    evaluation_ds = evaluation_ds.with_columns(pl.Series(predictions).alias('prediction'))
+    evaluation_ds = evaluation_ds.with_columns(pl.Series(predictions_mean).alias('prediction'))
     evaluation_ds_grouped = evaluation_ds.group_by('impression_id').agg(pl.col('target'), pl.col('prediction'))
 
     auc = np.mean(
@@ -77,4 +78,4 @@ if __name__ == '__main__':
             for y_t, y_s in zip(evaluation_ds_grouped['target'].to_list(), 
                                 evaluation_ds_grouped['prediction'].to_list())]
     )
-    print('Bagging AUC: {auc}')
+    print(f'Bagging AUC: {auc}')
