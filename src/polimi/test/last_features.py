@@ -1,18 +1,19 @@
-from polimi.utils._polars import reduce_polars_df_memory_size
+from polimi.utils._polars import reduce_polars_df_memory_size, inflate_polars_df
 import json
 import polars as pl
 from pathlib import Path
 import tqdm
+import gc
 
 NORMALIZE_OVER_USER_ID = [
     'total_pageviews/inviews', 'endorsement_10h', 'trendiness_score_3d',
     'total_pageviews', 'total_read_time', 'total_inviews', 'article_delay_hours'
 ]
 COMPLETE_NORMALIZE_OVER_USER_ID = [
-    'mean_JS', 'std_JS', 'mean_topic_model_cosine', 'topics_cosine',
+    'mean_JS', 'std_JS', 'topics_cosine', # 'mean_topic_model_cosine'
 ]
 NORMALIZE_OVER_ARTICLE = [
-    'article_delay_hours', 'mean_JS', 'std_JS', 'mean_topic_model_cosine', 'topics_cosine',
+    'article_delay_hours', 'mean_JS', 'std_JS', 'topics_cosine', # mean_topic_model_cosine
 ]
 CATEGORICAL_ENTROPY = [
     'category', 'sentiment_label', 'article_type', 'premium'
@@ -39,20 +40,30 @@ expressions = [
 
 if __name__ == '__main__':
     
-    OUTPUT_DIR_DATASET = '/home/ubuntu/tmp_dataset/train_ds.parquet'
+    OUTPUT_DIR_DATASET = '/mnt/ebs_volume/stacking/dataset_new/test_ds.parquet'
     
-    with open('/home/ubuntu/dset_complete/data_info.json') as data_info_file:
+    with open('/mnt/ebs_volume/stacking/dataset/data_info.json') as data_info_file:
         data_info = json.load(data_info_file)
         
     data_info['categorical_columns'] += ['cwh']
 
-    with open('/home/ubuntu/tmp_dataset/data_info.json', 'w') as data_info_file:
+    with open('/mnt/ebs_volume/stacking/dataset_new/data_info.json', 'w') as data_info_file:
         json.dump(data_info, data_info_file)
     
-    history = pl.read_parquet('/home/ubuntu/dataset/ebnerd_small/train/history.parquet')
-    articles = pl.read_parquet('/home/ubuntu/dataset/ebnerd_small/articles.parquet')
-    behaviors = pl.read_parquet('/home/ubuntu/dataset/ebnerd_small/train/behaviors.parquet')
-    dataset = pl.read_parquet('/home/ubuntu/dset_complete/train_ds.parquet')
+    history = pl.read_parquet('/home/ubuntu/dataset/ebnerd_testset/test/history.parquet')
+    articles = pl.read_parquet('/home/ubuntu/dataset/ebnerd_testset/articles.parquet')
+    behaviors = pl.read_parquet('/home/ubuntu/dataset/ebnerd_testset/test/behaviors.parquet')
+    dataset = pl.scan_parquet('/mnt/ebs_volume/stacking/dataset/test_ds.parquet')
+    
+    normalization_columns = list(set(NORMALIZE_OVER_USER_ID + COMPLETE_NORMALIZE_OVER_USER_ID + \
+        NORMALIZE_OVER_ARTICLE + CATEGORICAL_ENTROPY))
+    normaliazion_dataset = dataset.select(normalization_columns + ['impression_id', 'user_id', 'article']).collect()
+    for expressions_group in tqdm.tqdm(expressions):
+        normaliazion_dataset = normaliazion_dataset.with_columns(expressions_group)
+        normaliazion_dataset = reduce_polars_df_memory_size(normaliazion_dataset)
+    normalization_dataset = normaliazion_dataset.drop(normalization_columns)
+    
+    print('Read Dataset')
     
     history_counts_df = history.select(['user_id', 'article_id_fixed']) \
         .with_columns(pl.col('article_id_fixed').list.len().alias('history_len')).drop('article_id_fixed')
@@ -143,24 +154,55 @@ if __name__ == '__main__':
             pl.col("is_weekend").mean().alias('weekend_pct'),
             pl.col("premium").mean().alias('premium_pct'),
         )
-
-    dataset = dataset.with_columns(
-        (pl.col('endorsement_10h') / pl.col('trendiness_score_1d')).alias('endorsement_over_trend'),
-        (pl.col('normalized_endorsement_10h') / pl.col('normalized_trendiness_score_overall')).alias('norm_endorsement_over_trend'),
-        (pl.col('user_mean_delay_hours') / pl.col('mean_topics_mean_delay_hours')).alias('user_over_topics_delay_hours')
-    ).join(history, on='user_id', how='left').with_columns(
-        pl.col('category').cast(pl.String).alias('category_string')
-    ).join(user_probabilities, on=['user_id', 'article', 'impression_id'], how='left').drop('category_string') \
-
-    # bayes rule: P(click(user)|cwh) = P(cwh|click(user)) * P(click(user)) / P(cwh)
-    # assuming P(click(user)) prior as uniform across the inview
-    dataset = dataset.with_columns(pl.concat_str(['category', 'weekday', pl.col('hour') // 4], separator='_').alias('cwh')) \
-        .join(history_cwh_freq_user, on=['user_id', 'cwh'], how='left') \
-        .join(history_cwh_freq, on='cwh', how='left') \
-        .with_columns(pl.col('cwh_prob_user') / (pl.col('cwh_prob') * pl.col('article').count().over('impression_id')))
-    
-    for expressions_group in tqdm.tqdm(expressions):
-        dataset = dataset.with_columns(expressions_group)
-        dataset = reduce_polars_df_memory_size(dataset)
         
-    dataset.write_parquet(OUTPUT_DIR_DATASET)
+    history = reduce_polars_df_memory_size(history)
+    user_probabilities = reduce_polars_df_memory_size(user_probabilities)
+    history_cwh_freq_user = reduce_polars_df_memory_size(history_cwh_freq_user)
+    history_cwh_freq = reduce_polars_df_memory_size(history_cwh_freq)
+    
+    del articles, behaviors, history_topics_proba_df, history_category_proba_df, history_counts_df
+    gc.collect()
+    
+    print('Joining Features')
+    
+    n_batches = 50
+    per_batch_elements = int(dataset.select('impression_id').collect().shape[0] / n_batches)
+    starting_index = 0
+    evaluations = []
+    
+    complete_dataset = None
+    for batch in tqdm.tqdm(range(n_batches)):
+        print(f'--------------Processing Batch {batch}---------------')
+        if batch == n_batches - 1:
+            slice_features = dataset.slice(starting_index, None).collect()
+        else :
+            slice_features = dataset.slice(starting_index, per_batch_elements).collect()
+        
+        starting_index = starting_index + per_batch_elements
+
+        slice_features = slice_features.with_columns(
+            (pl.col('endorsement_10h') / pl.col('trendiness_score_1d')).alias('endorsement_over_trend'),
+            (pl.col('normalized_endorsement_10h') / pl.col('normalized_trendiness_score_overall')).alias('norm_endorsement_over_trend'),
+            (pl.col('user_mean_delay_hours') / pl.col('mean_topics_mean_delay_hours')).alias('user_over_topics_delay_hours')
+        ).join(history, on='user_id', how='left').with_columns(
+            pl.col('category').cast(pl.String).alias('category_string')
+        ).join(user_probabilities, on=['user_id', 'article', 'impression_id'], how='left').drop('category_string')
+        
+        # bayes rule: P(click(user)|cwh) = P(cwh|click(user)) * P(click(user)) / P(cwh)
+        # assuming P(click(user)) prior as uniform across the inview
+        slice_features = slice_features.with_columns(pl.concat_str(['category', 'weekday', pl.col('hour') // 4], separator='_').alias('cwh')) \
+            .join(history_cwh_freq_user, on=['user_id', 'cwh'], how='left') \
+            .join(history_cwh_freq, on='cwh', how='left') \
+            .with_columns(pl.col('cwh_prob_user') / (pl.col('cwh_prob') * pl.col('article').count().over('impression_id')))
+            
+        slice_features = slice_features.join(normaliazion_dataset, on=['impression_id', 'user_id', 'article'], how='left')
+        
+        if complete_dataset is None:
+            complete_dataset = inflate_polars_df(slice_features)
+        else:
+            complete_dataset = complete_dataset.vstack(inflate_polars_df(slice_features))
+            
+    del history_cwh_freq_user, history_cwh_freq, user_probabilities, history, dataset, normaliazion_dataset
+    gc.collect()
+        
+    complete_dataset.write_parquet(OUTPUT_DIR_DATASET)

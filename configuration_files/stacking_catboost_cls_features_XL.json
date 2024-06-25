@@ -1,0 +1,18 @@
+{
+    "iterations": 16000, 
+    "learning_rate": 0.005, 
+    "reg_lambda": 115.35412613141102, 
+    "grow_policy": "Lossguide", 
+    "bootstrap_type": "MVS", 
+    "subsample": 0.3568134079290238, 
+    "fold_permutation_block": 55, 
+    "border_count": 32, 
+    "max_leaves": 128, 
+    "depth": 12, 
+    "langevin": true, 
+    "diffusion_temperature": 143.81249981298163, 
+    "min_data_in_leaf": 689.1577286962648, 
+    "mvs_reg": 1014.6383444541608, 
+    "rsm": 0.25645414418209306, 
+    "random_strength": 71.9065460102231
+}

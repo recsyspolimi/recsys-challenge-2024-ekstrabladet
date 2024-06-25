@@ -32,7 +32,7 @@ def save_feature_importances_plot(X, y, model, output_dir, categorical_columns, 
     plt.close()
 
 
-def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity, use_ranker=False):
+def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity, use_ranker=False, has_time=False):
     logging.info(f"Loading the preprocessed dataset from {dataset_path}")
     
     train_ds = pl.read_parquet(os.path.join(dataset_path, 'train_ds.parquet'))
@@ -50,6 +50,9 @@ def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity, use
     if 'article_type' in train_ds.columns:
         train_ds = train_ds.with_columns(pl.col('article_type').fill_null('article_default'))
     if 'impression_time' in train_ds.columns:
+        if has_time:
+            sorted_indices = train_ds.select(['impression_time', 'impression_id']) \
+                .with_row_index().sort(by=['impression_time', 'impression_id']).select('index').to_numpy().flatten()
         train_ds = train_ds.drop(['impression_time'])
     
     train_ds = train_ds.drop(['impression_id', 'article', 'user_id']).to_pandas()
@@ -70,7 +73,8 @@ def main(dataset_path, catboost_params_path, output_dir, catboost_verbosity, use
         
     logging.info(f'Catboost params: {params}')
     logging.info(f'Starting to train the catboost model')
-    
+    if has_time:
+        X = X.iloc[sorted_indices, :]
     if use_ranker:
         model = CatBoostRanker(**params, cat_features=data_info['categorical_columns'])
         model.fit(X, y, group_id=groups, verbose=catboost_verbosity)
@@ -103,6 +107,8 @@ if __name__ == '__main__':
                         help='Whether to use CarBoostRanker or not')
     parser.add_argument('--resume_training', action='store_true', default=False, 
                         help='Whether to resume an existing training')
+    parser.add_argument('--has_time', action='store_true', default=False, 
+                        help='Whether the dataset has time column or not')
     
     args = parser.parse_args()
     OUTPUT_DIR = args.output_dir
@@ -111,6 +117,7 @@ if __name__ == '__main__':
     CATBOOST_VERBOSITY = args.catboost_verbosity
     RESUME_TRAINING = args.resume_training
     USE_RANKER = args.ranker
+    HAS_TIME = args.has_time
     model_name = args.model_name
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -134,4 +141,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(DATASET_DIR, CATBOOST_HYPERPARAMS_PATH, output_dir, CATBOOST_VERBOSITY, USE_RANKER)
+    main(DATASET_DIR, CATBOOST_HYPERPARAMS_PATH, output_dir, CATBOOST_VERBOSITY, USE_RANKER, HAS_TIME)

@@ -7,7 +7,7 @@ import tqdm
 
 
 def _compute_topic_model(articles, n_components=5):
-    # nltk.download('stopwords')
+    nltk.download('stopwords')
     stopwords = nltk.corpus.stopwords.words('danish')
     title_vectorizer = CountVectorizer(stop_words=stopwords)
 
