@@ -340,7 +340,6 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
 
     prev_train_columns = [
         c for c in df_features.columns if c not in ['impression_id', 'article']]
-
     df_features = pl.concat(
         rows.join(history.select(
             ['user_id', 'article_id_fixed']), on='user_id', how='left')
@@ -356,7 +355,7 @@ def _join_history(df_features: pl.DataFrame, history: pl.DataFrame, articles: pl
             pl.col('entity_groups').list.set_intersection(
                 pl.col('entity_groups_history')).list.len().alias('common_entities'),
         ).drop(['entity_groups_history', 'entity_groups', 'topics', 'topics_history'])
-        .group_by(['impression_id', 'article', 'user_id']).agg(
+        .group_by(['impression_id', 'article']).agg(
             pl.col(prev_train_columns).first(),
             pl.col('topics_idf').first(),
             pl.col('common_entities').mean().alias('MeanCommonEntities'),

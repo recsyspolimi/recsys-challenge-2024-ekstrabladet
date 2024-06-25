@@ -66,7 +66,7 @@ def main(input_path, output_dir, preprocessing_version='new'):
         print(f'Preprocessing fold {i}')
         fold_path = output_dir / f'train_{i+1}'
         fold_path.mkdir(parents=True, exist_ok=True)
-
+        
         print(f'Starting training fold {i}...')
         features_k_train, _, unique_entities = PREPROCESSING[preprocessing_version](
             behaviors_k_train, history_k_train, articles, test=False, sample=False, previous_version=None,

@@ -41,7 +41,7 @@ PREPROCESSING = {
     'new': build_features_new,
     'new_click': build_features_new_click,
     'new_emb_urm': build_features_new_emb_urm,
-    'latest': build_features_127f,
+    'latest': build_features_new_with_recsys,
     'new_with_recsys': build_features_new_with_recsys
 }
 PREPROCESSING_VERSIONS = list(PREPROCESSING.keys())
@@ -57,7 +57,7 @@ BATCH_PREPROCESSING = {
     'new': build_features_iterator_new,
     'new_click' : build_features_iterator_new_click,
     'new_with_recsys': build_features_iterator_new_with_recsys,
-    'latest' : build_features_iterator_127f,
+    'latest' : build_features_iterator_new_with_recsys,
 }
 
 TEST_BATCH_PREPROCESSING = {
@@ -66,7 +66,7 @@ TEST_BATCH_PREPROCESSING = {
     '147f': build_features_iterator_test_147f,
     'new': build_features_iterator_test_new,
     'new_click': build_features_iterator_test_new_click,
-    'latest' : build_features_iterator_test_127f,
+    'latest' : build_features_iterator_new_with_recsys,
     'new_with_recsys': build_features_iterator_new_with_recsys,
 }
 
