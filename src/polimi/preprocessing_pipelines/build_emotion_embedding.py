@@ -1,3 +1,4 @@
+from pathlib import Path
 import polars as pl
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from scipy.special import softmax
@@ -34,6 +35,7 @@ def main(PATH, OUTPATH):
             )
         for rows in tqdm.tqdm(full_title_articles.iter_slices(100), total=full_title_articles.shape[0] // 100))
     
+    Path(OUTPATH).mkdir(parents=True, exist_ok=True)
     articles_emotions.drop('full_title').write_parquet(OUTPATH  + '/articles_emotion.parquet')
     
 
