@@ -25,27 +25,28 @@ def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, 
 
     
     embeddings = []
-    for file_name in os.listdir(embeddings_path):
+    for file_name in sorted(os.listdir(embeddings_path)):
         if os.path.isfile(embeddings_path.joinpath(file_name)):
             emb = pl.read_parquet(embeddings_path.joinpath(file_name))
             embeddings.append(emb)
         else:
             continue
-
+    
+    
     articles_mapping = articles.select('article_id').with_row_index().rename({'index': 'article_index'})
 
     ICMs = []
 
-    print(ICMs)
+
 
     associations = {
-        'contrastive_vector' : contrastive_vector_2,
-        'document_vector': w_2_vec,
-        'google-bert/bert-base-multilingual-cased': google_bert,
-        'FacebookAI/xlm-roberta-base': roberta,
-        'title_embedding': distilbert,
-        'kenneth_title+subtitle': kenneth,
-        'emotion_scores': emotions  
+        'google-bert/bert-base-multilingual-cased':  embeddings[0],
+        'contrastive_vector' : embeddings[1],
+        'title_embedding': embeddings[2],
+        'document_vector': embeddings[3],
+        'emotion_scores':  embeddings[4],
+        'kenneth_title+subtitle': embeddings[5],
+        'FacebookAI/xlm-roberta-base': embeddings[6],     
     }
 
     for k,value in associations.items():
@@ -59,12 +60,15 @@ def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, 
 
         n_articles = ICM_dataframe.select('article_index').n_unique()
         n_features = ICM_dataframe.select('feature_id').n_unique()
-
+        
         ICM = sps.csr_matrix((ICM_dataframe[k].to_numpy(), 
                           (ICM_dataframe["article_index"].to_numpy(), ICM_dataframe["feature_id"].to_numpy())),
                         shape = (n_articles, n_features))
     
         ICMs.append(ICM)
+
+
+    
 
 
     item_mapping = build_item_mapping(articles)
@@ -74,35 +78,33 @@ def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, 
 
     recs = []
 
-    bert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[2])
+    bert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[0])
     bert.fit(similarity= 'euclidean', topK= 1457, shrink= 329, normalize_avg_row= True, similarity_from_distance_mode= 'exp', normalize= False) 
     recs.append(bert)
 
-    contrastive = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[6])
+    contrastive = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[1])
     contrastive.fit(similarity= 'asymmetric', topK= 192, shrink= 569, asymmetric_alpha= 0.9094884938503743) 
     recs.append(contrastive)
 
-    emotion = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[5])
-    emotion.fit(similarity= 'euclidean', topK= 1099, shrink= 752, normalize_avg_row= True, similarity_from_distance_mode= 'lin', normalize= False) 
-    recs.append(emotion)
-
-    roberta = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[3])
-    roberta.fit(similarity= 'cosine', topK= 363, shrink= 29) 
-    recs.append(roberta)
-
-    w_2_vec = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[4])
-    w_2_vec.fit(similarity= 'cosine', topK= 359, shrink= 562) 
-    recs.append(w_2_vec)
-
-    kenneth = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[0])
-    kenneth.fit(similarity= 'asymmetric', topK= 303, shrink= 574, asymmetric_alpha= 1.7852169782747023) 
-    recs.append(kenneth)
-
-    distilbert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[1])
+    distilbert = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[2])
     distilbert.fit(similarity= 'asymmetric', topK= 921, shrink= 1, asymmetric_alpha= 0.774522157812755) 
     recs.append(distilbert)
 
+    w_2_vec = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[3])
+    w_2_vec.fit(similarity= 'cosine', topK= 359, shrink= 562) 
+    recs.append(w_2_vec)
 
+    emotion = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[4])
+    emotion.fit(similarity= 'euclidean', topK= 1099, shrink= 752, normalize_avg_row= True, similarity_from_distance_mode= 'lin', normalize= False) 
+    recs.append(emotion)
+
+    kenneth = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[5])
+    kenneth.fit(similarity= 'asymmetric', topK= 303, shrink= 574, asymmetric_alpha= 1.7852169782747023) 
+    recs.append(kenneth)
+
+    roberta = ItemKNNCBFRecommender(URM_train=URM_train,ICM_train=ICMs[6])
+    roberta.fit(similarity= 'cosine', topK= 363, shrink= 29) 
+    recs.append(roberta)
 
     recsys_features = build_recsys_features(history=history_train.vstack(history_val),behaviors=behaviors_train,articles=articles,recs=recs)
 
@@ -110,18 +112,19 @@ def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, 
     
 
     couple = {
-        'recs0': 'emb_kenneth_icm_recsys',
-        'recs1': 'emb_distilbert_icm_recsys',
-        'recs2': 'emb_bert_icm_recsys',
-        'recs3': 'emb_roberta_icm_recsys',
-        'recs4': 'emb_w_2_vec_icm_recsys',
-        'recs5': 'emb_emotions_icm_recsys',
-        'recs6': 'emb_contrastive_icm_recsys'
+        'recs0': 'emb_bert_icm_recsys',
+        'recs1': 'emb_contrastive_icm_recsys',
+        'recs2': 'emb_distilbert_icm_recsys',
+        'recs3': 'emb_w_2_vec_icm_recsys',
+        'recs4': 'emb_emotions_icm_recsys',
+        'recs5': 'emb_kenneth_icm_recsys',
+        'recs6': 'emb_roberta_icm_recsys',
     }
 
 
+    
     for col in recsys_features.columns:
-        if couple[col] != None:
+        if couple.get(col,None) != None:
             recsys_features = recsys_features.rename({col: couple[col]})
 
     
@@ -182,7 +185,7 @@ def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, 
 
     )
 
-    new_prepro.write_parquet(output_dir)
+    new_prepro.write_parquet(output_dir.joinpath('train_ds.parquet'))
 
     
 
@@ -202,7 +205,7 @@ if __name__ == '__main__':
     parser.add_argument("-articles", default=None, type=str,required=True,
                         help="Specify the articles.")
     parser.add_argument("-embeddings_directory", default=None, type=str,required=True,
-                        help="Specify the directory where the embeddings can be found")
+                        help="Specify the directory where the embeddings can be found, MUST BE a directory with only the files .parquet referring to embeddings, no other file has to be present")
     parser.add_argument("-output_path", default=None, type=str,required=True,
                         help="Specify the directory where the new preprocessing is placed")
     
