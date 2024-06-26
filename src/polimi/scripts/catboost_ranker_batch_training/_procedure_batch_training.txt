@@ -1,0 +1,13 @@
+This is a simple explanation on how to train a model in batches.
+
+
+1. Create N batches using generate_splits.py (or generate_splits_train_val.py in case we want to train on
+    both train and val set).
+
+2. Use catboost_batch_training.py to train catboost in batches.
+
+
+3. Use sum_models.ipynb to create merge the obtained models into a single one.
+
+Inside each file there are variables that point to files or contain configuration, please change that 
+variables to run your soultion.
