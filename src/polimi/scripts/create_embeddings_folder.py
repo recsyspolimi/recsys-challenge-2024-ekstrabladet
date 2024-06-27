@@ -34,7 +34,7 @@ def remove_ds_store_files(folder_path):
         print(f"Removed .DS_Store file: {ds_store_file}")
 
 if __name__ == "__main__":
-    base_path = "~/dataset/"
+    base_path = "~/RecSysChallenge2024/dataset/"
     folders_to_copy = ["Ekstra_Bladet_contrastive_vector", "Ekstra_Bladet_word2vec", "FacebookAI_xlm_roberta_base", "google_bert_base_multilingual_cased"]
     output_folder_name = "embeddings"
     
