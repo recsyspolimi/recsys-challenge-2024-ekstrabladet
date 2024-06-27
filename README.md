@@ -57,7 +57,12 @@ The first step is to download the dataset ``.parquet`` files and place it in the
 ...
 ```
 
-### Emotion embeddings
+### embeddings
+
+Run this script to create ``dataset/embeddings/`` folder with all the embeddings that are then used in our features
+```bash
+python3 ~/RecSysChallenge2024/src/polimi/scripts/create_embeddings_folder.py
+```
 
 Then, we should run the script to generate emotion embeddings:
 
@@ -65,9 +70,22 @@ Then, we should run the script to generate emotion embeddings:
 sh ~/RecSysChallenge2024/src/polimi/scripts/run_build_emotion_embedding.sh
 ```
 
+then the script to generate kenneth embeddings:
+TODO
+
+then the script to generate distilbert embeddings:
+TODO
+
 ### Preprocessing
 
 TODO
+
+Script to add ICMs features
+```bash
+sh ~/RecSysChallenge2024/src/polimi/scripts/run_add_recsys_features.sh
+```
+
+
 
 ### Stacking
 
