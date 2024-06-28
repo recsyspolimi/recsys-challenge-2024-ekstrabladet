@@ -84,6 +84,10 @@ sh ~/RecSysChallenge2024/src/polimi/scripts/run_build_distil_embedding.sh
 ### Preprocessing
 
 script to create the preprocessing:
+```bash
+sh ~/RecSysChallenge2024/src/polimi/scripts/run_preprocessing.sh
+```
+
 
 Script to add ICMs features
 ```bash
