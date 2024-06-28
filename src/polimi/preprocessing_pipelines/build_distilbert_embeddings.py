@@ -41,14 +41,13 @@ def main(PATH, OUTPATH):
     embeddings = F.normalize(embeddings, p=2, dim=1)
 
     distilbert_title = pd.DataFrame({
-    'embeddings': embeddings,
+    'embeddings': embeddings.tolist(),
     'articles_id': article_ids
     })
 
-    distilbert_title['embeddings'] = distilbert_title.apply(lambda row: row_to_list(row), axis=1)
 
     Path(OUTPATH).mkdir(parents=True, exist_ok=True)
-    distilbert_title.to_csv(OUTPATH  + '/distilbert_title.csv')
+    distilbert_title.write_parqeut(OUTPATH  + '/distilbert_title.parquet')
 
     
 

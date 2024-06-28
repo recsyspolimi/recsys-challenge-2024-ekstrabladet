@@ -49,15 +49,13 @@ def main(PATH, OUTPATH):
     # Normalize embeddings
     embeddings = F.normalize(embeddings, p=2, dim=1)
 
-    kenneth = pd.DataFrame({
-    'embeddings': embeddings,
+    kenneth = pl.DataFrame({
+    'embeddings': embeddings.tolist(),
     'articles_id': article_ids
     })
 
-    kenneth['embeddings'] = kenneth.apply(lambda row: row_to_list(row), axis=1)
-
     Path(OUTPATH).mkdir(parents=True, exist_ok=True)
-    kenneth.to_csv(OUTPATH  + '/kenneth.csv')
+    kenneth.write_parquet(OUTPATH  + '/kenneth.parquet')
 
     
 
