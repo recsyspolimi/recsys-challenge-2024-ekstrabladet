@@ -4,7 +4,7 @@ python ~/RecSysChallenge2024/src/polimi/scripts/add_recsys_features.py \
     -history_train ~/RecSysChallenge2024/dataset/ebnerd_demo/train/history.parquet\
     -history_val ~/RecSysChallenge2024/dataset/ebnerd_demo/validation/history.parquet\
     -articles ~/RecSysChallenge2024/dataset/ebnerd_demo/articles.parquet\
-    -preprocessing_path TOADD \
+    -preprocessing_path ~/RecSysChallenge2024/preprocessing/train_ds.parquet \
     -embeddings_directory ~/RecSysChallenge2024/dataset/embeddings \
-    -output_path TOADD
+    -output_path ~/RecSysChallenge2024/preprocessing/train_ds.parquet
     

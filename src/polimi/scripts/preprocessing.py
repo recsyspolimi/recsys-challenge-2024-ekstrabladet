@@ -106,7 +106,8 @@ if __name__ == '__main__':
     RECSYS_FETURES_PATH = args.rec_sys_path
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    experiment_name = f'preprocessing_{DATASET_TYPE}_{timestamp}'
+    #experiment_name = f'preprocessing_{DATASET_TYPE}_{timestamp}'
+    experiment_name = f'preprocessing'
     output_dir = os.path.join(OUTPUT_DIR, experiment_name)
     os.makedirs(output_dir)
 
