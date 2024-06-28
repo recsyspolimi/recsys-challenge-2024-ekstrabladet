@@ -260,7 +260,7 @@ if __name__ == '__main__':
         description="Training script for catboost")
     parser.add_argument("-features_dir", default=None, type=str,
                         help="The directory that contain the features of level 1 models")
-    parser.add_argument("-model_json", default=None, type=str, required=True,
+    parser.add_argument("-models_json", default=None, type=str, required=True,
                         help="The JSON that specifies the models used for stacking")
     parser.add_argument("-output_dir", default=None, type=str, required=True,
                         help="File path where the dataset will be placed")
@@ -270,7 +270,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     FEATURES_DIR = args.features_dir
-    MODEL_JSON = args.model_json
+    MODEL_JSON = args.models_json
     OUTPUT_DIR = args.output_dir
     TRAIN = args.train
     
