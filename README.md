@@ -71,14 +71,19 @@ sh ~/RecSysChallenge2024/src/polimi/scripts/run_build_emotion_embedding.sh
 ```
 
 then the script to generate kenneth embeddings:
-TODO
+```bash
+sh ~/RecSysChallenge2024/src/polimi/scripts/run_build_kenneth_embedding.sh
+```
+
 
 then the script to generate distilbert embeddings:
-TODO
+```bash
+sh ~/RecSysChallenge2024/src/polimi/scripts/run_build_distil_embedding.sh
+```
 
 ### Preprocessing
 
-TODO
+script to create the preprocessing:
 
 Script to add ICMs features
 ```bash
@@ -121,14 +126,14 @@ The following table shows the hyperparameters used for each model and each prepr
 
 | **Model**            | **Type**     | **Configuration Path**                                  |
 |----------------------|--------------|----------------------------------------------------------|
-| **Catboost**         | Classifier   | `/path/to/catboost_classifier_config.json`               |
-| **Catboost**         | Ranker       | `/path/to/catboost_ranker_config.json`                   |
-| **LightGBM**         | Classifier   | `/path/to/lightgbm_classifier_config.json`               |
-| **LightGBM**         | Ranker       | `/path/to/lightgbm_ranker_config.json`                   |
-| **MLP**              | Classifier   | `/path/to/mlp_classifier_config.json`                    |
-| **GANDALF**          | Classifier   | `/path/to/gandalf_classifier_config.json`                |
-| **DEEP & CROSS**     | Classifier   | `/path/to/deep_cross_classifier_config.json`             |
-| **WIDE & DEEP**      | Classifier   | `/path/to/wide_deep_classifier_config.json`              |
+| **Catboost**         | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/catboost_classifier_recsys_best.json`            |   |
+| **Catboost**         | Ranker       | `/home/ubuntu/RecSysChallenge2024/configuration_files/catboost_ranker_new_noK_95.json`                   |
+| **LightGBM**         | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/lightgbm_cls_recsys_trial_107.json`               |
+| **LightGBM**         | Ranker       | `/home/ubuntu/RecSysChallenge2024/configuration_files/lightgbm_ranker_recsys_trial_219.json`                   |
+| **MLP**              | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/mlp_tuning_new_trial_208.json`                    |
+| **GANDALF**          | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/gandalf_new_noK_130.json`                |
+| **DEEP & CROSS**     | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/deep_cross_tuning_new_trial_67.json`             |
+| **WIDE & DEEP**      | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/wide_deep_new_trial_72.json`              |
 
 Note that to train each of this model the path of the desired preprocessing version is required, along with the correct configuration file path. Pass them as command line arguments.
 
