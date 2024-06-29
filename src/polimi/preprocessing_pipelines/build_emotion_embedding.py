@@ -36,7 +36,7 @@ def main(PATH, OUTPATH):
         for rows in tqdm.tqdm(full_title_articles.iter_slices(100), total=full_title_articles.shape[0] // 100))
     
     Path(OUTPATH).mkdir(parents=True, exist_ok=True)
-    articles_emotions.drop('full_title').write_parquet(OUTPATH  + '/articles_emotion.parquet')
+    articles_emotions.drop('full_title').write_parquet(OUTPATH  + '/emotion.parquet')
     
 
 if __name__ == '__main__':

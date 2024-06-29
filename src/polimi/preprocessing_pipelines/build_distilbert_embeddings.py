@@ -40,14 +40,14 @@ def main(PATH, OUTPATH):
     # Normalize embeddings
     embeddings = F.normalize(embeddings, p=2, dim=1)
 
-    distilbert_title = pd.DataFrame({
+    distilbert_title = pl.DataFrame({
     'embeddings': embeddings.tolist(),
     'articles_id': article_ids
     })
 
 
     Path(OUTPATH).mkdir(parents=True, exist_ok=True)
-    distilbert_title.write_parqeut(OUTPATH  + '/distilbert_title.parquet')
+    distilbert_title.write_parquet(OUTPATH  + '/distilbert_title.parquet')
 
     
 
