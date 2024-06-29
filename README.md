@@ -94,6 +94,7 @@ Script to add ICMs features
 sh ~/RecSysChallenge2024/src/polimi/scripts/run_add_recsys_features.sh
 ```
 
+Now in ``~/RecSysChallenge2024/preprocessing/train_ds.parquet`` we have our complete preprocessed dataset ready to be used.
 
 
 ### Stacking
