@@ -206,7 +206,7 @@ python ~/RecSysChallenge2024/src/polimi/scripts/inference.py \
 Otherwise, for NN models
 
 ```bash
-python ~/RecSysChallenge2024/src/polimi/scripts/nn_inference.py \
+python ~/RecSysChallenge2024/src/polimi/scripts/nn_inference_batched.py \
     -output_dir ~/RecSysChallenge2024/inference \
     -dataset_path ~/RecSysChallenge2024/preprocessing/... \
     -model_path ~/RecSysChallenge2024/models/{model_name} \
