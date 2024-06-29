@@ -57,41 +57,11 @@ The first step is to download the dataset ``.parquet`` files and place it in the
 ...
 ```
 
-### embeddings
-
-Run this script to create ``dataset/embeddings/`` folder with all the embeddings that are then used in our features
-```bash
-python3 ~/RecSysChallenge2024/src/polimi/scripts/create_embeddings_folder.py
-```
-
-Then, we should run the script to generate emotion embeddings:
-
-```bash
-sh ~/RecSysChallenge2024/src/polimi/scripts/run_build_emotion_embedding.sh
-```
-
-then the script to generate kenneth embeddings:
-```bash
-sh ~/RecSysChallenge2024/src/polimi/scripts/run_build_kenneth_embedding.sh
-```
-
-
-then the script to generate distilbert embeddings:
-```bash
-sh ~/RecSysChallenge2024/src/polimi/scripts/run_build_distil_embedding.sh
-```
-
 ### Preprocessing
 
 script to create the preprocessing:
 ```bash
-sh ~/RecSysChallenge2024/src/polimi/scripts/run_preprocessing.sh
-```
-
-
-Script to add ICMs features
-```bash
-sh ~/RecSysChallenge2024/src/polimi/scripts/run_add_recsys_features.sh
+sh ~/RecSysChallenge2024/src/polimi/scripts/run_all_preprocessing.sh
 ```
 
 Now in ``~/RecSysChallenge2024/preprocessing/train_ds.parquet`` we have our complete preprocessed dataset ready to be used.
