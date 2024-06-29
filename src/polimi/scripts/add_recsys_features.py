@@ -12,8 +12,8 @@ from polimi.utils._urm import build_recsys_features
 
 LOGGING_FORMATTER = "%(asctime)s:%(name)s:%(levelname)s: %(message)s"
 
-def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, history_train: Path, history_val: Path,articles: Path, embeddings_path: Path, output_dir: Path):
-    logging.info(f"Loading the preprocessed dataset from {preprocessing_path}")
+def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, history_train: Path, history_val: Path,articles: Path, embeddings_path: Path):
+    print(f"Loading the preprocessed dataset from {preprocessing_path}")
     
     articles = pl.read_parquet(articles)
 
@@ -42,12 +42,13 @@ def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, 
     associations = {
         'google-bert/bert-base-multilingual-cased':  embeddings[0],
         'contrastive_vector' : embeddings[1],
-        'title_embedding': embeddings[2],
+        'distilbert': embeddings[2],
         'document_vector': embeddings[3],
         'emotion_scores':  embeddings[4],
-        'kenneth_title+subtitle': embeddings[5],
+        'kenneth': embeddings[5],
         'FacebookAI/xlm-roberta-base': embeddings[6],     
     }
+   
 
     for k,value in associations.items():
         ICM_dataframe = value.join(articles, on='article_id').select(['article_id',k]).with_columns(
@@ -66,6 +67,9 @@ def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, 
                         shape = (n_articles, n_features))
     
         ICMs.append(ICM)
+
+
+    
 
 
     
@@ -184,8 +188,9 @@ def main(preprocessing_path: Path, behaviors_train: Path, behaviors_val : Path, 
 
 
     )
-
-    new_prepro.write_parquet(output_dir.joinpath('train_ds.parquet'))
+    print(f'Preprocessing Complete!')
+    print(f"Writing the preprocessed dataset to {preprocessing_path}")
+    new_prepro.write_parquet(preprocessing_path)
 
     
 
@@ -206,8 +211,7 @@ if __name__ == '__main__':
                         help="Specify the articles.")
     parser.add_argument("-embeddings_directory", default=None, type=str,required=True,
                         help="Specify the directory where the embeddings can be found, MUST BE a directory with only the files .parquet referring to embeddings, no other file has to be present")
-    parser.add_argument("-output_path", default=None, type=str,required=True,
-                        help="Specify the directory where the new preprocessing is placed")
+    
     
     args = parser.parse_args()
     PREPROCESSING_DIR = Path(args.preprocessing_path)
@@ -217,14 +221,13 @@ if __name__ == '__main__':
     HISTORY_VAL = Path(args.history_val)
     EMBEDDINGS_DIR = Path(args.embeddings_directory)
     ARTICLES = Path(args.articles)
-    OUTPUT_DIR = Path(args.output_path)
+    
     
     
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    log_path = OUTPUT_DIR.joinpath("log.txt")    
-    logging.basicConfig(filename=log_path, filemode="w", format=LOGGING_FORMATTER, level=logging.INFO, force=True)
+    
+    
     
     stdout_handler = logging.StreamHandler()
     stdout_handler.setFormatter(logging.Formatter(LOGGING_FORMATTER))
@@ -232,4 +235,4 @@ if __name__ == '__main__':
     root_logger = logging.getLogger()
     root_logger.addHandler(stdout_handler)
     
-    main(PREPROCESSING_DIR,BEHAVIORS_TRAIN,BEHAVIORS_VAL,HISTORY_TRAIN,HISTORY_VAL,ARTICLES,EMBEDDINGS_DIR,OUTPUT_DIR)
+    main(PREPROCESSING_DIR,BEHAVIORS_TRAIN,BEHAVIORS_VAL,HISTORY_TRAIN,HISTORY_VAL,ARTICLES,EMBEDDINGS_DIR)

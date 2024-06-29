@@ -50,9 +50,13 @@ def main(PATH, OUTPATH):
     embeddings = F.normalize(embeddings, p=2, dim=1)
 
     kenneth = pl.DataFrame({
-    'embeddings': embeddings.tolist(),
-    'articles_id': article_ids
+    'kenneth': embeddings.tolist(),
+    'article_id': article_ids
     })
+
+    kenneth = kenneth.with_columns(
+        pl.col('article_id').cast(pl.Int32)
+    )
 
     Path(OUTPATH).mkdir(parents=True, exist_ok=True)
     kenneth.write_parquet(OUTPATH  + '/kenneth.parquet')

@@ -41,9 +41,13 @@ def main(PATH, OUTPATH):
     embeddings = F.normalize(embeddings, p=2, dim=1)
 
     distilbert_title = pl.DataFrame({
-    'embeddings': embeddings.tolist(),
-    'articles_id': article_ids
+    'distilbert': embeddings.tolist(),
+    'article_id': article_ids
     })
+
+    distilbert_title = distilbert_title.with_columns(
+        pl.col('article_id').cast(pl.Int32)
+    )
 
 
     Path(OUTPATH).mkdir(parents=True, exist_ok=True)

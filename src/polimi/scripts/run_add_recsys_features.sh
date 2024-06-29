@@ -6,5 +6,4 @@ python ~/RecSysChallenge2024/src/polimi/scripts/add_recsys_features.py \
     -articles ~/RecSysChallenge2024/dataset/ebnerd_demo/articles.parquet\
     -preprocessing_path ~/RecSysChallenge2024/preprocessing/train_ds.parquet \
     -embeddings_directory ~/RecSysChallenge2024/dataset/embeddings \
-    -output_path ~/RecSysChallenge2024/preprocessing/train_ds.parquet
     
