@@ -135,10 +135,10 @@ The following table shows the hyperparameters used for each model and each prepr
 | **Catboost**         | Ranker       | `/home/ubuntu/RecSysChallenge2024/configuration_files/catboost_ranker_new_noK_95.json`                   |
 | **LightGBM**         | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/lightgbm_cls_recsys_trial_107.json`               |
 | **LightGBM**         | Ranker       | `/home/ubuntu/RecSysChallenge2024/configuration_files/lightgbm_ranker_recsys_trial_219.json`                   |
-| **MLP**              | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/mlp_tuning_new_trial_208.json`                    |
-| **GANDALF**          | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/gandalf_new_noK_130.json`                |
-| **DEEP & CROSS**     | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/deep_cross_tuning_new_trial_67.json`             |
-| **WIDE & DEEP**      | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/wide_deep_new_trial_72.json`              |
+| **MLP**              | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/mlp_tuning_new_trial_208_early_stopped_long_with_pre.json`                    |
+| **GANDALF**          | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/gandalf_tuning_new_trial_130_early_stopped_with_pre.json`                |
+| **DEEP & CROSS**     | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/deep_cross_tuning_new_trial_67_early_stopped_with_pre.json`             |
+| **WIDE & DEEP**      | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/wide_deep_new_trial_72_early_stopped_with_pre.json`              |
 
 Note that to train each of this model the path of the desired preprocessing version is required, along with the correct configuration file path. Pass them as command line arguments.
 
@@ -206,7 +206,7 @@ python ~/RecSysChallenge2024/src/polimi/scripts/inference.py \
 Otherwise, for NN models
 
 ```bash
-python ~/RecSysChallenge2024/src/polimi/scripts/nn_inference.py \
+python ~/RecSysChallenge2024/src/polimi/scripts/nn_inference_batched.py \
     -output_dir ~/RecSysChallenge2024/inference \
     -dataset_path ~/RecSysChallenge2024/preprocessing/... \
     -model_path ~/RecSysChallenge2024/models/{model_name} \
