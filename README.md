@@ -59,7 +59,7 @@ The first step is to download the dataset ``.parquet`` files and place it in the
 
 ### Preprocessing
 
-script to create the preprocessing:
+To create the preprocessing:
 ```bash
 sh ~/RecSysChallenge2024/src/polimi/scripts/run_all_preprocessing.sh
 ```
