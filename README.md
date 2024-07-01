@@ -101,14 +101,14 @@ The following table shows the hyperparameters used for each model and each prepr
 
 | **Model**            | **Type**     | **Configuration Path**                                  |
 |----------------------|--------------|----------------------------------------------------------|
-| **Catboost**         | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/catboost_classifier_recsys_best.json`            |   |
-| **Catboost**         | Ranker       | `/home/ubuntu/RecSysChallenge2024/configuration_files/catboost_ranker_new_noK_95.json`                   |
-| **LightGBM**         | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/lightgbm_cls_recsys_trial_107.json`               |
-| **LightGBM**         | Ranker       | `/home/ubuntu/RecSysChallenge2024/configuration_files/lightgbm_ranker_recsys_trial_219.json`                   |
-| **MLP**              | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/mlp_tuning_new_trial_208_early_stopped_long_with_pre.json`                    |
-| **GANDALF**          | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/gandalf_tuning_new_trial_130_early_stopped_with_pre.json`                |
-| **DEEP & CROSS**     | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/deep_cross_tuning_new_trial_67_early_stopped_with_pre.json`             |
-| **WIDE & DEEP**      | Classifier   | `/home/ubuntu/RecSysChallenge2024/configuration_files/wide_deep_new_trial_72_early_stopped_with_pre.json`              |
+| **Catboost**         | Classifier   | `~/RecSysChallenge2024/configuration_files/catboost_classifier_recsys_best.json`            |   |
+| **Catboost**         | Ranker       | `~/RecSysChallenge2024/configuration_files/catboost_ranker_new_noK_95.json`                   |
+| **LightGBM**         | Classifier   | `~/RecSysChallenge2024/configuration_files/lightgbm_cls_recsys_trial_107.json`               |
+| **LightGBM**         | Ranker       | `~/RecSysChallenge2024/configuration_files/lightgbm_ranker_recsys_trial_219.json`                   |
+| **MLP**              | Classifier   | `~/RecSysChallenge2024/configuration_files/mlp_tuning_new_trial_208_early_stopped_long_with_pre.json`                    |
+| **GANDALF**          | Classifier   | `~/RecSysChallenge2024/configuration_files/gandalf_tuning_new_trial_130_early_stopped_with_pre.json`                |
+| **DEEP & CROSS**     | Classifier   | `~/RecSysChallenge2024/configuration_files/deep_cross_tuning_new_trial_67_early_stopped_with_pre.json`             |
+| **WIDE & DEEP**      | Classifier   | `~/RecSysChallenge2024/configuration_files/wide_deep_new_trial_72_early_stopped_with_pre.json`              |
 
 Note that to train each of this model the path of the desired preprocessing version is required, along with the correct configuration file path. Pass them as command line arguments.
 
